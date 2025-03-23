@@ -80,7 +80,7 @@
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-unused-imports": "4.1.4",
-    "postcss": "8.4.49",
+    "postcss": "8.5.3",
     "prettier": "3.3.3",
     "shiki": "^3.2.1",
     "tailwind-variants": "1.0.0",
