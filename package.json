@@ -62,7 +62,7 @@
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@next/eslint-plugin-next": "15.0.4",
-    "@react-types/shared": "3.25.0",
+    "@react-types/shared": "3.28.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "22.13.11",
     "@types/react": "^19.0.12",
