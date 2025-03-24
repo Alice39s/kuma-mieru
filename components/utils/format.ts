@@ -113,7 +113,11 @@ export function extractSentence(markdown: string): string {
   });
 
   const content = contentLines.join(' ');
-  const noHtml = content.replace(/<[^>]+>/g, '');
+  const sanitizeHtml = require('sanitize-html');
+  const noHtml = sanitizeHtml(content, {
+    allowedTags: [],
+    allowedAttributes: {}
+  });
   const cleaned = noHtml.replace(/\s+/g, ' ').trim();
 
   const match = cleaned.match(/[^.!?]+[.!?]/);
