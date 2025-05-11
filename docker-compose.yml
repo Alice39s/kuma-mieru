@@ -1,8 +1,8 @@
 services:
   kuma-mieru:
-    # image: ghcr.io/alice39s/kuma-mieru:latest # 还在测试中，建议 build 安装
-    # image: kuma-mieru
-    build: .
+    image: ghcr.io/alice39s/kuma-mieru:latest
+    # 如果遇到问题，请注释上方的 image 行，取消下面的 build 行注释
+    # build: .
     container_name: kuma-mieru
     restart: unless-stopped
     ports:
