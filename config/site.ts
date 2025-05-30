@@ -1,5 +1,7 @@
 'use client';
 
+import { resolveIconUrl } from '@/utils/url';
+import { getConfigForPage } from './api';
 import { env } from './env';
 
 const baseConfig = {
@@ -15,11 +17,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  {
-    label: 'page.main',
-    href: '/',
-    external: false,
-  },
+  // {
+  //   label: 'page.main',
+  //   href: '/',
+  //   external: false,
+  // },
   {
     label: 'page.edit',
     href: `${env.config.baseUrl}/manage-status-page`,
@@ -27,22 +29,23 @@ const navItems: NavItem[] = [
   },
 ];
 
-const resolveIconUrl = (iconPath?: string): string => {
-  if (!iconPath) return baseConfig.icon;
-
-  return iconPath.startsWith('http')
-    ? iconPath
-    : `${env.config.baseUrl}/${iconPath.replace(/^\//, '')}`;
-};
-
 const getVisibleNavItems = (items: NavItem[]): NavItem[] => {
   return items.filter((item) => (item.label !== 'page.edit' ? true : env.config.isEditThisPage));
 };
 
+const defaultPage =
+  env.config.pages.find((page) => page.id === env.config.defaultPageId) || env.config.pages[0];
+
+const siteMeta = defaultPage?.siteMeta || {
+  title: baseConfig.name,
+  description: baseConfig.description,
+  icon: baseConfig.icon,
+};
+
 export const siteConfig = {
-  name: env.config.siteMeta.title || baseConfig.name,
-  description: env.config.siteMeta.description || baseConfig.description,
-  icon: resolveIconUrl(env.config.siteMeta.icon),
+  name: siteMeta.title || baseConfig.name,
+  description: siteMeta.description || baseConfig.description,
+  icon: resolveIconUrl(siteMeta.icon, env.config.baseUrl),
   navItems: getVisibleNavItems(navItems),
   navMenuItems: getVisibleNavItems(navItems),
   links: {

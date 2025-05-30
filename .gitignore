@@ -52,3 +52,5 @@ dist/
 
 @*.md
 p*.md
+
+test-*.ts

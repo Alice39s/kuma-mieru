@@ -1,9 +1,11 @@
-import type { GeneratedConfig } from '@/config/types';
+import type { GeneratedConfig, PageConfig, SiteMeta } from '@/config/types';
 import type { Incident, MonitorGroup } from './monitor';
 
 export interface Config extends GeneratedConfig {
   htmlEndpoint: string;
   apiEndpoint: string;
+  currentPageId: string; // 当前选中的页面ID
+  siteMeta: SiteMeta; // 当前页面的站点元数据
 }
 
 export interface SiteConfig {

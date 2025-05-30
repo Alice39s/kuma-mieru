@@ -1,11 +1,12 @@
 'use client';
+import { apiConfig } from '@/config/api';
 import type { MonitorCardProps } from '@/types/monitor';
 import { Button, Card, CardBody, CardHeader, Chip, Divider, Tooltip } from '@heroui/react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
 import { AlertCircle, CheckCircle2, LayoutList, MinusCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { MonitorCardLite } from './MonitorCardLite';
 import { MonitoringChart } from './charts/MonitoringChart';
@@ -21,8 +22,19 @@ export function MonitorCard({
   isHome = true,
   isLiteView: externalLiteView,
   disableViewToggle = false,
+  pageId: externalPageId,
 }: MonitorCardProps) {
   const router = useRouter();
+  const params = useParams();
+  const searchParams = useSearchParams();
+
+  // 使用传入的pageId，如果没有传入则尝试从URL或默认配置中获取
+  const pageId =
+    externalPageId ||
+    (params?.pageId as string) ||
+    searchParams.get('pageId') ||
+    apiConfig.defaultPageId;
+
   const [isSafari, setIsSafari] = useState(false);
   const [localLiteView, setLocalLiteView] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -72,7 +84,8 @@ export function MonitorCard({
 
   const handleClick = () => {
     if (isHome) {
-      router.push(`/monitor/${monitor.id}`);
+      // 在URL中包含pageId参数
+      router.push(`/monitor/${monitor.id}?pageId=${pageId}`);
     }
   };
 
@@ -90,6 +103,7 @@ export function MonitorCard({
         isHome={isHome}
         onToggleView={toggleView}
         disableViewToggle={disableViewToggle}
+        pageId={pageId}
       />
     );
   }

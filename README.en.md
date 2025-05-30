@@ -45,6 +45,7 @@ Built with Next.js 15, TypeScript, and Recharts, this project enhances Uptime Ku
   - [Using Docker Compose (Recommended)](#using-docker-compose-recommended)
   - [Manual Docker Deployment](#manual-docker-deployment)
   - [Environment Variables](#environment-variables)
+  - [Multi-page Support Configuration](#multi-page-support-configuration)
   - [Health Check](#health-check)
 - [Integration with Uptime Kuma :link:](#integration-with-uptime-kuma-link)
 - [FAQ :question:](#faq-question)
@@ -248,15 +249,28 @@ First, assume your Uptime Kuma status page URL is `https://example.kuma-mieru.in
 
 Then, the environment variables you need to configure are as follows:
 
-| Variable Name            | Required | Description                             | Example                            |
-| ------------------------ | -------- | --------------------------------------- | ---------------------------------- |
-| UPTIME_KUMA_BASE_URL     | Yes      | Base URL of Uptime Kuma instance        | https://example.kuma-mieru.invalid |
-| PAGE_ID                  | Yes      | Status page path of Uptime Kuma         | test1                              |
-| FEATURE_EDIT_THIS_PAGE   | No       | Whether to show "Edit This Page" button | false                              |
-| FEATURE_SHOW_STAR_BUTTON | No       | Whether to show "Star on Github" button | true                               |
-| FEATURE_TITLE            | No       | Custom page title                       | My Monitoring Dashboard            |
-| FEATURE_DESCRIPTION      | No       | Custom page description                 | A beautiful monitoring dashboard   |
-| FEATURE_ICON             | No       | Custom page icon URL                    | /icon.svg                          |
+| Variable Name            | Required | Description                                     | Example/Default                    |
+| ------------------------ | -------- | ----------------------------------------------- | ---------------------------------- |
+| UPTIME_KUMA_BASE_URL     | Yes      | Base URL of Uptime Kuma instance                | https://example.kuma-mieru.invalid |
+| PAGE_ID                  | Yes      | Status page path of Uptime Kuma                 | test1                              |
+| PAGE_IDS                 | No       | Support multiple status pages (comma-separated) | test1,test2,test3                  |
+| FEATURE_EDIT_THIS_PAGE   | No       | Whether to show "Edit This Page" button         | false                              |
+| FEATURE_SHOW_STAR_BUTTON | No       | Whether to show "Star on Github" button         | true                               |
+| FEATURE_TITLE            | No       | Custom page title                               | My Monitoring Dashboard            |
+
+### Multi-page Support Configuration
+
+Starting from v1.4.0, Kuma Mieru supports configuring multiple status pages. You can configure it as follows:
+
+1. Set the `PAGE_IDS` environment variable, separating different page IDs with commas, for example: `test1,test2,test3`
+2. The first page in `PAGE_IDS` will be used as the default page.
+
+After configuration, you can access different status pages via the following URLs:
+
+- Default page: `https://your-kuma-mieru.com/`
+- Specific page: `https://your-kuma-mieru.com/test2` (access the page with ID test2)
+
+Each page can have its own independent configuration, including different titles, descriptions, and icons, which are fetched from the corresponding status page in Uptime Kuma.
 
 ### Health Check
 

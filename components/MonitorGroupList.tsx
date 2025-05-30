@@ -2,10 +2,12 @@
 
 import { MonitorCard } from '@/components/MonitorCard';
 import { MonitorCardSkeleton } from '@/components/ui/CommonSkeleton';
+import { apiConfig } from '@/config/api';
 import type { MonitorGroup, MonitoringData } from '@/types/monitor';
 import { Button, Chip } from '@heroui/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
+import { useParams, useSearchParams } from 'next/navigation';
 
 interface EnhancedMonitorGroup extends MonitorGroup {
   isGroupMatched?: boolean;
@@ -18,6 +20,7 @@ interface MonitorGroupListProps {
   isFiltering: boolean;
   isGlobalLiteView: boolean;
   clearSearch: () => void;
+  pageId?: string; // 可选的页面ID参数
 }
 
 export default function MonitorGroupList({
@@ -27,8 +30,18 @@ export default function MonitorGroupList({
   isFiltering,
   isGlobalLiteView,
   clearSearch,
+  pageId: externalPageId,
 }: MonitorGroupListProps) {
   const t = useTranslations();
+  const params = useParams();
+  const searchParams = useSearchParams();
+
+  // 使用传入的pageId，如果没有则从URL或默认配置获取
+  const pageId =
+    externalPageId ||
+    (params?.pageId as string) ||
+    searchParams.get('pageId') ||
+    apiConfig.defaultPageId;
 
   if (isLoading) {
     return (
@@ -95,6 +108,7 @@ export default function MonitorGroupList({
                       isHome={true}
                       isLiteView={isGlobalLiteView}
                       disableViewToggle={true}
+                      pageId={pageId}
                     />
                   </motion.div>
                 ))}

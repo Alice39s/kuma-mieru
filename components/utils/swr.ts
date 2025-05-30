@@ -1,3 +1,4 @@
+import { getConfigForPage } from '@/config/api';
 import type { GlobalConfig, Maintenance } from '@/types/config';
 import type { MonitorResponse, MonitoringData } from '@/types/monitor';
 import useSWR, { mutate } from 'swr';
@@ -21,6 +22,17 @@ const fetcher = async (url: string) => {
 };
 
 /**
+ * 获取特定页面的API URL
+ * @param baseUrl - API基础URL
+ * @param pageId - 页面ID
+ * @returns 带有pageId参数的URL
+ */
+const getPageUrl = (baseUrl: string, pageId?: string) => {
+  if (!pageId) return baseUrl;
+  return `${baseUrl}?pageId=${pageId}`;
+};
+
+/**
  * SWR Cache Key
  */
 export const SWR_KEYS = {
@@ -40,16 +52,19 @@ const DEFAULT_SWR_CONFIG: SWRConfiguration = {
 
 /**
  * 获取监控数据的 hook
+ * @param pageId - 页面ID（可选）
  * @param config - SWR 配置
  * @returns 监控数据、加载状态和错误信息
  */
-export function useMonitorData(config?: SWRConfiguration) {
+export function useMonitorData(pageId?: string, config?: SWRConfiguration) {
+  const url = getPageUrl(SWR_KEYS.MONITOR, pageId);
+
   const {
     data,
     error,
     isLoading,
     mutate: revalidate,
-  } = useSWR<MonitorResponse>(SWR_KEYS.MONITOR, fetcher, {
+  } = useSWR<MonitorResponse>(url, fetcher, {
     ...DEFAULT_SWR_CONFIG,
     refreshInterval: 60000, // 每60秒刷新一次
     ...config,
@@ -68,18 +83,20 @@ export function useMonitorData(config?: SWRConfiguration) {
 /**
  * 获取单个 monitor 数据
  * @param monitorId - 监控 ID
+ * @param pageId - 页面ID（可选）
  * @param config - SWR 配置选项
  * @returns 特定监控的数据、加载状态和错误信息
  */
-export function useMonitor(monitorId: number | string, config?: SWRConfiguration) {
+export function useMonitor(monitorId: number | string, pageId?: string, config?: SWRConfiguration) {
   const numericId = typeof monitorId === 'string' ? Number.parseInt(monitorId, 10) : monitorId;
+  const url = getPageUrl(SWR_KEYS.MONITOR, pageId);
 
   const {
     data,
     error,
     isLoading,
     mutate: revalidate,
-  } = useSWR<MonitorResponse>(SWR_KEYS.MONITOR, fetcher, {
+  } = useSWR<MonitorResponse>(url, fetcher, {
     ...DEFAULT_SWR_CONFIG,
     refreshInterval: 60000,
     ...config,
@@ -110,16 +127,19 @@ export function useMonitor(monitorId: number | string, config?: SWRConfiguration
 
 /**
  * 获取 SWR 全局配置
+ * @param pageId - 页面ID（可选）
  * @param config - SWR 配置选项
  * @returns 全局配置数据、加载状态和错误信息
  */
-export function useConfig(config?: SWRConfiguration) {
+export function useConfig(pageId?: string, config?: SWRConfiguration) {
+  const url = getPageUrl(SWR_KEYS.CONFIG, pageId);
+
   const {
     data,
     error,
     isLoading,
     mutate: revalidate,
-  } = useSWR<GlobalConfig>(SWR_KEYS.CONFIG, fetcher, {
+  } = useSWR<GlobalConfig>(url, fetcher, {
     ...DEFAULT_SWR_CONFIG,
     revalidateIfStale: false, // 除非明确要求，否则不重新验证陈旧数据
     ...config,
@@ -136,16 +156,19 @@ export function useConfig(config?: SWRConfiguration) {
 
 /**
  * 获取维护计划数据的 hook
+ * @param pageId - 页面ID（可选）
  * @param config - SWR 配置选项
  * @returns 维护计划数据、加载状态和错误信息
  */
-export function useMaintenanceData(config?: SWRConfiguration) {
+export function useMaintenanceData(pageId?: string, config?: SWRConfiguration) {
+  const url = getPageUrl(SWR_KEYS.CONFIG, pageId);
+
   const {
     data,
     error,
     isLoading,
     mutate: revalidate,
-  } = useSWR<GlobalConfig>(SWR_KEYS.CONFIG, fetcher, {
+  } = useSWR<GlobalConfig>(url, fetcher, {
     ...DEFAULT_SWR_CONFIG,
     refreshInterval: 60000, // 每60秒刷新一次
     ...config,
@@ -162,13 +185,12 @@ export function useMaintenanceData(config?: SWRConfiguration) {
 
 /**
  * 数据刷新 hook
- * @param key - 需要重新验证的缓存键
+ * @param pageId - 页面ID（可选）
  * @returns Promise，完成后数据会被更新
  */
-export function revalidateData(key?: string) {
-  if (key) {
-    return mutate(key);
-  }
+export function revalidateData(pageId?: string) {
+  const monitorUrl = getPageUrl(SWR_KEYS.MONITOR, pageId);
+  const configUrl = getPageUrl(SWR_KEYS.CONFIG, pageId);
 
-  return Promise.all([mutate(SWR_KEYS.MONITOR), mutate(SWR_KEYS.CONFIG)]);
+  return Promise.all([mutate(monitorUrl), mutate(configUrl)]);
 }

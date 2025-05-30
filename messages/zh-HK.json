@@ -64,7 +64,8 @@
     "toolbar": "工具列",
     "mobileToolbar": "流動版工具列",
     "mobileNav": "流動版主導航欄",
-    "search": "搜尋"
+    "search": "搜尋",
+    "pageSelect": "選擇狀態頁"
   },
   "mode": {
     "light": "淺色模式",
@@ -75,7 +76,8 @@
   "safariWarning": "暫不支援 Safari 瀏覽器",
   "view": {
     "switchToLite": "切換至精簡檢視",
-    "switchToFull": "切換至完整檢視"
+    "switchToFull": "切換至完整檢視",
+    "safariWarning": "暫不支持 Safari"
   },
   "maintenance": {
     "default": "計劃維護中",

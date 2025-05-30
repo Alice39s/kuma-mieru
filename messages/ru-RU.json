@@ -64,7 +64,8 @@
     "toolbar": "Панель инструментов",
     "mobileToolbar": "Моб. панель",
     "mobileNav": "Моб. навигация",
-    "search": "Поиск"
+    "search": "Поиск",
+    "pageSelect": "Выберите страницу статуса"
   },
   "mode": {
     "light": "Светлая тема",
@@ -75,7 +76,8 @@
   "safariWarning": "Safari не поддерживается",
   "view": {
     "switchToLite": "Упрощенный вид",
-    "switchToFull": "Полный вид"
+    "switchToFull": "Полный вид",
+    "safariWarning": "Еще не поддерживается"
   },
   "maintenance": {
     "default": "Плановое обслуживание",
