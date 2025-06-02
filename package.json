@@ -70,7 +70,7 @@
     "@next/eslint-plugin-next": "15.3.0",
     "@react-types/shared": "3.28.0",
     "@tailwindcss/typography": "^0.5.16",
-    "@types/node": "22.13.14",
+    "@types/node": "22.15.29",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
     "@typescript-eslint/eslint-plugin": "8.30.1",
