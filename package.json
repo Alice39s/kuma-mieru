@@ -77,7 +77,7 @@
     "@typescript-eslint/parser": "8.29.1",
     "autoprefixer": "10.4.21",
     "dotenv": "^16.5.0",
-    "postcss": "8.5.3",
+    "postcss": "8.5.4",
     "prettier": "3.5.3",
     "shiki": "^3.4.2",
     "tailwind-variants": "1.0.0",
