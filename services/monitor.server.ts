@@ -1,5 +1,6 @@
 import { apiConfig } from '@/config/api';
 import { getPreloadData } from '@/services/config.server';
+import type { Config } from '@/types/config';
 import type { HeartbeatData, MonitorGroup, MonitoringData, UptimeData } from '@/types/monitor';
 import { customFetchOptions, ensureUTCTimezone } from './utils/common';
 import { customFetch } from './utils/fetch';
@@ -30,13 +31,16 @@ class MonitorDataError extends Error {
   }
 }
 
-export async function getMonitoringData(): Promise<{
+export async function getMonitoringData(config?: Config): Promise<{
   monitorGroups: MonitorGroup[];
   data: MonitoringData;
 }> {
   try {
+    // 使用传入的配置或默认配置
+    const currentConfig = config || apiConfig;
+
     // 使用共享的预加载数据获取函数
-    const preloadData = await getPreloadData();
+    const preloadData = await getPreloadData(currentConfig);
 
     // 验证监控组数据
     if (!Array.isArray(preloadData.publicGroupList)) {
@@ -44,7 +48,7 @@ export async function getMonitoringData(): Promise<{
     }
 
     // 获取监控数据
-    const apiResponse = await customFetch(apiConfig.apiEndpoint, customFetchOptions);
+    const apiResponse = await customFetch(currentConfig.apiEndpoint, customFetchOptions);
 
     if (!apiResponse.ok) {
       throw new MonitorDataError(
@@ -102,7 +106,7 @@ export async function getMonitoringData(): Promise<{
                 cause: error.cause,
               }
             : error,
-        endpoint: apiConfig.apiEndpoint,
+        endpoint: config?.apiEndpoint || apiConfig.apiEndpoint,
       },
     );
 

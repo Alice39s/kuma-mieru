@@ -2,13 +2,13 @@
 
 import { Alert } from '@/components/ui/Alert';
 import type { Maintenance } from '@/types/config';
-import { Progress, Card, CardBody, Chip } from '@heroui/react';
-import { AlertCircle, Clock, Wrench, Calendar, Timer } from 'lucide-react';
+import { Card, CardBody, Chip, Progress } from '@heroui/react';
+import clsx from 'clsx';
+import { AlertCircle, Calendar, Clock, Timer, Wrench } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import React, { useEffect } from 'react';
 import { dateStringToTimestamp } from '../utils/format';
 import { getMarkdownClasses, useMarkdown } from '../utils/markdown';
-import clsx from 'clsx';
 
 function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
   const t = useTranslations('maintenance');
@@ -75,7 +75,7 @@ function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
       const elapsed = now - startTime;
       const progressPercent = Math.min(
         Math.max(Math.floor((elapsed / totalDuration) * 100), 0),
-        100
+        100,
       );
 
       return (
@@ -93,7 +93,7 @@ function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
               <div
                 className={clsx(
                   'my-4 w-full rounded-lg border border-amber-200/50 dark:border-amber-700/50 prose-amber prose-sm prose-p:m-0',
-                  getMarkdownClasses()
+                  getMarkdownClasses(),
                 )}
               >
                 <div

@@ -4,10 +4,11 @@ import AutoRefresh from '@/components/AutoRefresh';
 import { MonitorCard } from '@/components/MonitorCard';
 import { MonitorCardSkeleton } from '@/components/ui/CommonSkeleton';
 import { revalidateData, useMonitor } from '@/components/utils/swr';
+import { apiConfig } from '@/config/api';
 import { motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
-import { useRouter } from 'next/navigation';
-import { use } from 'react';
+import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { use, useEffect, useState } from 'react';
 
 const pageVariants = {
   initial: {
@@ -31,29 +32,28 @@ const pageVariants = {
   },
 };
 
-export default function MonitorDetail({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function MonitorDetail({ params }: { params: Promise<{ id: string }> }) {
   const t = useTranslations();
   const resolvedParams = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const { monitor, monitoringData, isLoading, isError, error } = useMonitor(resolvedParams.id);
+  // 从URL查询参数获取pageId，如果没有则使用默认pageId
+  const pageId = searchParams.get('pageId') || apiConfig.defaultPageId;
+
+  const { monitor, monitoringData, isLoading, isError, error } = useMonitor(
+    resolvedParams.id,
+    pageId,
+  );
 
   const handleRefresh = async () => {
-    await revalidateData();
+    await revalidateData(pageId);
   };
 
   const handleBack = () => {
     try {
-      router.back();
-      setTimeout(() => {
-        if (window.location.pathname === `/monitor/${resolvedParams.id}`) {
-          router.push('/');
-        }
-      }, 500);
+      // 返回到对应的状态页
+      router.push(`/${pageId}`);
     } catch {
       router.push('/');
     }

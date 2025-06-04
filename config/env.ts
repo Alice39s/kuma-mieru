@@ -2,15 +2,25 @@ import { z } from 'zod';
 import generatedConfig from './generated-config.json';
 import type { GeneratedConfig } from './types';
 
+// 验证站点元数据
+const siteMetaSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  icon: z.string(),
+});
+
+// 验证页面配置
+const pageConfigSchema = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  siteMeta: siteMetaSchema,
+});
+
 // 验证生成的配置
 const configSchema = z.object({
   baseUrl: z.string().url(),
-  pageId: z.string(),
-  siteMeta: z.object({
-    title: z.string(),
-    description: z.string(),
-    icon: z.string(),
-  }),
+  defaultPageId: z.string(),
+  pages: z.array(pageConfigSchema),
   isPlaceholder: z.boolean(),
   isEditThisPage: z.boolean(),
   isShowStarButton: z.boolean(),

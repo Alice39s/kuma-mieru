@@ -1,5 +1,5 @@
 import { apiConfig } from '@/config/api';
-import type { GlobalConfig, Maintenance } from '@/types/config';
+import type { Config, GlobalConfig, Maintenance } from '@/types/config';
 import { ConfigError } from '@/utils/errors';
 import { extractPreloadData } from '@/utils/json-processor';
 import { sanitizeJsonString } from '@/utils/json-sanitizer';
@@ -44,11 +44,13 @@ function processMaintenanceData(maintenanceList: Maintenance[]): Maintenance[] {
 
 /**
  * 获取维护计划数据
+ * @param config - 可选的配置对象
  * @returns 处理后的维护计划数据
  */
-export async function getMaintenanceData() {
+export async function getMaintenanceData(config?: Config) {
   try {
-    const preloadData = await getPreloadData();
+    const currentConfig = config || apiConfig;
+    const preloadData = await getPreloadData(currentConfig);
 
     if (!Array.isArray(preloadData.maintenanceList)) {
       throw new ApiDataError('Maintenance list data must be an array');
@@ -62,8 +64,9 @@ export async function getMaintenanceData() {
       maintenanceList: processedList,
     };
   } catch (error) {
+    const currentConfig = config || apiConfig;
     logApiError('get maintenance data', error, {
-      endpoint: `${apiConfig.apiEndpoint}/maintenance`,
+      endpoint: `${currentConfig.apiEndpoint}/maintenance`,
     });
 
     return {
@@ -74,9 +77,10 @@ export async function getMaintenanceData() {
   }
 }
 
-export const getGlobalConfig = cache(async (): Promise<GlobalConfig> => {
+export const getGlobalConfig = cache(async (config?: Config): Promise<GlobalConfig> => {
   try {
-    const preloadData = await getPreloadData();
+    const currentConfig = config || apiConfig;
+    const preloadData = await getPreloadData(currentConfig);
 
     if (!preloadData.config) {
       throw new ConfigError('Configuration data is missing');
@@ -101,10 +105,10 @@ export const getGlobalConfig = cache(async (): Promise<GlobalConfig> => {
           ? 'light'
           : 'system';
 
-    const maintenanceData = await getMaintenanceData();
+    const maintenanceData = await getMaintenanceData(currentConfig);
     const maintenanceList = maintenanceData.maintenanceList || [];
 
-    const config: GlobalConfig = {
+    const globalConfig: GlobalConfig = {
       config: {
         ...preloadData.config,
         theme,
@@ -119,7 +123,7 @@ export const getGlobalConfig = cache(async (): Promise<GlobalConfig> => {
       maintenanceList: maintenanceList,
     };
 
-    return config;
+    return globalConfig;
   } catch (error) {
     console.error(
       'Failed to get configuration data:',
@@ -147,9 +151,11 @@ export const getGlobalConfig = cache(async (): Promise<GlobalConfig> => {
   }
 });
 
-export async function getPreloadData() {
+export async function getPreloadData(config?: Config) {
+  const currentConfig = config || apiConfig;
+
   try {
-    const htmlResponse = await customFetch(apiConfig.htmlEndpoint, customFetchOptions);
+    const htmlResponse = await customFetch(currentConfig.htmlEndpoint, customFetchOptions);
 
     if (!htmlResponse.ok) {
       throw new ConfigError(
@@ -188,7 +194,7 @@ export async function getPreloadData() {
       throw error;
     }
     console.error('Failed to get preload data:', {
-      endpoint: apiConfig.htmlEndpoint,
+      endpoint: currentConfig.htmlEndpoint,
       error:
         error instanceof Error
           ? {

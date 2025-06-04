@@ -52,3 +52,5 @@ bun.lock
 
 @*.md
 p*.md
+
+test-*.ts
