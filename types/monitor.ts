@@ -112,4 +112,18 @@ export interface MonitorCardProps {
   isHome?: boolean;
   isLiteView?: boolean;
   disableViewToggle?: boolean;
+  pageId?: string; // 用于传递状态页ID
+}
+
+/*
+ * Monitor Card Lite Props
+ */
+export interface MonitorCardLiteProps {
+  monitor: Monitor;
+  heartbeats: Heartbeat[];
+  uptime24h: number;
+  isHome?: boolean;
+  onToggleView: (e: React.MouseEvent) => void;
+  disableViewToggle?: boolean;
+  pageId?: string; // 用于传递状态页ID
 }

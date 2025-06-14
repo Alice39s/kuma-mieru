@@ -64,7 +64,8 @@
     "toolbar": "工具栏",
     "mobileToolbar": "移动端工具栏",
     "mobileNav": "移动端主导航栏",
-    "search": "搜索"
+    "search": "搜索",
+    "pageSelect": "选择状态页"
   },
   "mode": {
     "light": "浅色模式",
@@ -75,7 +76,8 @@
   "safariWarning": "暂不支持 Safari 浏览器",
   "view": {
     "switchToLite": "切换到精简视图",
-    "switchToFull": "切换到完整视图"
+    "switchToFull": "切换到完整视图",
+    "safariWarning": "暂不支持 Safari"
   },
   "maintenance": {
     "default": "计划维护中",

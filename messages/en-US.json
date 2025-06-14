@@ -64,7 +64,8 @@
     "toolbar": "Toolbar",
     "mobileToolbar": "Mobile toolbar",
     "mobileNav": "Mobile navigation",
-    "search": "Search"
+    "search": "Search",
+    "pageSelect": "Select a status page"
   },
   "mode": {
     "light": "Light",
@@ -75,7 +76,8 @@
   "safariWarning": "Safari browser is not supported yet",
   "view": {
     "switchToLite": "Switch to Lite View",
-    "switchToFull": "Switch to Full View"
+    "switchToFull": "Switch to Full View",
+    "safariWarning": "Not supported yet"
   },
   "maintenance": {
     "default": "Under Scheduled Maintenance",

@@ -1,4 +1,5 @@
-import type { MonitorCardProps } from '@/types/monitor';
+import { apiConfig } from '@/config/api';
+import type { MonitorCardLiteProps } from '@/types/monitor';
 import { Button, Card, CardBody, Chip, Tooltip } from '@heroui/react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
@@ -8,11 +9,6 @@ import { useRouter } from 'next/navigation';
 import { ResponsStats } from './charts/ResponsStats';
 import { StatusBlockIndicator } from './charts/StatusBlockIndicator';
 
-interface MonitorCardLiteProps extends MonitorCardProps {
-  onToggleView: (e: React.MouseEvent) => void;
-  disableViewToggle?: boolean;
-}
-
 export function MonitorCardLite({
   monitor,
   heartbeats,
@@ -20,6 +16,7 @@ export function MonitorCardLite({
   isHome = true,
   onToggleView,
   disableViewToggle = false,
+  pageId,
 }: MonitorCardLiteProps) {
   const router = useRouter();
   const lastHeartbeat = heartbeats[heartbeats.length - 1];
@@ -37,7 +34,8 @@ export function MonitorCardLite({
 
   const handleClick = () => {
     if (isHome) {
-      router.push(`/monitor/${monitor.id}`);
+      const pageIdToUse = pageId || apiConfig.defaultPageId;
+      router.push(`/monitor/${monitor.id}?pageId=${pageIdToUse}`);
     }
   };
 

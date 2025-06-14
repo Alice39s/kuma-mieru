@@ -1,6 +1,15 @@
 'use client';
 
-import { Button, Input, Kbd, Link } from '@heroui/react';
+import {
+  Button,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+  Input,
+  Kbd,
+  Link,
+} from '@heroui/react';
 import {
   Navbar as HeroUINavbar,
   NavbarBrand,
@@ -12,6 +21,7 @@ import { link as linkStyles } from '@heroui/theme';
 import clsx from 'clsx';
 import Image from 'next/image';
 import NextLink from 'next/link';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { GithubIcon, SearchIcon } from '@/components/basic/icons';
@@ -20,7 +30,7 @@ import { NavbarSkeleton } from '@/components/ui/CommonSkeleton';
 import { apiConfig } from '@/config/api';
 import { siteConfig } from '@/config/site';
 import { motion } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
+import { ChevronDown, Globe, Menu, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useNodeSearch } from '../context/NodeSearchContext';
 import { I18NSwitch } from './i18n-switch';
@@ -33,6 +43,12 @@ export const Navbar = () => {
   const t = useTranslations();
   const { inputValue, setInputValue, clearSearch, isFiltering } = useNodeSearch();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // 获取当前页面ID和路由相关
+  const params = useParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const currentPageId = (params?.pageId as string) || apiConfig.defaultPageId;
 
   // shortcut key (Command+K or Ctrl+K)
   useEffect(() => {
@@ -69,6 +85,11 @@ export const Navbar = () => {
     clearSearch();
     inputRef.current?.focus();
   }, [clearSearch]);
+
+  // 处理页面切换
+  const handlePageChange = (pageId: string) => {
+    router.push(`/${pageId}`);
+  };
 
   const searchInput = (
     <div className="relative">
@@ -123,6 +144,34 @@ export const Navbar = () => {
     return '';
   };
 
+  // 状态页切换下拉菜单
+  const pageDropdown = apiConfig.pages.length > 1 && (
+    <Dropdown>
+      <DropdownTrigger>
+        <Button
+          variant="light"
+          className="font-normal"
+          endContent={<ChevronDown size={16} />}
+          startContent={<Globe size={16} />}
+        >
+          {apiConfig.pages.find((p) => p.id === currentPageId)?.name || currentPageId}
+        </Button>
+      </DropdownTrigger>
+      <DropdownMenu aria-label={t('navbar.pageSelect') || '选择状态页'}>
+        {apiConfig.pages.map((page) => (
+          <DropdownItem
+            key={page.id}
+            onClick={() => handlePageChange(page.id)}
+            textValue={page.name || page.id}
+            className={clsx({ 'bg-primary-50 dark:bg-primary-900/20': page.id === currentPageId })}
+          >
+            {page.name || page.id}
+          </DropdownItem>
+        ))}
+      </DropdownMenu>
+    </Dropdown>
+  );
+
   return (
     <HeroUINavbar maxWidth="xl" position="static">
       <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
@@ -154,6 +203,7 @@ export const Navbar = () => {
                 </NextLink>
               </li>
             ))}
+            {pageDropdown && <li>{pageDropdown}</li>}
           </ul>
         </nav>
       </NavbarContent>
@@ -231,6 +281,28 @@ export const Navbar = () => {
             ))}
           </ul>
         </nav>
+
+        {/* 移动端状态页切换 */}
+        {apiConfig.pages.length > 1 && (
+          <div className="mx-4 mt-6">
+            <p className="text-sm font-medium mb-2">{t('navbar.pageSelect')}</p>
+            <ul className="flex flex-col gap-2">
+              {apiConfig.pages.map((page) => (
+                <li key={page.id}>
+                  <Button
+                    variant={page.id === currentPageId ? 'solid' : 'light'}
+                    color={page.id === currentPageId ? 'primary' : 'default'}
+                    className="w-full justify-start"
+                    onClick={() => handlePageChange(page.id)}
+                    startContent={<Globe size={16} />}
+                  >
+                    {page.name || page.id}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </NavbarMenu>
     </HeroUINavbar>
   );

@@ -64,7 +64,8 @@
     "toolbar": "ツールバー",
     "mobileToolbar": "モバイルツールバー",
     "mobileNav": "モバイルメインナビゲーション",
-    "search": "検索"
+    "search": "検索",
+    "pageSelect": "ステータスページを選択します"
   },
   "mode": {
     "light": "ライト",
@@ -75,7 +76,8 @@
   "safariWarning": "Safari ブラウザはまだサポートされていません",
   "view": {
     "switchToLite": "簡易表示に切り替え",
-    "switchToFull": "詳細表示に切り替え"
+    "switchToFull": "詳細表示に切り替え",
+    "safariWarning": "まだサポートされていません"
   },
   "maintenance": {
     "default": "メンテナンス中",
