@@ -76,7 +76,7 @@
     "dotenv": "^16.6.1",
     "postcss": "8.5.3",
     "prettier": "3.5.3",
-    "shiki": "^3.10.0",
+    "shiki": "^3.11.0",
     "tailwind-variants": "1.0.0",
     "tailwindcss": "^4.1.12",
     "typescript": "^5.9.2",
