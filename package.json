@@ -39,7 +39,7 @@
     "@tailwindcss/postcss": "^4.1.12",
     "@types/markdown-it": "^14.1.2",
     "@types/sanitize-html": "^2.16.0",
-    "chalk": "^5.6.0",
+    "chalk": "^5.6.1",
     "cheerio": "^1.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
