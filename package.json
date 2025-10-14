@@ -71,7 +71,7 @@
     "@types/node": "22.13.14",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
-    "@typescript-eslint/eslint-plugin": "8.30.1",
+    "@typescript-eslint/eslint-plugin": "8.46.1",
     "@typescript-eslint/parser": "8.29.1",
     "dotenv": "^16.6.1",
     "postcss": "8.5.3",
