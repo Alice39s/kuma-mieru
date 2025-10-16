@@ -143,6 +143,18 @@ export default function Home() {
     <>
       <AutoRefresh onRefresh={handleRefresh} interval={60000}>
         <div className="mx-auto max-w-(--breakpoint-2xl) px-4 py-8 pt-4">
+           {/* ===== 我的Uptime-Kuma ===== */}
+  <div style={{
+    textAlign: 'center',
+    margin: '10px 0',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    color: '#4f46e5'
+  }}>
+    <a href="https://bjlglhez.us-west-1.clawcloudrun.com/dashboard" target="_blank" rel="noopener noreferrer">
+      点击访问我的链接
+    </a>
+  </div>
           {/* 状态总览 */}
           <div className="flex justify-between items-center mb-6" suppressHydrationWarning={true}>
             <SystemStatusAlert />
