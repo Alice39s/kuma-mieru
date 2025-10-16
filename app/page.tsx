@@ -152,7 +152,7 @@ export default function Home() {
     color: '#4f46e5'
   }}>
     <a href="https://bjlglhez.us-west-1.clawcloudrun.com/dashboard" target="_blank" rel="noopener noreferrer">
-      点击访问我的链接
+      我的Uptime-Kuma
     </a>
   </div>
           {/* 状态总览 */}
