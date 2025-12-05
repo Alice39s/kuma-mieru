@@ -80,7 +80,7 @@
     "tailwind-variants": "1.0.0",
     "tailwindcss": "^4.1.16",
     "typescript": "^5.9.3",
-    "wrangler": "^4.45.3"
+    "wrangler": "^4.53.0"
   },
   "trustedDependencies": [
     "@biomejs/biome",
