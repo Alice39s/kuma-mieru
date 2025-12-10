@@ -267,6 +267,8 @@ docker run -d \
 | FEATURE_TITLE            | No   | 自定义页面标题                 | Kuma Mieru                                         |
 | FEATURE_DESCRIPTION      | No   | 自定义页面描述                 | A beautiful and modern uptime monitoring dashboard |
 | FEATURE_ICON             | No   | 自定义页面图标URL              | /icon.svg                                          |
+| CF_ACCESS_CLIENT_ID      | No   | Cloudflare Zero Trust 客户端 ID | （留空）                                           |
+| CF_ACCESS_CLIENT_SECRET  | No   | Cloudflare Zero Trust 客户端密钥 | （留空）                                           |
 
 ## 与 Uptime Kuma 集成 :link:
 
@@ -281,6 +283,19 @@ Kuma Mieru 与备受好评的开源监控工具 [Uptime Kuma](https://github.com
 2. 在 Uptime Kuma 设置中修改 `Display Timezone` (显示时区) 为任意 `UTC+0` 时区
 3. 在 Uptime Kuma 中创建 "状态页面"
 4. 在 `.env` 文件中配置环境变量
+
+### 与 [Cloudflare One](https://one.dash.cloudflare.com/) Application 集成
+
+如果您的 Uptime Kuma 实例部署在 Cloudflare One 中的 Application 保护后面，可以配置以下两个环境变量来添加认证头部：
+
+- `CF_ACCESS_CLIENT_ID`: Cloudflare One 客户端 ID
+- `CF_ACCESS_CLIENT_SECRET`: Cloudflare One 客户端密钥
+
+要获取该 Service Tokens ，请参考 [Cloudflare One 文档 - 服务令牌](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/)，并在申请后将对应字段填入环境变量。
+> 请注意：您还需要确保您已经正确配置了 Cloudflare One Application 的访问策略 (Policy)，您需要创建一个新的策略，Action 选择 "Service Auth" (服务认证)，并将 Selector 设置为 "Include" (包含) 值设置为您刚刚创建的 Service Token。并将该 Policy 应用到您的 Uptime Kuma Application 上，然后将其优先级设置为最高（拖拽到 Policies 列表最上方），以确保请求可以正确通过认证。具体流程请参考 [Cloudflare One 文档 - 管理访问策略](https://developers.cloudflare.com/cloudflare-one/access-controls/policies/policy-management/)
+
+配置后，所有对 Uptime Kuma 实例的请求都会自动添加 `CF-Access-Client-Id` 和 `CF-Access-Client-Secret` 头部，以实现对受保护资源的访问。
+
 
 ## FAQ :question:
 
