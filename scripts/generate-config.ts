@@ -1,11 +1,11 @@
+import * as cheerio from 'cheerio';
 import fs from 'node:fs';
 import path from 'node:path';
-import * as cheerio from 'cheerio';
 import { z } from 'zod';
+import type { PreloadData } from '../types/config';
 import { extractPreloadData } from '../utils/json-processor';
 import { sanitizeJsonString } from '../utils/json-sanitizer';
 import { fetchPreloadDataFromApi, getPreloadPayload } from '../utils/preload-data';
-import type { PreloadData } from '../types/config';
 
 import 'dotenv/config';
 
@@ -141,6 +141,42 @@ function getBooleanEnvVar(name: string, defaultValue = true): boolean {
   return lowercaseValue === 'true';
 }
 
+function getCloudflareAccessHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  
+  const clientId = process.env.CF_ACCESS_CLIENT_ID;
+  const clientSecret = process.env.CF_ACCESS_CLIENT_SECRET;
+  
+  if (clientId?.trim()) {
+    headers['CF-Access-Client-Id'] = clientId.trim();
+  }
+  
+  if (clientSecret?.trim()) {
+    headers['CF-Access-Client-Secret'] = clientSecret.trim();
+  }
+  
+  return headers;
+}
+
+function getFetchOptions(): Record<string, unknown> {
+  const headers = getCloudflareAccessHeaders();
+  
+  if (Object.keys(headers).length > 0) {
+    return {
+      headers: {
+        'User-Agent': 'Kuma-Mieru/config-generator',
+        ...headers,
+      },
+    };
+  }
+  
+  return {
+    headers: {
+      'User-Agent': 'Kuma-Mieru/config-generator',
+    },
+  };
+}
+
 async function fetchSiteMeta(baseUrl: string, pageId: string) {
   const titleOverride = getFeatureOverride('FEATURE_TITLE');
   const descriptionOverride = getFeatureOverride('FEATURE_DESCRIPTION');
@@ -160,7 +196,8 @@ async function fetchSiteMeta(baseUrl: string, pageId: string) {
     titleOverride.isDefined || descriptionOverride.isDefined || iconOverride.isDefined;
 
   try {
-    const response = await fetch(`${baseUrl}/status/${pageId}`);
+    const fetchOptions = getFetchOptions();
+    const response = await fetch(`${baseUrl}/status/${pageId}`, fetchOptions);
     if (!response.ok) {
       throw new Error(`Failed to fetch site meta: ${response.status} ${response.statusText}`);
     }
@@ -191,7 +228,11 @@ async function fetchSiteMeta(baseUrl: string, pageId: string) {
       preloadData = extractPreloadData(jsonStr);
     } else {
       console.log('Preload data not found in HTML, attempting status page API fallback');
-      const apiFallback = await fetchPreloadDataFromApi({ baseUrl, pageId });
+      const apiFallback = await fetchPreloadDataFromApi({ 
+        baseUrl, 
+        pageId,
+        requestInit: fetchOptions
+      });
       console.log(`Using status page API fallback from ${apiFallback.url}`);
       preloadData = apiFallback.data;
     }

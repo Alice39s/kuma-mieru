@@ -1,11 +1,29 @@
 import packageJson from '@/package.json';
 
+function getCloudflareAccessHeaders() {
+  const headers: Record<string, string> = {};
+
+  const clientId = process.env.CF_ACCESS_CLIENT_ID;
+  const clientSecret = process.env.CF_ACCESS_CLIENT_SECRET;
+
+  if (clientId?.trim()) {
+    headers['CF-Access-Client-Id'] = clientId.trim();
+  }
+
+  if (clientSecret?.trim()) {
+    headers['CF-Access-Client-Secret'] = clientSecret.trim();
+  }
+
+  return headers;
+}
+
 export const customFetchOptions = {
   headers: {
     'User-Agent': `Kuma-Mieru/${packageJson.version} (https://github.com/Alice39s/kuma-mieru)`,
     Accept: 'text/html,application/json,*/*',
     'Accept-Encoding': '', // bypass encoding
     Connection: 'keep-alive',
+    ...getCloudflareAccessHeaders(),
   },
   maxRetries: 3,
   retryDelay: 500,
