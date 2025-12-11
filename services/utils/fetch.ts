@@ -121,9 +121,12 @@ async function makeRequest(
               // Follow redirect
               try {
                 const redirectUrl = new URL(location, url).toString();
+                // 303 redirects should always use GET method per HTTP spec
+                const redirectOptions =
+                  res.statusCode === 303 ? { ...options, method: 'GET', body: undefined } : options;
                 const redirectResponse = await makeRequest(
                   redirectUrl,
-                  options,
+                  redirectOptions,
                   retryCount,
                   redirectCount + 1,
                 );
