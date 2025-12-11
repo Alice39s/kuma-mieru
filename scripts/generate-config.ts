@@ -159,20 +159,10 @@ function getCloudflareAccessHeaders(): Record<string, string> {
 }
 
 function getFetchOptions(): Record<string, unknown> {
-  const headers = getCloudflareAccessHeaders();
-  
-  if (Object.keys(headers).length > 0) {
-    return {
-      headers: {
-        'User-Agent': 'Kuma-Mieru/config-generator',
-        ...headers,
-      },
-    };
-  }
-  
   return {
     headers: {
       'User-Agent': 'Kuma-Mieru/config-generator',
+      ...getCloudflareAccessHeaders(),
     },
   };
 }
