@@ -73,6 +73,12 @@ Built with Next.js 16, TypeScript, and Recharts, this project enhances Uptime Ku
 
 ### Vercel Deployment (Recommended)
 
+#### 0. Quick Deploy to Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Alice39s/kuma-mieru&env=UPTIME_KUMA_BASE_URL,PAGE_ID&envDescription=Required+environment+variables+for+Kuma+Mieru+deployment&project-name=kuma-mieru&repository-name=kuma-mieru)
+
+> For configuration of `UPTIME_KUMA_BASE_URL` and `PAGE_ID` etc., please refer to the [Environment Variables](#environment-variables) section.
+
 #### 1. Fork Repository
 
 1. Click [Fork](https://github.com/Alice39s/kuma-mieru/fork) button to fork this repository to your GitHub account.

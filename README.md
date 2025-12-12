@@ -75,6 +75,12 @@ Kuma Mieru 是一款基于 Next.js 16、TypeScript 和 Recharts 构建的第三�
 
 ### 使用 Vercel 部署 (推荐)
 
+#### 0. 一键部署
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Alice39s/kuma-mieru&env=UPTIME_KUMA_BASE_URL,PAGE_ID&envDescription=Required+environment+variables+for+Kuma+Mieru+deployment&project-name=kuma-mieru&repository-name=kuma-mieru)
+
+> 关于 `UPTIME_KUMA_BASE_URL` 和 `PAGE_ID` 等配置，请参考 [环境变量配置](#环境变量配置) 一节。
+
 #### 1. Fork 仓库
 
 Fork 本仓库到您的 GitHub 用户下，如图所示：
