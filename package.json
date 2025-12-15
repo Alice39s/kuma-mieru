@@ -28,7 +28,7 @@
     "generate:banner": "bun scripts/banner.ts"
   },
   "dependencies": {
-    "@heroui/react": "^2.8.5",
+    "@heroui/react": "^2.8.6",
     "@heroui/theme": "^2.4.23",
     "@mdx-js/mdx": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
