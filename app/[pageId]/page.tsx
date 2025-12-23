@@ -21,7 +21,7 @@ export async function generateStaticParams() {
 export default async function StatusPageRoute({
   params,
 }: {
-  params: Promise<{ pageId: string }>;
+  params: Promise<{ pageId: string }> | { pageId: string };
 }) {
   // 2. 必须先 await params
   const { pageId } = await params;
