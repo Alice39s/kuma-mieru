@@ -109,4 +109,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
 # 使用 dumb-init 作为 PID 1，正确处理信号
 # 使用 Node.js 运行 standalone 服务器 (缓解 worker_threads napi 兼容性问题)
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["sh", "-c", "bun run generate && node server.js"]
+CMD ["sh", "-c", "bun run generate && bun run scripts/docker-init.ts && exec node server.js"]
