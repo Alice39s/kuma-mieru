@@ -10,8 +10,8 @@ import type { ThemeProviderProps } from 'next-themes';
 
 import { NodeSearchProvider } from '@/components/context/NodeSearchContext';
 import { HeroUIProvider } from '@heroui/react';
-import { NextIntlClientProvider } from 'next-intl';
 import type { AbstractIntlMessages } from 'next-intl';
+import { NextIntlClientProvider } from 'next-intl';
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
 import { useRouter } from 'next/navigation';
 import type * as React from 'react';
@@ -31,9 +31,10 @@ declare module '@react-types/shared' {
 
 export function Providers({ children, themeProps, locale, messages }: ProvidersProps) {
   const router = useRouter();
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
   return (
-    <NextIntlClientProvider locale={locale} messages={messages}>
+    <NextIntlClientProvider locale={locale} messages={messages} timeZone={timeZone}>
       <HeroUIProvider navigate={router.push}>
         <NextThemesProvider {...themeProps}>
           <NodeSearchProvider>{children}</NodeSearchProvider>
