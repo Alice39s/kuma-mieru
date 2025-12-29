@@ -1,7 +1,7 @@
 # ============================================
 # Build stage
 # ============================================
-FROM node:20-alpine AS builder
+FROM node:25-alpine AS builder
 
 RUN npm install -g bun@latest
 
@@ -43,7 +43,7 @@ RUN set -e && \
 # ============================================
 # Runtime stage
 # ============================================
-FROM node:20-alpine
+FROM node:25-alpine
 WORKDIR /app
 
 # 安装 Bun 用于生成配置和运行初始化脚本
