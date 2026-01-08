@@ -44,7 +44,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.19",
-    "framer-motion": "^12.23.26",
+    "framer-motion": "^12.24.10",
     "intl-messageformat": "^10.7.18",
     "json5": "^2.2.3",
     "lucide-react": "^0.483.0",
