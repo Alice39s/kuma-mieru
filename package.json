@@ -45,7 +45,7 @@
     "clsx": "^2.1.1",
     "dayjs": "^1.11.19",
     "framer-motion": "^12.26.2",
-    "intl-messageformat": "^10.7.18",
+    "intl-messageformat": "^11.0.9",
     "json5": "^2.2.3",
     "lucide-react": "^0.483.0",
     "markdown-it": "^14.1.0",
