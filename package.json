@@ -36,6 +36,7 @@
     "@opennextjs/cloudflare": "^1.14.8",
     "@react-aria/ssr": "3.9.7",
     "@react-aria/visually-hidden": "3.8.20",
+    "@sankyu/react-circle-flags": "^1.5.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/markdown-it": "^14.1.2",
     "@types/sanitize-html": "^2.16.0",
