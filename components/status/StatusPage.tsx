@@ -57,11 +57,6 @@ export function StatusPage() {
     }
   }, [isGlobalLiteView]);
 
-  useEffect(() => {
-    if (globalConfig?.config.theme) {
-      setTheme(globalConfig.config.theme);
-    }
-  }, [globalConfig?.config.theme, setTheme]);
 
   const isLoading = isLoadingMonitors || isLoadingConfig || isLoadingMaintenance;
 
