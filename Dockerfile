@@ -74,7 +74,7 @@ ENV PORT=${PORT} \
     FEATURE_ICON=${FEATURE_ICON} \
     ALLOW_EMBEDDING=${ALLOW_EMBEDDING} \
     IS_DOCKER=${IS_DOCKER} \
-    PATH="/app/node_modules/.bin:$PATH"
+    PATH="$PATH:/app/node_modules/.bin"
 
 # 安装运行时需要的工具（healthcheck 用）
 RUN apk add --no-cache curl dumb-init && \
