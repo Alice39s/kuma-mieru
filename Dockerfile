@@ -89,7 +89,7 @@ USER nextjs
 # 包括 serverExternalPackages 声明的包：sharp, cheerio, markdown-it, sanitize-html
 # 以及 generate 脚本需要的：zod, json5, dotenv, chalk
 # tsx 用于运行 TypeScript 启动脚本（替代 Bun，避免 AVX2 指令集兼容性问题）
-RUN npm install --prefer-online --no-cache --production sharp cheerio markdown-it sanitize-html zod json5 dotenv chalk tsx
+RUN npm install --prefer-online --omit=dev sharp cheerio markdown-it sanitize-html zod json5 dotenv chalk tsx
 
 # 从 builder 复制构建产物（standalone 输出）
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/ ./
