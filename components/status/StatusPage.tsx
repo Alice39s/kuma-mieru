@@ -57,7 +57,6 @@ export function StatusPage() {
     }
   }, [isGlobalLiteView]);
 
-
   const isLoading = isLoadingMonitors || isLoadingConfig || isLoadingMaintenance;
 
   const activeMaintenances = maintenanceList.filter(

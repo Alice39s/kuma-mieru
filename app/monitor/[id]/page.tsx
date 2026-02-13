@@ -27,7 +27,7 @@ export default async function MonitorDetailPage({
   ]);
 
   return (
-    <PageConfigProvider initialConfig={pageConfig}>
+    <PageConfigProvider key={pageConfig.pageId} initialConfig={pageConfig}>
       <AppShell footerConfig={footerConfig} pageTabs={pageTabs}>
         <MonitorDetailContent monitorId={monitorId} />
       </AppShell>
