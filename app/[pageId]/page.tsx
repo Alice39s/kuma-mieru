@@ -37,7 +37,7 @@ export default async function StatusPageRoute({
   return (
     <PageConfigProvider key={pageConfig.pageId} initialConfig={pageConfig}>
       <AppShell footerConfig={footerConfig} pageTabs={pageTabs}>
-        <StatusPage key={pageId} />
+        <StatusPage />
       </AppShell>
     </PageConfigProvider>
   );
