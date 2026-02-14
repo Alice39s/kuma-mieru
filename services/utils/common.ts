@@ -1,4 +1,5 @@
 import packageJson from '@/package.json';
+import { z } from 'zod';
 
 export const customFetchOptions = {
   headers: {
@@ -11,6 +12,16 @@ export const customFetchOptions = {
   retryDelay: 500,
   timeout: 8000,
 };
+
+const insecureTlsSchema = z
+  .enum(['true', 'false'])
+  .optional()
+  .default('false')
+  .transform(value => value === 'true');
+
+export const allowInsecureTls = insecureTlsSchema.parse(
+  process.env.ALLOW_INSECURE_TLS?.toLowerCase()
+);
 
 /**
  * Add UTC+0000 timezone to ISO date string if absent,

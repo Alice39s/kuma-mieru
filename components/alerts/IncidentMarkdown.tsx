@@ -4,16 +4,7 @@ import { useFormatter, useTranslations } from 'next-intl';
 import type { DateTimeFormatOptions } from 'next-intl';
 import React, { useMemo } from 'react';
 import { dateStringToTimestamp, extractSentence, timezoneOffsetToMs } from '../utils/format';
-
-// Workaround for https://github.com/markdown-it/markdown-it/issues/1082
-const MarkdownIt = require('markdown-it');
-const md = MarkdownIt({
-  html: true,
-  linkify: true,
-  breaks: true,
-  typographer: true,
-  listIndent: true,
-});
+import { useMarkdown } from '../utils/markdown';
 
 function IncidentMarkdownAlert({ incident }: { incident: Incident }) {
   const t = useTranslations('alert');
@@ -47,9 +38,7 @@ function IncidentMarkdownAlert({ incident }: { incident: Incident }) {
     }
   }, [style]);
 
-  const htmlContent = useMemo(() => {
-    return md.render(content);
-  }, [content]);
+  const htmlContent = useMarkdown(content);
 
   return (
     <Alert
@@ -70,7 +59,7 @@ function IncidentMarkdownAlert({ incident }: { incident: Incident }) {
           prose-headings:text-gray-800 dark:prose-headings:text-gray-100
           prose-code:text-gray-800 dark:prose-code:text-gray-100
           prose-code:font-mono prose-code:text-sm"
-        // oxlint-disable-next-line react/no-danger -- 相信 markdown-it 的安全性
+        // oxlint-disable-next-line react/no-danger -- 内容已通过 sanitizeHtml 白名单净化
         dangerouslySetInnerHTML={{ __html: htmlContent }}
       />
       <div className="flex flex-col items-end gap-1 mt-4">

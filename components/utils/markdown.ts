@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import sanitizeHtml from 'sanitize-html';
 
 // Workaround for https://github.com/markdown-it/markdown-it/issues/1082
 const MarkdownIt = require('markdown-it');
@@ -17,6 +18,37 @@ const createMarkdownRenderer = () => {
 // 全局 markdown 渲染实例
 const md = createMarkdownRenderer();
 
+const markdownAllowedTags = [
+  ...new Set([...sanitizeHtml.defaults.allowedTags, 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']),
+];
+
+const markdownAllowedAttributes = {
+  ...sanitizeHtml.defaults.allowedAttributes,
+  a: [...(sanitizeHtml.defaults.allowedAttributes.a || []), 'target', 'rel'],
+  img: ['src', 'alt', 'title', 'width', 'height', 'loading'],
+};
+
+const sanitizeMarkdownHtml = (html: string): string => {
+  return sanitizeHtml(html, {
+    allowedTags: markdownAllowedTags,
+    allowedAttributes: markdownAllowedAttributes,
+    allowedSchemes: ['http', 'https', 'mailto'],
+    allowedSchemesByTag: {
+      img: ['http', 'https'],
+    },
+    disallowedTagsMode: 'discard',
+    transformTags: {
+      a: (tagName, attribs) => ({
+        tagName,
+        attribs: {
+          ...attribs,
+          rel: 'noopener noreferrer nofollow',
+        },
+      }),
+    },
+  });
+};
+
 /**
  * Hook for rendering markdown content
  * @param content - markdown content to render
@@ -25,7 +57,7 @@ const md = createMarkdownRenderer();
 export function useMarkdown(content: string): string {
   return useMemo(() => {
     if (!content) return '';
-    return md.render(content);
+    return sanitizeMarkdownHtml(md.render(content));
   }, [content]);
 }
 
@@ -36,7 +68,7 @@ export function useMarkdown(content: string): string {
  */
 export function renderMarkdown(content: string): string {
   if (!content) return '';
-  return md.render(content);
+  return sanitizeMarkdownHtml(md.render(content));
 }
 
 /**

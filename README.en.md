@@ -260,6 +260,7 @@ Then, the environment variables you need to configure are as follows:
 | FEATURE_TITLE            | No       | Custom page title                                                                                               | My Monitoring Dashboard                                                                   |
 | FEATURE_DESCRIPTION      | No       | Custom page description                                                                                         | A beautiful monitoring dashboard                                                          |
 | FEATURE_ICON             | No       | Custom page icon URL                                                                                            | /icon.svg                                                                                 |
+| ALLOW_INSECURE_TLS       | No       | Whether to skip HTTPS certificate validation when requesting upstream Uptime Kuma (trusted self-signed only)    | `false` (default, strict validation) / `true` (skip validation, security risk)            |
 | ALLOW_EMBEDDING          | No       | Whether to allow embedding in iframe                                                                            | `false` (block) / `true` (allow all, not recommended) / `example.com,app.com` (whitelist) |
 
 ### Health Check

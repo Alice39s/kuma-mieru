@@ -2,7 +2,7 @@ import http from 'node:http';
 import type { OutgoingHttpHeaders } from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
-import { customFetchOptions } from './common';
+import { allowInsecureTls, customFetchOptions } from './common';
 
 interface CustomResponse {
   ok: boolean;
@@ -28,6 +28,8 @@ const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
   retryDelay: 1000,
   timeout: 10000,
 };
+
+let hasShownInsecureTlsWarning = false;
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -60,19 +62,30 @@ async function makeRequest(
     }
   }
 
-  const isDevelopment = process.env.NODE_ENV === 'development';
-
   return new Promise((resolve, reject) => {
+    const isHttps = parsedUrl.protocol === 'https:';
+
+    if (isHttps && allowInsecureTls && !hasShownInsecureTlsWarning) {
+      hasShownInsecureTlsWarning = true;
+      console.warn(
+        'ALLOW_INSECURE_TLS=true: TLS certificate verification is disabled for HTTPS requests.'
+      );
+    }
+
     const req = protocol.request(
       url,
       {
         method: mergedOptions.method || 'GET',
         headers,
         timeout,
-        rejectUnauthorized: isDevelopment,
-        minVersion: 'TLSv1.2',
-        maxVersion: 'TLSv1.3',
-        ciphers: 'HIGH:!aNULL:!MD5',
+        ...(isHttps
+          ? {
+              rejectUnauthorized: !allowInsecureTls,
+              minVersion: 'TLSv1.2' as const,
+              maxVersion: 'TLSv1.3' as const,
+              ciphers: 'HIGH:!aNULL:!MD5',
+            }
+          : {}),
       },
       res => {
         let responseBody = '';

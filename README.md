@@ -277,6 +277,7 @@ docker run -d \
 | FEATURE_TITLE            | No   | 自定义页面标题                                                            | Kuma Mieru                                                                  |
 | FEATURE_DESCRIPTION      | No   | 自定义页面描述                                                            | A beautiful and modern uptime monitoring dashboard                          |
 | FEATURE_ICON             | No   | 自定义页面图标URL                                                         | /icon.svg                                                                   |
+| ALLOW_INSECURE_TLS       | No   | 是否跳过上游 Uptime Kuma HTTPS 证书校验（仅用于受信任的自签名环境）       | `false`（默认，强校验） / `true`（跳过校验，有安全风险）                    |
 | ALLOW_EMBEDDING          | No   | 是否允许在 iframe 中嵌入                                                  | `false` (禁止) / `true` (允许所有，不推荐) / `example.com,app.com` (白名单) |
 
 ## 与 Uptime Kuma 集成 :link:
