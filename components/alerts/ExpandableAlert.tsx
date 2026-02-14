@@ -2,7 +2,7 @@
 
 import clsx from 'clsx';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { type ReactNode, useId, useState } from 'react';
 
 type AlertTone = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
 
@@ -48,25 +48,32 @@ export function ExpandableAlert({
   children,
 }: ExpandableAlertProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [hasEverExpanded, setHasEverExpanded] = useState(false);
+  const contentId = useId();
 
   const handleToggle = () => {
-    setIsExpanded(prev => !prev);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      handleToggle();
-    }
+    setIsExpanded(prev => {
+      const nextExpanded = !prev;
+      if (nextExpanded) {
+        setHasEverExpanded(true);
+      }
+      return nextExpanded;
+    });
   };
 
   return (
-    <div className={clsx('w-full overflow-hidden rounded-xl border shadow-xs', toneClassMap[color], className)}>
+    <div
+      className={clsx(
+        'w-full overflow-hidden rounded-xl border shadow-xs',
+        toneClassMap[color],
+        className
+      )}
+    >
       <button
         type="button"
         onClick={handleToggle}
-        onKeyDown={handleKeyDown}
         aria-expanded={isExpanded}
+        aria-controls={contentId}
         className="w-full cursor-pointer px-4 py-3 text-left"
       >
         <div className={clsx('flex w-full items-start', isExpanded ? 'gap-2' : 'gap-3')}>
@@ -86,7 +93,9 @@ export function ExpandableAlert({
               {title}
             </h5>
             {!isExpanded && preview ? (
-              <p className="mt-1 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">{preview}</p>
+              <p className="mt-1 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
+                {preview}
+              </p>
             ) : null}
           </div>
 
@@ -98,12 +107,20 @@ export function ExpandableAlert({
 
       <div
         className={clsx(
-          'grid transition-all duration-200 ease-in-out',
+          'grid transition-[grid-template-rows,opacity] duration-200 ease-in-out',
           isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
         )}
       >
-        <div className="overflow-hidden">
-          <div className="border-t border-black/8 px-4 pb-4 pt-4 dark:border-white/8">{children}</div>
+        <div
+          id={contentId}
+          role="region"
+          aria-hidden={!isExpanded}
+          inert={!isExpanded}
+          className="overflow-hidden"
+        >
+          <div className="border-t border-black/8 px-4 pb-4 pt-4 dark:border-white/8">
+            {hasEverExpanded ? children : null}
+          </div>
         </div>
       </div>
     </div>

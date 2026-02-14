@@ -1,83 +1,7 @@
-import { pluginShiki, type BundledShikiTheme } from '@expressive-code/plugin-shiki';
-import type { ExpressiveCodeTheme } from 'expressive-code';
-import rehypeExternalLinks from 'rehype-external-links';
-import rehypeExpressiveCode from 'rehype-expressive-code';
-import type { RehypeExpressiveCodeOptions } from 'rehype-expressive-code';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
-import rehypeStringify from 'rehype-stringify';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
-import remarkSmartypants from 'remark-smartypants';
-import remarkParse from 'remark-parse';
-import remarkRehype from 'remark-rehype';
-import { unified } from 'unified';
 import { useEffect, useState } from 'react';
 
-const expressiveCodeOptions: RehypeExpressiveCodeOptions = {
-  frames: false,
-  textMarkers: false,
-  shiki: false,
-  plugins: [pluginShiki({ engine: 'javascript' })],
-  themes: ['github-light', 'github-dark'] satisfies BundledShikiTheme[],
-  useDarkModeMediaQuery: false,
-  themeCssSelector: (theme: ExpressiveCodeTheme) => {
-    return theme.type === 'dark' ? '.dark' : ':root';
-  },
-  styleOverrides: {
-    borderRadius: '8px',
-    borderWidth: '1px',
-    borderColor: 'color-mix(in srgb, var(--ec-codeForeground) 18%, transparent)',
-    codeFontFamily:
-      'var(--font-mono), JetBrains Mono, SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
-    codeFontSize: '14px',
-    codeLineHeight: '1.6',
-    codePaddingBlock: '16px',
-    codePaddingInline: '16px',
-  },
-};
-
-const markdownSanitizeSchema = {
-  ...defaultSchema,
-  tagNames: [...new Set([...(defaultSchema.tagNames || []), 'img'])],
-  attributes: {
-    ...defaultSchema.attributes,
-    a: [...new Set([...(defaultSchema.attributes?.a || []), 'target', 'rel'])],
-    img: [
-      ...new Set([
-        ...(defaultSchema.attributes?.img || []),
-        'src',
-        'alt',
-        'title',
-        'width',
-        'height',
-        'loading',
-      ]),
-    ],
-  },
-  protocols: {
-    ...defaultSchema.protocols,
-    href: [...new Set([...(defaultSchema.protocols?.href || []), 'http', 'https', 'mailto'])],
-    src: [...new Set([...(defaultSchema.protocols?.src || []), 'http', 'https'])],
-  },
-};
-
-const markdownProcessor = unified()
-  .use(remarkParse)
-  .use(remarkGfm)
-  .use(remarkBreaks)
-  .use(remarkSmartypants)
-  .use(remarkRehype, { allowDangerousHtml: true })
-  .use(rehypeRaw)
-  .use(rehypeSanitize, markdownSanitizeSchema)
-  .use(rehypeExternalLinks, {
-    rel: ['noopener', 'noreferrer', 'nofollow'],
-    target: '_blank',
-  })
-  .use(rehypeExpressiveCode, expressiveCodeOptions)
-  .use(rehypeStringify);
-
 const MAX_MARKDOWN_CACHE_SIZE = 500;
+const MAX_CACHEABLE_CONTENT_LENGTH = 20 * 1024;
 const markdownRenderCache = new Map<string, Promise<string>>();
 
 const escapeHtml = (input: string): string => {
@@ -124,7 +48,7 @@ export function useMarkdown(content: string): string {
     if (!content) {
       setHtml('');
     } else {
-      setHtml(fallbackHtml);
+      setHtml(previousHtml => (previousHtml || fallbackHtml));
 
       void renderMarkdown(content)
         .then(renderedHtml => {
@@ -155,10 +79,18 @@ export function useMarkdown(content: string): string {
 export async function renderMarkdown(content: string): Promise<string> {
   if (!content) return '';
 
+  const { processMarkdown } = await import('./markdown-processor');
+
+  if (content.length > MAX_CACHEABLE_CONTENT_LENGTH) {
+    try {
+      return await processMarkdown(content);
+    } catch {
+      return '';
+    }
+  }
+
   if (!markdownRenderCache.has(content)) {
-    const renderPromise = markdownProcessor
-      .process(content)
-      .then(file => String(file).trim())
+    const renderPromise = processMarkdown(content)
       .catch(() => {
         markdownRenderCache.delete(content);
         return '';

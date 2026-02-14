@@ -12,8 +12,9 @@ export interface MaintenanceTimeline {
 }
 
 export function useMaintenanceTimeline(maintenance: Maintenance, now: number): MaintenanceTimeline | null {
+  const currentTimeSlot = maintenance.timeslotList?.[0];
+
   return useMemo(() => {
-    const currentTimeSlot = maintenance.timeslotList?.[0];
     if (!currentTimeSlot) return null;
 
     const timeZoneOffset = maintenance.timezoneOffset || 'UTC';
@@ -36,5 +37,11 @@ export function useMaintenanceTimeline(maintenance: Maintenance, now: number): M
       displayEndTime: endTime + timezoneOffsetMs,
       progressPercent,
     };
-  }, [maintenance, now]);
+  }, [
+    currentTimeSlot?.startDate,
+    currentTimeSlot?.endDate,
+    maintenance.timezoneOffset,
+    maintenance.status,
+    now,
+  ]);
 }
