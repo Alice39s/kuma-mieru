@@ -122,7 +122,7 @@ const productionConfig = {
     reactRemoveProperties: true,
   },
 
-  serverExternalPackages: ['sharp', 'cheerio', 'markdown-it', 'sanitize-html'],
+  serverExternalPackages: ['sharp', 'cheerio', 'sanitize-html'],
 
   async headers() {
     // Parse ALLOW_EMBEDDING: false/unset=block, true=allow all, or comma-separated origin list
