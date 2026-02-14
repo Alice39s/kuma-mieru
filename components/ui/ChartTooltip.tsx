@@ -1,4 +1,3 @@
-import type { Heartbeat } from '@/types/monitor';
 import dayjs from 'dayjs';
 import { useTranslations } from 'next-intl';
 import { formatLatency, getLatencyColor } from '../utils/format';

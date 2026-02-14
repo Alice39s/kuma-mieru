@@ -26,7 +26,7 @@ export function useSearch<T>(
     [items, searchFn]
   );
 
-  const handleSetSearchTerm = useCallback((term: string, isComposingEvent = false) => {
+  const handleSetSearchTerm = useCallback((term: string) => {
     setSearchTerm(term);
   }, []);
 

@@ -2,7 +2,7 @@ import { Alert as HeroUIAlert } from '@heroui/alert';
 import { clsx } from 'clsx';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
-import { extractPlainText, useMarkdown } from '../utils/markdown';
+import { extractPlainText } from '../utils/markdown';
 
 interface AlertProps {
   title: string;
@@ -27,7 +27,6 @@ export const Alert = ({
 }: AlertProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const renderedDescription = useMarkdown(markdownDescription && description ? description : '');
   const plainTextDescription = markdownDescription
     ? extractPlainText(description || '', 150)
     : description;

@@ -4,7 +4,7 @@ import { cn } from '@heroui/react';
 import { AlertTriangle, CheckCircle, Clock, type LucideIcon, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
-import { useConfig, useMonitorData } from '../utils/swr';
+import { useMonitorData } from '../utils/swr';
 
 const pingAnimation = {
   animation: 'slowPing 3s cubic-bezier(0,0,0.2,1) infinite',
@@ -13,9 +13,8 @@ const pingAnimation = {
 export function SystemStatusAlert() {
   const t = useTranslations('status');
   const { monitoringData, monitorGroups, isLoading: isLoadingMonitors } = useMonitorData();
-  const { config, isLoading: isLoadingConfig } = useConfig();
 
-  const isLoading = isLoadingMonitors || isLoadingConfig;
+  const isLoading = isLoadingMonitors;
   const [animate, setAnimate] = useState(false);
 
   useEffect(() => {

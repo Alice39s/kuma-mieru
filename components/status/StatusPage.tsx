@@ -19,7 +19,6 @@ import { filterMonitorByStatus } from '@/utils/monitorFilters';
 import { Button, Tooltip } from '@heroui/react';
 import { LayoutGrid, LayoutList } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useTheme } from 'next-themes';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const GLOBAL_VIEW_PREFERENCE_KEY = 'view-preference';
@@ -35,11 +34,9 @@ export function StatusPage() {
   const { monitorGroups, monitoringData, isLoading: isLoadingMonitors } = useMonitorData();
   const { searchTerm, isFiltering, clearSearch, filterStatus, searchInGroup } = useNodeSearch();
   const currentPageConfig = usePageConfig();
-  const { setTheme } = useTheme();
 
   const [isGlobalLiteView, setIsGlobalLiteView] = useState(false);
 
-  const t = useTranslations();
   const viewT = useTranslations('view');
 
   useEffect(() => {
