@@ -91,12 +91,11 @@ Go to <https://vercel.com/new>, select **Import** to import the repository you j
 #### 3. Configure Environment Variables
 
 > [!NOTE]
-> Please ensure you have configured the `UPTIME_KUMA_BASE_URL` and `PAGE_ID` environment variables, otherwise the monitoring data will not be displayed correctly.
+> Please configure `UPTIME_KUMA_URLS` (recommended), otherwise monitoring data will not be displayed correctly.
 >
-> For more information about the `UPTIME_KUMA_BASE_URL` and `PAGE_ID` configuration, please refer to the [Environment Variables](#environment-variables) section.
+> Legacy `UPTIME_KUMA_BASE_URL` + `PAGE_ID` is still supported. See [Environment Variables](#environment-variables) for details.
 
-1. Click `Environment Variables` to add the following two environment variables:  
-   `UPTIME_KUMA_BASE_URL` and `PAGE_ID`.
+1. Click `Environment Variables` and add `UPTIME_KUMA_URLS` (recommended).
 
 2. Click the `Deploy` button to deploy instantly on Vercel.
 
@@ -149,13 +148,14 @@ Go to <https://vercel.com/new>, select **Import** to import the repository you j
    Copy `.env.example` to `.env` and modify:
 
    ```bash
-   UPTIME_KUMA_BASE_URL=https://your-kuma-instance.com
-   PAGE_ID=your_status_page_id
+   UPTIME_KUMA_URLS=https://your-kuma-instance.com/status/your_status_page_id
    ```
 
-   _Example: For URL `https://status.kuma-mieru.invalid/status/prod`, set:  
-   `UPTIME_KUMA_BASE_URL=https://status.kuma-mieru.invalid`  
-   `PAGE_ID=prod`_
+   _Multiple pages example:_
+
+   ```bash
+   UPTIME_KUMA_URLS=https://status.kuma-mieru.invalid/status/prod|https://status.kuma-mieru.invalid/status/staging
+   ```
 
 4. **Start Development Server**
 
@@ -193,8 +193,7 @@ Go to <https://vercel.com/new>, select **Import** to import the repository you j
    Edit the `.env` file with required configurations:
 
    ```
-   UPTIME_KUMA_BASE_URL=https://example.kuma-mieru.invalid
-   PAGE_ID=your-status-page-id
+   UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/your-status-page-id
    ```
 
 3. **Start Services**
@@ -240,28 +239,46 @@ Go to <https://vercel.com/new>, select **Import** to import the repository you j
    docker run -d \
      --name kuma-mieru \
      -p 3883:3000 \
-     -e UPTIME_KUMA_BASE_URL=https://example.kuma-mieru.invalid \
-     -e PAGE_ID=your-status-page-id \
+     -e UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/your-status-page-id \
+     -e KUMA_MIERU_TITLE="My Monitoring Dashboard" \
      ghcr.io/alice39s/kuma-mieru:1
    ```
 
 ### Environment Variables
 
-First, assume your Uptime Kuma status page URL is `https://example.kuma-mieru.invalid/status/test1`
+First, assume your Uptime Kuma status page URL is:
 
-Then, the environment variables you need to configure are as follows:
+`https://example.kuma-mieru.invalid/status/test1`
 
-| Variable Name            | Required | Description                                                                                                     | Example                                                                                   |
-| ------------------------ | -------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| UPTIME_KUMA_BASE_URL     | Yes      | Base URL of Uptime Kuma instance                                                                                | <https://example.kuma-mieru.invalid>                                                      |
-| PAGE_ID                  | Yes      | Status page path of Uptime Kuma. Supports comma-separated multiple IDs with the first value as the default page | default,status-asia                                                                       |
-| FEATURE_EDIT_THIS_PAGE   | No       | Whether to show "Edit This Page" button                                                                         | false                                                                                     |
-| FEATURE_SHOW_STAR_BUTTON | No       | Whether to show "Star on Github" button                                                                         | true                                                                                      |
-| FEATURE_TITLE            | No       | Custom page title                                                                                               | My Monitoring Dashboard                                                                   |
-| FEATURE_DESCRIPTION      | No       | Custom page description                                                                                         | A beautiful monitoring dashboard                                                          |
-| FEATURE_ICON             | No       | Custom page icon URL                                                                                            | /icon.svg                                                                                 |
-| ALLOW_INSECURE_TLS       | No       | Whether to skip HTTPS certificate validation when requesting upstream Uptime Kuma (trusted self-signed only)    | `false` (default, strict validation) / `true` (skip validation, security risk)            |
-| ALLOW_EMBEDDING          | No       | Whether to allow embedding in iframe                                                                            | `false` (block) / `true` (allow all, not recommended) / `example.com,app.com` (whitelist) |
+Recommended:
+
+`UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/test1`
+
+For multiple status pages, separate full URLs with `|`:
+
+`UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/test1|https://example.kuma-mieru.invalid/status/test2`
+
+Environment variables (including backward compatibility):
+
+| Variable Name               | Required | Description                                                                                                     | Example                                                                                                  |
+| --------------------------- | -------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| UPTIME_KUMA_URLS            | Yes\*    | Recommended. Full status page URL(s), supports `\|` separated multiple URLs                                     | <https://example.kuma-mieru.invalid/status/default\|https://example.kuma-mieru.invalid/status/secondary> |
+| UPTIME_KUMA_BASE_URL        | Yes\*    | Legacy. Base URL of Uptime Kuma instance (used only when `UPTIME_KUMA_URLS` is not set)                         | <https://example.kuma-mieru.invalid>                                                                     |
+| PAGE_ID                     | Yes\*    | Legacy. Status page IDs, comma-separated and first value is default (used only when `UPTIME_KUMA_URLS` not set) | default,status-asia                                                                                      |
+| KUMA_MIERU_EDIT_THIS_PAGE   | No       | Show "Edit This Page" button (new variable name)                                                                | false                                                                                                    |
+| KUMA_MIERU_SHOW_STAR_BUTTON | No       | Show "Star on Github" button (new variable name)                                                                | true                                                                                                     |
+| KUMA_MIERU_TITLE            | No       | Custom page title (new variable name)                                                                           | My Monitoring Dashboard                                                                                  |
+| KUMA_MIERU_DESCRIPTION      | No       | Custom page description (new variable name)                                                                     | A beautiful monitoring dashboard                                                                         |
+| KUMA_MIERU_ICON             | No       | Custom page icon URL (new variable name)                                                                        | /icon.svg                                                                                                |
+| FEATURE_EDIT_THIS_PAGE      | No       | Legacy alias of `KUMA_MIERU_EDIT_THIS_PAGE`                                                                     | false                                                                                                    |
+| FEATURE_SHOW_STAR_BUTTON    | No       | Legacy alias of `KUMA_MIERU_SHOW_STAR_BUTTON`                                                                   | true                                                                                                     |
+| FEATURE_TITLE               | No       | Legacy alias of `KUMA_MIERU_TITLE`                                                                              | My Monitoring Dashboard                                                                                  |
+| FEATURE_DESCRIPTION         | No       | Legacy alias of `KUMA_MIERU_DESCRIPTION`                                                                        | A beautiful monitoring dashboard                                                                         |
+| FEATURE_ICON                | No       | Legacy alias of `KUMA_MIERU_ICON`                                                                               | /icon.svg                                                                                                |
+| ALLOW_INSECURE_TLS          | No       | Whether to skip HTTPS certificate validation when requesting upstream Uptime Kuma (trusted self-signed only)    | `false` (default, strict validation) / `true` (skip validation, security risk)                           |
+| ALLOW_EMBEDDING             | No       | Whether to allow embedding in iframe                                                                            | `false` (block) / `true` (allow all, not recommended) / `example.com,app.com` (whitelist)                |
+
+\* Use either `UPTIME_KUMA_URLS` or `UPTIME_KUMA_BASE_URL + PAGE_ID`. If both are set, `UPTIME_KUMA_URLS` takes precedence.
 
 ### Health Check
 

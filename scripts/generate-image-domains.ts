@@ -18,6 +18,7 @@ interface ImageDomainsConfig {
 }
 
 const supportedProtocols: ImageProtocol[] = ['http', 'https'];
+const STATUS_SEGMENT = 'status';
 
 const parseUrl = (url: string | null): { hostname: string; protocol: ImageProtocol } | null => {
   if (!url) return null;
@@ -50,11 +51,51 @@ const addDomainToMap = (
   map.set(value.hostname, protocols);
 };
 
+const parseStatusPageBaseUrl = (rawUrl: string): string => {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawUrl);
+  } catch {
+    throw new Error(`UPTIME_KUMA_URLS contains an invalid URL: ${rawUrl}`);
+  }
+
+  const segments = parsedUrl.pathname.split('/').filter(Boolean);
+  const statusIndex = segments.findIndex(segment => segment.toLowerCase() === STATUS_SEGMENT);
+
+  if (statusIndex < 0 || statusIndex >= segments.length - 1) {
+    throw new Error(
+      `UPTIME_KUMA_URLS must contain status page URLs like https://example.com/status/default, got: ${rawUrl}`
+    );
+  }
+
+  const basePathSegments = segments.slice(0, statusIndex);
+  const basePath = basePathSegments.length > 0 ? `/${basePathSegments.join('/')}` : '';
+  return `${parsedUrl.origin}${basePath}`.replace(/\/+$/, '');
+};
+
+const parseUptimeKumaUrls = (): string[] => {
+  const rawUrls = process.env.UPTIME_KUMA_URLS?.trim();
+  if (!rawUrls) return [];
+
+  return rawUrls
+    .split('|')
+    .map(item => item.trim())
+    .filter(item => item.length > 0)
+    .map(url => parseStatusPageBaseUrl(url));
+};
+
 const generateImageDomains = (): void => {
   const domainsMap = new Map<string, Set<ImageProtocol>>();
 
+  for (const baseUrl of parseUptimeKumaUrls()) {
+    addDomainToMap(domainsMap, parseUrl(baseUrl));
+  }
+
   addDomainToMap(domainsMap, parseUrl(process.env.UPTIME_KUMA_BASE_URL || ''));
-  addDomainToMap(domainsMap, parseUrl(process.env.FEATURE_ICON || ''));
+  addDomainToMap(
+    domainsMap,
+    parseUrl(process.env.KUMA_MIERU_ICON ?? process.env.FEATURE_ICON ?? '')
+  );
 
   const patterns: ImageDomainPattern[] = Array.from(domainsMap.entries()).map(
     ([hostname, protocols]) => ({

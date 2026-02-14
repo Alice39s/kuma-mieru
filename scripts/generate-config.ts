@@ -42,20 +42,46 @@ type SiteMeta = z.infer<typeof siteMetaSchema>;
 interface StringOverride {
   value: string | undefined;
   isDefined: boolean;
+  sourceName?: string;
 }
 
-const getFeatureOverride = (name: string): StringOverride => {
-  const value = process.env[name];
+interface KumaEndpointConfig {
+  baseUrl: string;
+  pageIds: string[];
+  sourceName: 'UPTIME_KUMA_URLS' | 'UPTIME_KUMA_BASE_URL,PAGE_ID';
+}
+
+const getEnvWithAliases = (names: string[]): StringOverride => {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value !== undefined) {
+      return {
+        value,
+        isDefined: true,
+        sourceName: name,
+      };
+    }
+  }
+
   return {
-    value,
-    isDefined: value !== undefined,
+    value: undefined,
+    isDefined: false,
   };
 };
 
-const formatOverrideForLog = ({ isDefined, value }: StringOverride): string => {
+const getFeatureOverride = (name: string, legacyName: string): StringOverride => {
+  return getEnvWithAliases([name, legacyName]);
+};
+
+const formatOverrideForLog = ({ isDefined, value, sourceName }: StringOverride): string => {
   if (!isDefined) return 'Not set';
-  if (value === '') return '(empty string)';
-  return value ?? '(undefined)';
+  const sourceLabel = sourceName ? ` [${sourceName}]` : '';
+  if (value === '') return `(empty string)${sourceLabel}`;
+  return `${value ?? '(undefined)'}${sourceLabel}`;
+};
+
+const normalizeBaseUrl = (value: string): string => {
+  return value.replace(/\/+$/, '');
 };
 
 const buildIconCandidates = (
@@ -126,22 +152,136 @@ function getRequiredEnvVar(name: string): string {
   return value;
 }
 
-function getBooleanEnvVar(name: string, defaultValue = true): boolean {
-  const value = process.env[name];
-  if (value === undefined) return defaultValue;
+function getBooleanEnvVar(
+  name: string,
+  legacyName: string,
+  defaultValue = true
+): { value: boolean; sourceName?: string } {
+  const resolved = getEnvWithAliases([name, legacyName]);
+  if (!resolved.isDefined) {
+    return {
+      value: defaultValue,
+      sourceName: undefined,
+    };
+  }
 
-  console.log(`[env] ${name}=${value} (type: ${typeof value})`);
+  const rawValue = resolved.value ?? '';
+  const lowercaseValue = rawValue.trim().toLowerCase();
+  console.log(`[env] ${resolved.sourceName}=${rawValue} (type: ${typeof rawValue})`);
+  console.log(`[env] ${resolved.sourceName} -> ${lowercaseValue}`);
 
-  const lowercaseValue = value.toLowerCase();
-  console.log(`[env] ${name} -> ${lowercaseValue}`);
+  return {
+    value: lowercaseValue === 'true',
+    sourceName: resolved.sourceName,
+  };
+}
 
-  return lowercaseValue === 'true';
+function parsePageIds(rawValue: string): string[] {
+  const parsed = rawValue
+    .split(/[,\s]+/)
+    .map(id => id.trim())
+    .filter(id => id.length > 0);
+
+  return Array.from(new Set(parsed));
+}
+
+function parseStatusPageUrl(rawUrl: string): { baseUrl: string; pageId: string } {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawUrl);
+  } catch {
+    throw new Error(`UPTIME_KUMA_URLS contains an invalid URL: ${rawUrl}`);
+  }
+
+  const segments = parsedUrl.pathname.split('/').filter(Boolean);
+  const statusIndex = segments.findIndex(segment => segment.toLowerCase() === 'status');
+
+  if (statusIndex < 0 || statusIndex >= segments.length - 1) {
+    throw new Error(
+      `UPTIME_KUMA_URLS must contain status page URLs like https://example.com/status/default, got: ${rawUrl}`
+    );
+  }
+
+  const pageId = decodeURIComponent(segments[statusIndex + 1]).trim();
+  if (!pageId) {
+    throw new Error(`UPTIME_KUMA_URLS contains an empty page id: ${rawUrl}`);
+  }
+
+  const basePathSegments = segments.slice(0, statusIndex);
+  const basePath = basePathSegments.length > 0 ? `/${basePathSegments.join('/')}` : '';
+
+  return {
+    baseUrl: normalizeBaseUrl(`${parsedUrl.origin}${basePath}`),
+    pageId,
+  };
+}
+
+function resolveKumaEndpointConfig(): KumaEndpointConfig {
+  const rawUrls = process.env.UPTIME_KUMA_URLS?.trim();
+
+  if (rawUrls) {
+    const splitUrls = rawUrls
+      .split('|')
+      .map(item => item.trim())
+      .filter(item => item.length > 0);
+
+    if (splitUrls.length === 0) {
+      throw new Error('UPTIME_KUMA_URLS must contain at least one status page URL');
+    }
+
+    const parsedItems = splitUrls.map(url => parseStatusPageUrl(url));
+    const baseUrl = parsedItems[0]?.baseUrl;
+
+    if (!baseUrl) {
+      throw new Error('Failed to parse UPTIME_KUMA_URLS');
+    }
+
+    const inconsistentBase = parsedItems.find(item => item.baseUrl !== baseUrl);
+    if (inconsistentBase) {
+      throw new Error(
+        `All URLs in UPTIME_KUMA_URLS must share the same base URL. Expected ${baseUrl}, got ${inconsistentBase.baseUrl}`
+      );
+    }
+
+    const pageIds = Array.from(new Set(parsedItems.map(item => item.pageId)));
+    if (pageIds.length === 0) {
+      throw new Error('UPTIME_KUMA_URLS must contain at least one valid status page URL');
+    }
+
+    console.log(`[env] - UPTIME_KUMA_URLS: ${splitUrls.join(' | ')}`);
+
+    if (process.env.UPTIME_KUMA_BASE_URL || process.env.PAGE_ID) {
+      console.log(
+        '[env] [compat] UPTIME_KUMA_URLS is set, UPTIME_KUMA_BASE_URL and PAGE_ID are ignored'
+      );
+    }
+
+    return {
+      baseUrl,
+      pageIds,
+      sourceName: 'UPTIME_KUMA_URLS',
+    };
+  }
+
+  const baseUrl = normalizeBaseUrl(getRequiredEnvVar('UPTIME_KUMA_BASE_URL'));
+  const rawPageIds = getRequiredEnvVar('PAGE_ID');
+  const pageIds = parsePageIds(rawPageIds);
+
+  if (pageIds.length === 0) {
+    throw new Error('PAGE_ID must contain at least one status page identifier');
+  }
+
+  return {
+    baseUrl,
+    pageIds,
+    sourceName: 'UPTIME_KUMA_BASE_URL,PAGE_ID',
+  };
 }
 
 async function fetchSiteMeta(baseUrl: string, pageId: string) {
-  const titleOverride = getFeatureOverride('FEATURE_TITLE');
-  const descriptionOverride = getFeatureOverride('FEATURE_DESCRIPTION');
-  const iconOverride = getFeatureOverride('FEATURE_ICON');
+  const titleOverride = getFeatureOverride('KUMA_MIERU_TITLE', 'FEATURE_TITLE');
+  const descriptionOverride = getFeatureOverride('KUMA_MIERU_DESCRIPTION', 'FEATURE_DESCRIPTION');
+  const iconOverride = getFeatureOverride('KUMA_MIERU_ICON', 'FEATURE_ICON');
   const overrides = {
     title: titleOverride,
     description: descriptionOverride,
@@ -149,9 +289,9 @@ async function fetchSiteMeta(baseUrl: string, pageId: string) {
   };
 
   console.log('[env] [feature_fields]');
-  console.log(`[env] - FEATURE_TITLE: ${formatOverrideForLog(titleOverride)}`);
-  console.log(`[env] - FEATURE_DESCRIPTION: ${formatOverrideForLog(descriptionOverride)}`);
-  console.log(`[env] - FEATURE_ICON: ${formatOverrideForLog(iconOverride)}`);
+  console.log(`[env] - KUMA_MIERU_TITLE: ${formatOverrideForLog(titleOverride)}`);
+  console.log(`[env] - KUMA_MIERU_DESCRIPTION: ${formatOverrideForLog(descriptionOverride)}`);
+  console.log(`[env] - KUMA_MIERU_ICON: ${formatOverrideForLog(iconOverride)}`);
 
   const hasAnyOverride =
     titleOverride.isDefined || descriptionOverride.isDefined || iconOverride.isDefined;
@@ -210,7 +350,7 @@ async function fetchSiteMeta(baseUrl: string, pageId: string) {
 
     if (resolvedMeta.iconCandidates.length > 1) {
       console.log(
-        `[env] - FEATURE_ICON_CANDIDATES: ${resolvedMeta.iconCandidates
+        `[env] - KUMA_MIERU_ICON_CANDIDATES: ${resolvedMeta.iconCandidates
           .map((item, index) => {
             const label =
               index === 0 && iconOverride.isDefined
@@ -236,33 +376,29 @@ async function fetchSiteMeta(baseUrl: string, pageId: string) {
   }
 }
 
-function parsePageIds(rawValue: string): string[] {
-  const parsed = rawValue
-    .split(/[,\s]+/)
-    .map(id => id.trim())
-    .filter(id => id.length > 0);
-
-  return Array.from(new Set(parsed));
-}
-
 async function generateConfig() {
   try {
     console.log('[env] [generate-config]');
     console.log('[env] [start]');
 
     for (const key in process.env) {
-      if (key.startsWith('FEATURE_')) {
+      if (key.startsWith('FEATURE_') || key.startsWith('KUMA_MIERU_')) {
         console.log(`[env] - ${key}: ${process.env[key]}`);
       }
     }
 
-    const baseUrl = getRequiredEnvVar('UPTIME_KUMA_BASE_URL');
-    const rawPageIds = getRequiredEnvVar('PAGE_ID');
-    const pageIds = parsePageIds(rawPageIds);
+    const endpointConfig = resolveKumaEndpointConfig();
+    const { baseUrl, pageIds } = endpointConfig;
 
     if (pageIds.length === 0) {
-      throw new Error('PAGE_ID must contain at least one status page identifier');
+      throw new Error(
+        'PAGE_ID must contain at least one status page identifier, or configure UPTIME_KUMA_URLS'
+      );
     }
+
+    console.log(`[env] - endpointSource: ${endpointConfig.sourceName}`);
+    console.log(`[env] - baseUrl: ${baseUrl}`);
+    console.log(`[env] - pageIds: ${pageIds.join(', ')}`);
 
     const defaultPageId = pageIds[0];
 
@@ -270,14 +406,28 @@ async function generateConfig() {
     try {
       new URL(baseUrl);
     } catch {
-      throw new Error('UPTIME_KUMA_BASE_URL must be a valid URL');
+      throw new Error('Resolved Uptime Kuma base URL must be a valid URL');
     }
 
-    const isEditThisPage = getBooleanEnvVar('FEATURE_EDIT_THIS_PAGE', false);
-    const isShowStarButton = getBooleanEnvVar('FEATURE_SHOW_STAR_BUTTON', true);
+    const isEditThisPage = getBooleanEnvVar(
+      'KUMA_MIERU_EDIT_THIS_PAGE',
+      'FEATURE_EDIT_THIS_PAGE',
+      false
+    );
+    const isShowStarButton = getBooleanEnvVar(
+      'KUMA_MIERU_SHOW_STAR_BUTTON',
+      'FEATURE_SHOW_STAR_BUTTON',
+      true
+    );
 
-    console.log(`[env] - isEditThisPage: ${isEditThisPage}`);
-    console.log(`[env] - isShowStarButton: ${isShowStarButton}`);
+    console.log(`[env] - isEditThisPage: ${isEditThisPage.value}`);
+    console.log(`[env] - isShowStarButton: ${isShowStarButton.value}`);
+    if (isEditThisPage.sourceName) {
+      console.log(`[env] - isEditThisPageSource: ${isEditThisPage.sourceName}`);
+    }
+    if (isShowStarButton.sourceName) {
+      console.log(`[env] - isShowStarButtonSource: ${isShowStarButton.sourceName}`);
+    }
 
     const pageConfigEntries = [] as Array<{ id: string; siteMeta: z.infer<typeof siteMetaSchema> }>;
 
@@ -304,8 +454,8 @@ async function generateConfig() {
       pages: pageConfigEntries,
       siteMeta: defaultSiteMeta,
       isPlaceholder: false,
-      isEditThisPage,
-      isShowStarButton,
+      isEditThisPage: isEditThisPage.value,
+      isShowStarButton: isShowStarButton.value,
     });
 
     const configPath = path.join(process.cwd(), 'config', 'generated-config.json');

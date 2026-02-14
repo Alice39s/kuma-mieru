@@ -100,11 +100,11 @@ Fork 本仓库到您的 GitHub 用户下，如图所示：
 #### 3. 配置环境变量
 
 > [!NOTE]
-> 请确保您已经配置了 `UPTIME_KUMA_BASE_URL` 和 `PAGE_ID` 两个环境变量，否则无法正常显示监控数据。
+> 推荐配置 `UPTIME_KUMA_URLS`，否则无法正常显示监控数据。
 >
-> 关于 `UPTIME_KUMA_BASE_URL` 和 `PAGE_ID` 等配置，请参考 [环境变量配置](#环境变量配置) 一节。
+> 仍兼容 `UPTIME_KUMA_BASE_URL` + `PAGE_ID` 旧配置。详细说明请参考 [环境变量配置](#环境变量配置) 一节。
 
-1. 点击 `Environment Variables` 添加 `UPTIME_KUMA_BASE_URL` 和 `PAGE_ID` 两个环境变量，如图所示：
+1. 点击 `Environment Variables` 添加 `UPTIME_KUMA_URLS`（推荐）环境变量，如图所示：
 
 ![部署到 Vercel](./docs/vercel-deploy.png)
 
@@ -241,7 +241,7 @@ docker pull ghcr.io/alice39s/kuma-mieru:1
 cp .env.example .env
 ```
 
-请参考 [环境变量配置](#环境变量配置) 章节，修改 `.env` 文件中的 `UPTIME_KUMA_BASE_URL` 和 `PAGE_ID` 变量。
+请参考 [环境变量配置](#环境变量配置) 章节，优先配置 `.env` 中的 `UPTIME_KUMA_URLS` 变量。
 
 #### 3. 启动容器服务
 
@@ -251,8 +251,8 @@ cp .env.example .env
 docker run -d \
   --name kuma-mieru \
   -p 3883:3000 \
-  -e UPTIME_KUMA_BASE_URL="..." \
-  -e PAGE_ID="..." \
+  -e UPTIME_KUMA_URLS="https://example.kuma-mieru.invalid/status/default|https://example.kuma-mieru.invalid/status/secondary" \
+  -e KUMA_MIERU_TITLE="Kuma Mieru" \
   ghcr.io/alice39s/kuma-mieru:1
 ```
 
@@ -267,21 +267,39 @@ docker run -d \
 
 ## 环境变量配置
 
-首先，假设您的 Uptime Kuma 的状态页面 URL 为 `https://example.kuma-mieru.invalid/status/test1`
+首先，假设您的 Uptime Kuma 状态页面 URL 为：
 
-那么您需要配置的环境变量如下：
+`https://example.kuma-mieru.invalid/status/test1`
 
-| 变量名                   | 必填 | 说明                                                                      | 示例/默认值                                                                 |
-| ------------------------ | ---- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| UPTIME_KUMA_BASE_URL     | Yes  | Uptime Kuma 实例的基础 URL                                                | <https://example.kuma-mieru.invalid>                                        |
-| PAGE_ID                  | Yes  | Uptime Kuma 实例的状态页面 ID，支持使用逗号分隔多个页面，首个值为默认页面 | default,status-asia                                                         |
-| FEATURE_EDIT_THIS_PAGE   | No   | 是否展示 "Edit This Page" 按钮                                            | false                                                                       |
-| FEATURE_SHOW_STAR_BUTTON | No   | 是否展示 "Star on Github" 按钮                                            | true                                                                        |
-| FEATURE_TITLE            | No   | 自定义页面标题                                                            | Kuma Mieru                                                                  |
-| FEATURE_DESCRIPTION      | No   | 自定义页面描述                                                            | A beautiful and modern uptime monitoring dashboard                          |
-| FEATURE_ICON             | No   | 自定义页面图标URL                                                         | /icon.svg                                                                   |
-| ALLOW_INSECURE_TLS       | No   | 是否跳过上游 Uptime Kuma HTTPS 证书校验（仅用于受信任的自签名环境）       | `false`（默认，强校验） / `true`（跳过校验，有安全风险）                    |
-| ALLOW_EMBEDDING          | No   | 是否允许在 iframe 中嵌入                                                  | `false` (禁止) / `true` (允许所有，不推荐) / `example.com,app.com` (白名单) |
+推荐配置：
+
+`UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/test1`
+
+如果有多个状态页，可以使用 `|` 分隔完整 URL：
+
+`UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/test1|https://example.kuma-mieru.invalid/status/test2`
+
+环境变量说明如下（含向后兼容）：
+
+| 变量名                      | 必填  | 说明                                                                            | 示例/默认值                                                                                              |
+| --------------------------- | ----- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| UPTIME_KUMA_URLS            | Yes\* | 推荐。完整状态页 URL，支持使用 `\|` 分隔多个 URL                                | <https://example.kuma-mieru.invalid/status/default\|https://example.kuma-mieru.invalid/status/secondary> |
+| UPTIME_KUMA_BASE_URL        | Yes\* | 兼容旧版。Uptime Kuma 实例基础 URL（当未设置 `UPTIME_KUMA_URLS` 时启用）        | <https://example.kuma-mieru.invalid>                                                                     |
+| PAGE_ID                     | Yes\* | 兼容旧版。状态页 ID，支持逗号分隔多个页面（当未设置 `UPTIME_KUMA_URLS` 时启用） | default,status-asia                                                                                      |
+| KUMA_MIERU_EDIT_THIS_PAGE   | No    | 是否展示 "Edit This Page" 按钮（新变量名）                                      | false                                                                                                    |
+| KUMA_MIERU_SHOW_STAR_BUTTON | No    | 是否展示 "Star on Github" 按钮（新变量名）                                      | true                                                                                                     |
+| KUMA_MIERU_TITLE            | No    | 自定义页面标题（新变量名）                                                      | Kuma Mieru                                                                                               |
+| KUMA_MIERU_DESCRIPTION      | No    | 自定义页面描述（新变量名）                                                      | A beautiful and modern uptime monitoring dashboard                                                       |
+| KUMA_MIERU_ICON             | No    | 自定义页面图标 URL（新变量名）                                                  | /icon.svg                                                                                                |
+| FEATURE_EDIT_THIS_PAGE      | No    | 兼容旧版，等价于 `KUMA_MIERU_EDIT_THIS_PAGE`                                    | false                                                                                                    |
+| FEATURE_SHOW_STAR_BUTTON    | No    | 兼容旧版，等价于 `KUMA_MIERU_SHOW_STAR_BUTTON`                                  | true                                                                                                     |
+| FEATURE_TITLE               | No    | 兼容旧版，等价于 `KUMA_MIERU_TITLE`                                             | Kuma Mieru                                                                                               |
+| FEATURE_DESCRIPTION         | No    | 兼容旧版，等价于 `KUMA_MIERU_DESCRIPTION`                                       | A beautiful and modern uptime monitoring dashboard                                                       |
+| FEATURE_ICON                | No    | 兼容旧版，等价于 `KUMA_MIERU_ICON`                                              | /icon.svg                                                                                                |
+| ALLOW_INSECURE_TLS          | No    | 是否跳过上游 Uptime Kuma HTTPS 证书校验（仅用于受信任的自签名环境）             | `false`（默认，强校验） / `true`（跳过校验，有安全风险）                                                 |
+| ALLOW_EMBEDDING             | No    | 是否允许在 iframe 中嵌入                                                        | `false` (禁止) / `true` (允许所有，不推荐) / `example.com,app.com` (白名单)                              |
+
+\* `UPTIME_KUMA_URLS` 与 `UPTIME_KUMA_BASE_URL + PAGE_ID` 二选一即可。若同时配置，优先使用 `UPTIME_KUMA_URLS`。
 
 ## 与 Uptime Kuma 集成 :link:
 

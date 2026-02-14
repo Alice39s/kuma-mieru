@@ -124,8 +124,8 @@ jobs:
             docker run -d \
               --name kuma-mieru \
               -p 3883:3000 \
-              -e UPTIME_KUMA_BASE_URL=your_uptime_kuma_url \
-              -e PAGE_ID=your_page_id \
+              -e UPTIME_KUMA_URLS=https://your_uptime_kuma_url/status/your_page_id \
+              -e KUMA_MIERU_TITLE="My Status Page" \
               ghcr.io/${{ env.REPO_NAME }}:1
             ```
 

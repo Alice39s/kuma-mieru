@@ -81,16 +81,31 @@ const configGroups: ConfigGroup[] = [
     color: 'blue',
     items: [
       {
-        name: 'UPTIME_KUMA_BASE_URL',
+        name: 'UPTIME_KUMA_URLS',
+        value: process.env.UPTIME_KUMA_URLS,
+        defaultValue: 'Not set (using legacy vars)',
+      },
+      {
+        name: 'RESOLVED_BASE_URL',
         value: generatedConfig?.baseUrl || process.env.UPTIME_KUMA_BASE_URL,
       },
       {
-        name: 'PAGE_ID',
+        name: 'RESOLVED_DEFAULT_PAGE_ID',
         value: generatedConfig?.pageId || generatedConfig?.pageIds?.[0] || process.env.PAGE_ID,
       },
       {
-        name: 'PAGE_IDS',
+        name: 'RESOLVED_PAGE_IDS',
         value: generatedConfig?.pageIds?.join(', ') || process.env.PAGE_ID,
+      },
+      {
+        name: 'UPTIME_KUMA_BASE_URL (legacy)',
+        value: process.env.UPTIME_KUMA_BASE_URL,
+        defaultValue: 'Not set',
+      },
+      {
+        name: 'PAGE_ID (legacy)',
+        value: process.env.PAGE_ID,
+        defaultValue: 'Not set',
       },
     ],
   },
@@ -100,12 +115,12 @@ const configGroups: ConfigGroup[] = [
     color: 'magenta',
     items: [
       {
-        name: 'FEATURE_EDIT_THIS_PAGE',
+        name: 'KUMA_MIERU_EDIT_THIS_PAGE',
         value: generatedConfig?.isEditThisPage,
         defaultValue: 'false (Default)',
       },
       {
-        name: 'FEATURE_SHOW_STAR_BUTTON',
+        name: 'KUMA_MIERU_SHOW_STAR_BUTTON',
         value: generatedConfig?.isShowStarButton,
         defaultValue: 'true (Default)',
       },
@@ -117,17 +132,17 @@ const configGroups: ConfigGroup[] = [
     color: 'magenta',
     items: [
       {
-        name: 'FEATURE_TITLE',
+        name: 'KUMA_MIERU_TITLE',
         value: generatedConfig?.siteMeta?.title,
         defaultValue: 'Using Default',
       },
       {
-        name: 'FEATURE_DESCRIPTION',
+        name: 'KUMA_MIERU_DESCRIPTION',
         value: generatedConfig?.siteMeta?.description,
         defaultValue: 'Using Default',
       },
       {
-        name: 'FEATURE_ICON',
+        name: 'KUMA_MIERU_ICON',
         value: generatedConfig?.siteMeta?.icon,
         defaultValue: 'Using Default',
       },
