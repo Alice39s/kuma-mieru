@@ -35,7 +35,7 @@
     "@next/bundle-analyzer": "^15.5.12",
     "@opennextjs/cloudflare": "^1.16.5",
     "@react-aria/ssr": "3.9.7",
-    "@react-aria/visually-hidden": "3.8.20",
+    "@react-aria/visually-hidden": "3.8.30",
     "@sankyu/react-circle-flags": "^1.6.2",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/markdown-it": "^14.1.2",
