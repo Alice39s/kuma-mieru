@@ -5,9 +5,9 @@ import type { Incident } from '@/types/monitor';
 import { CircleAlert, Info, TriangleAlert } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import type { DateTimeFormatOptions } from 'next-intl';
-import React, { useMemo } from 'react';
-import { dateStringToTimestamp, extractSentence, timezoneOffsetToMs } from '../utils/format';
-import { getMarkdownClasses, useMarkdown } from '../utils/markdown';
+import { useMemo } from 'react';
+import { dateStringToTimestamp, timezoneOffsetToMs } from '../utils/format';
+import { extractPlainText, getMarkdownClasses, useMarkdown } from '../utils/markdown';
 
 function IncidentMarkdownAlert({ incident }: { incident: Incident }) {
   const t = useTranslations('alert');
@@ -57,7 +57,7 @@ function IncidentMarkdownAlert({ incident }: { incident: Incident }) {
   return (
     <ExpandableAlert
       title={title}
-      preview={extractSentence(content)}
+      preview={extractPlainText(content, 150)}
       color={alertColor}
       className="mb-8"
       icon={<AlertIcon className="h-4 w-4" />}

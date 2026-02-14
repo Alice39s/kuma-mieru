@@ -1,8 +1,7 @@
 'use client';
 
 import { ExpandableAlert } from '@/components/alerts/ExpandableAlert';
-import { extractSentence } from '@/components/utils/format';
-import { getMarkdownClasses, useMarkdown } from '@/components/utils/markdown';
+import { extractPlainText, getMarkdownClasses, useMarkdown } from '@/components/utils/markdown';
 import type { Maintenance } from '@/types/config';
 import { Card, CardBody, Chip, Progress } from '@heroui/react';
 import clsx from 'clsx';
@@ -46,7 +45,9 @@ function MaintenanceScheduleCard({
             ) : (
               <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             )}
-            <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{statusTitle}</span>
+            <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              {statusTitle}
+            </span>
           </div>
           {isActive ? (
             <Chip size="sm" color="warning" variant="flat">
@@ -116,7 +117,7 @@ function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
   const StatusIcon = isActive ? Wrench : AlertCircle;
 
   const previewText = maintenance.description
-    ? extractSentence(maintenance.description)
+    ? extractPlainText(maintenance.description, 150)
     : timeline
       ? `${new Date(timeline.displayStartTime).toLocaleString()} - ${new Date(timeline.displayEndTime).toLocaleString()}`
       : '';
