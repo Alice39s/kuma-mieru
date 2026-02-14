@@ -1,0 +1,42 @@
+import type { Maintenance } from '@/types/config';
+import { dateStringToTimestamp, timezoneOffsetToMs } from '@/components/utils/format';
+import { useMemo } from 'react';
+
+export interface MaintenanceTimeline {
+  timeZoneOffset: string;
+  startTime: number;
+  endTime: number;
+  displayStartTime: number;
+  displayEndTime: number;
+  progressPercent: number;
+}
+
+const normalizeDateTime = (value: string) => value.replace(/\s\+0000$/, '');
+
+export function useMaintenanceTimeline(maintenance: Maintenance, now: number): MaintenanceTimeline | null {
+  return useMemo(() => {
+    const currentTimeSlot = maintenance.timeslotList?.[0];
+    if (!currentTimeSlot) return null;
+
+    const timeZoneOffset = maintenance.timezoneOffset || 'UTC';
+    const startDate = normalizeDateTime(currentTimeSlot.startDate);
+    const endDate = normalizeDateTime(currentTimeSlot.endDate);
+
+    const startTime = dateStringToTimestamp(startDate, timeZoneOffset);
+    const endTime = dateStringToTimestamp(endDate, timeZoneOffset);
+    const timezoneOffsetMs = timezoneOffsetToMs(timeZoneOffset);
+
+    const duration = Math.max(endTime - startTime, 1);
+    const elapsed = now - startTime;
+    const progressPercent = Math.min(Math.max(Math.floor((elapsed / duration) * 100), 0), 100);
+
+    return {
+      timeZoneOffset,
+      startTime,
+      endTime,
+      displayStartTime: startTime + timezoneOffsetMs,
+      displayEndTime: endTime + timezoneOffsetMs,
+      progressPercent,
+    };
+  }, [maintenance, now]);
+}

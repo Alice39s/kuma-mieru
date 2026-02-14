@@ -1,17 +1,26 @@
 'use client';
 
-import { Alert } from '@/components/ui/Alert';
+import { ExpandableAlert } from '@/components/alerts/ExpandableAlert';
+import { extractSentence } from '@/components/utils/format';
+import { getMarkdownClasses, useMarkdown } from '@/components/utils/markdown';
 import type { Maintenance } from '@/types/config';
 import { Card, CardBody, Chip, Progress } from '@heroui/react';
 import clsx from 'clsx';
 import { AlertCircle, Calendar, Clock, Timer, Wrench } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import type { DateTimeFormatOptions } from 'next-intl';
-import { useEffect } from 'react';
-import { dateStringToTimestamp, timezoneOffsetToMs } from '../utils/format';
-import { getMarkdownClasses, useMarkdown } from '../utils/markdown';
+import { useMemo } from 'react';
+import { useMaintenanceTimeline } from './hooks/useMaintenanceTimeline';
 
-function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
+function MaintenanceScheduleCard({
+  isActive,
+  timeline,
+  statusTitle,
+}: {
+  isActive: boolean;
+  timeline: ReturnType<typeof useMaintenanceTimeline>;
+  statusTitle: string;
+}) {
   const t = useTranslations('maintenance');
   const format = useFormatter();
   const now = Date.now();
@@ -21,215 +30,127 @@ function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
     timeZone: 'UTC',
   };
 
-  const isActive = maintenance.status === 'under-maintenance';
-  const isScheduled = maintenance.status === 'scheduled';
+  if (!timeline) return null;
 
-  // 渲染 description 的 markdown 内容
-  const renderedDescription = useMarkdown(maintenance.description || '');
+  const cardTone = isActive
+    ? 'border-amber-200 dark:border-amber-800 bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30'
+    : 'border-blue-200 dark:border-blue-800 bg-linear-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30';
 
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Maintenance data:', maintenance);
-    }
-  }, [maintenance]);
-
-  const getStatusTitle = () => {
-    if (isActive) {
-      return t('InProgress');
-    }
-    if (isScheduled) {
-      return t('Scheduled');
-    }
-    return t('default');
-  };
-
-  const getMaintenanceTimeInfo = () => {
-    if (!maintenance.timeslotList || maintenance.timeslotList.length === 0) {
-      return null;
-    }
-
-    // 从维护数据中获取时区信息
-    const timeZoneOffset = maintenance.timezoneOffset || 'UTC';
-    let { startDate, endDate } = maintenance.timeslotList[0];
-
-    // 处理日期字符串，移除末尾的时区信息
-    if (startDate.endsWith('+0000')) {
-      startDate = startDate.replace(' +0000', '');
-    }
-    if (endDate.endsWith('+0000')) {
-      endDate = endDate.replace(' +0000', '');
-    }
-
-    // 在开发环境中记录处理后的日期和时区信息
-    if (process.env.NODE_ENV === 'development') {
-      console.log('处理后的开始日期:', startDate);
-      console.log('处理后的结束日期:', endDate);
-      console.log('使用的时区:', timeZoneOffset);
-    }
-
-    const startTime = dateStringToTimestamp(startDate, timeZoneOffset);
-    const endTime = dateStringToTimestamp(endDate, timeZoneOffset);
-    const timezoneOffsetMs = timezoneOffsetToMs(timeZoneOffset);
-    const displayStartTime = startTime + timezoneOffsetMs;
-    const displayEndTime = endTime + timezoneOffsetMs;
-
-    // 在开发环境中记录转换后的时间戳
-    if (process.env.NODE_ENV === 'development') {
-      console.log('开始时间戳:', startTime, new Date(startTime).toISOString());
-      console.log('结束时间戳:', endTime, new Date(endTime).toISOString());
-    }
-
-    if (isActive) {
-      const totalDuration = endTime - startTime;
-      const elapsed = now - startTime;
-      const progressPercent = Math.min(
-        Math.max(Math.floor((elapsed / totalDuration) * 100), 0),
-        100
-      );
-
-      return (
-        <Card className="mt-4 bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border border-amber-200 dark:border-amber-800">
-          <CardBody className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Timer className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              <span className="font-semibold text-amber-800 dark:text-amber-200">
-                {t('maintenanceInProgress')}
-              </span>
-            </div>
-
-            {/* 渲染 markdown description */}
-            {maintenance.description && (
-              <div
-                className={clsx(
-                  'my-4 w-full rounded-lg border border-amber-200/50 dark:border-amber-700/50 prose-amber prose-sm prose-p:m-0',
-                  getMarkdownClasses()
-                )}
-              >
-                <div
-                  className="prose-amber prose-sm prose-p:m-0 p-4"
-                  // oxlint-disable-next-line react/no-danger -- 内容已通过 rehype-sanitize 白名单净化
-                  dangerouslySetInnerHTML={{ __html: renderedDescription }}
-                />
-              </div>
+  return (
+    <Card className={clsx('border', cardTone)}>
+      <CardBody className="p-4">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            {isActive ? (
+              <Timer className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            ) : (
+              <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             )}
+            <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{statusTitle}</span>
+          </div>
+          {isActive ? (
+            <Chip size="sm" color="warning" variant="flat">
+              {timeline.progressPercent}%
+            </Chip>
+          ) : null}
+        </div>
 
-            <div className="space-y-3">
-              <div className="flex justify-between items-center text-sm">
-                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                  <Calendar className="h-4 w-4" />
-                  <span>{format.dateTime(displayStartTime, dateTimeFormat)}</span>
-                </div>
-                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                  <Clock className="h-4 w-4" />
-                  <span>{format.dateTime(displayEndTime, dateTimeFormat)}</span>
-                </div>
-              </div>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="h-4 w-4" />
+              <span>{format.dateTime(timeline.displayStartTime, dateTimeFormat)}</span>
+            </div>
+            <span>-</span>
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4" />
+              <span>{format.dateTime(timeline.displayEndTime, dateTimeFormat)}</span>
+            </div>
+          </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                    {t('Progress')}
-                  </span>
-                  <Chip size="sm" color="warning" variant="flat">
-                    {progressPercent}%
-                  </Chip>
-                </div>
-                <Progress
-                  value={progressPercent}
-                  color="warning"
-                  className="h-3"
-                  aria-label={t('Progress')}
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-2 border-t border-amber-200 dark:border-amber-800">
-                <span className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+          {isActive ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                  {t('Progress')}
+                </span>
+                <span className="text-sm text-amber-700 dark:text-amber-300">
                   {t('EndsIn', {
-                    time: format.relativeTime(endTime, now),
+                    time: format.relativeTime(timeline.endTime, now),
                   })}
                 </span>
               </div>
+              <Progress value={timeline.progressPercent} color="warning" className="h-3" />
             </div>
-          </CardBody>
-        </Card>
-      );
-    }
-
-    if (isScheduled) {
-      return (
-        <Card className="mt-4 bg-linear-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800">
-          <CardBody className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <span className="font-semibold text-blue-800 dark:text-blue-200">
-                {t('scheduledMaintenance')}
-              </span>
+          ) : (
+            <div className="pt-1 text-sm font-medium text-blue-600 dark:text-blue-400">
+              {t('StartsIn', {
+                time: format.relativeTime(timeline.startTime, now),
+              })}
             </div>
+          )}
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
 
-            {/* 渲染 markdown description */}
-            {maintenance.description && (
+function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
+  const t = useTranslations('maintenance');
+  const now = Date.now();
+
+  const isActive = maintenance.status === 'under-maintenance';
+  const isScheduled = maintenance.status === 'scheduled';
+  const renderedDescription = useMarkdown(maintenance.description || '');
+
+  const timeline = useMaintenanceTimeline(maintenance, now);
+
+  const statusText = useMemo(() => {
+    if (isActive) return t('InProgress');
+    if (isScheduled) return t('Scheduled');
+    return t('default');
+  }, [isActive, isScheduled, t]);
+
+  const statusTitle = `${statusText}: ${maintenance.title}`;
+  const alertColor = isActive ? 'warning' : 'default';
+  const StatusIcon = isActive ? Wrench : AlertCircle;
+
+  const previewText = maintenance.description
+    ? extractSentence(maintenance.description)
+    : timeline
+      ? `${new Date(timeline.displayStartTime).toLocaleString()} - ${new Date(timeline.displayEndTime).toLocaleString()}`
+      : '';
+
+  return (
+    <ExpandableAlert
+      title={statusTitle}
+      preview={previewText}
+      color={alertColor}
+      className="mb-8"
+      icon={<StatusIcon className="h-4 w-4" />}
+    >
+      <div className="space-y-4">
+        <MaintenanceScheduleCard isActive={isActive} timeline={timeline} statusTitle={statusText} />
+
+        {maintenance.description ? (
+          <Card className="border border-gray-200/80 bg-white/70 dark:border-gray-700/70 dark:bg-zinc-900/60">
+            <CardBody className="p-4">
               <div
-                className={`${getMarkdownClasses()} mb-4 p-3 bg-white/50 dark:bg-black/20 rounded-lg border border-blue-200/50 dark:border-blue-700/50`}
+                className={getMarkdownClasses()}
                 // oxlint-disable-next-line react/no-danger -- 内容已通过 rehype-sanitize 白名单净化
                 dangerouslySetInnerHTML={{ __html: renderedDescription }}
               />
-            )}
+            </CardBody>
+          </Card>
+        ) : null}
 
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                <Calendar className="h-4 w-4" />
-                <span>{format.dateTime(displayStartTime, dateTimeFormat)}</span>
-                <span>-</span>
-                <span>{format.dateTime(displayEndTime, dateTimeFormat)}</span>
-              </div>
-
-              <div className="flex items-center justify-between pt-2 border-t border-blue-200 dark:border-blue-800">
-                <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">
-                  {t('StartsIn', {
-                    time: format.relativeTime(startTime, now),
-                  })}
-                </span>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-      );
-    }
-
-    return null;
-  };
-
-  const alertColor = isActive ? 'warning' : 'default';
-  const StatusIcon = isActive ? Wrench : AlertCircle;
-  const statusTitle = `${getStatusTitle()}: ${maintenance.title}`;
-
-  return (
-    <Alert
-      title={statusTitle}
-      description={maintenance.description}
-      color={alertColor}
-      variant="flat"
-      className="mb-8"
-      icon={<StatusIcon className="h-5 w-5" />}
-      markdownDescription={true}
-    >
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <StatusIcon className="h-5 w-5" />
-          <span className="font-medium text-lg">{statusTitle}</span>
-        </div>
-
-        {getMaintenanceTimeInfo()}
-
-        <div className="flex flex-col items-end gap-1 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <span className="text-sm text-gray-400 dark:text-gray-500">
-            {t('timezoneInfo', {
-              timezone: maintenance.timezoneOffset || 'UTC',
-            })}
-          </span>
+        <div className="flex items-center justify-end border-t border-gray-200/80 pt-3 text-sm text-gray-500 dark:border-gray-700/70 dark:text-gray-400">
+          {t('timezoneInfo', {
+            timezone: maintenance.timezoneOffset || 'UTC',
+          })}
         </div>
       </div>
-    </Alert>
+    </ExpandableAlert>
   );
 }
 

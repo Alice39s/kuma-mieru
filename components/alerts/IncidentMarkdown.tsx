@@ -1,7 +1,8 @@
 'use client';
 
-import { Alert } from '@/components/ui/Alert';
+import { ExpandableAlert } from '@/components/alerts/ExpandableAlert';
 import type { Incident } from '@/types/monitor';
+import { CircleAlert, Info, TriangleAlert } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import type { DateTimeFormatOptions } from 'next-intl';
 import React, { useMemo } from 'react';
@@ -40,39 +41,53 @@ function IncidentMarkdownAlert({ incident }: { incident: Incident }) {
     }
   }, [style]);
 
+  const AlertIcon = useMemo(() => {
+    switch (style) {
+      case 'warning':
+        return TriangleAlert;
+      case 'danger':
+        return CircleAlert;
+      default:
+        return Info;
+    }
+  }, [style]);
+
   const htmlContent = useMarkdown(content);
 
   return (
-    <Alert
+    <ExpandableAlert
       title={title}
-      description={extractSentence(content)}
+      preview={extractSentence(content)}
       color={alertColor}
-      variant="flat"
       className="mb-8"
+      icon={<AlertIcon className="h-4 w-4" />}
     >
-      <div
-        className={getMarkdownClasses()}
-        // oxlint-disable-next-line react/no-danger -- 内容已通过 rehype-sanitize 白名单净化
-        dangerouslySetInnerHTML={{ __html: htmlContent }}
-      />
-      <div className="flex flex-col items-end gap-1 mt-4">
-        {lastUpdatedDate && (
-          <span className="text-sm text-gray-400 dark:text-gray-500">
-            {t('updatedAt', {
-              time: format.relativeTime(dateStringToTimestamp(lastUpdatedDate), now),
+      <div className="space-y-4">
+        <div
+          className={getMarkdownClasses()}
+          // oxlint-disable-next-line react/no-danger -- 内容已通过 rehype-sanitize 白名单净化
+          dangerouslySetInnerHTML={{ __html: htmlContent }}
+        />
+
+        <div className="flex flex-col items-end gap-1 border-t border-gray-200/80 pt-3 dark:border-gray-700/70">
+          {lastUpdatedDate ? (
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {t('updatedAt', {
+                time: format.relativeTime(dateStringToTimestamp(lastUpdatedDate), now),
+              })}
+            </span>
+          ) : null}
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {t('createdAt', {
+              time: format.dateTime(
+                dateStringToTimestamp(createdDate) + timezoneOffsetToMs('+00:00'),
+                dateTimeFormat
+              ),
             })}
           </span>
-        )}
-        <span className="text-sm text-gray-400 dark:text-gray-500">
-          {t('createdAt', {
-            time: format.dateTime(
-              dateStringToTimestamp(createdDate) + timezoneOffsetToMs('+00:00'),
-              dateTimeFormat
-            ),
-          })}
-        </span>
+        </div>
       </div>
-    </Alert>
+    </ExpandableAlert>
   );
 }
 
