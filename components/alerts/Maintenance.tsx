@@ -133,7 +133,7 @@ function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
       <div className="space-y-4">
         <MaintenanceScheduleCard isActive={isActive} timeline={timeline} statusTitle={statusText} />
 
-        {maintenance.description ? (
+        {maintenance.description && renderedDescription ? (
           <Card className="border border-gray-200/80 bg-white/70 dark:border-gray-700/70 dark:bg-zinc-900/60">
             <CardBody className="p-4">
               <div

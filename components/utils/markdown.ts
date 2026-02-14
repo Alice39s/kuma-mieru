@@ -77,7 +77,41 @@ const markdownProcessor = unified()
   .use(rehypeExpressiveCode, expressiveCodeOptions)
   .use(rehypeStringify);
 
+const MAX_MARKDOWN_CACHE_SIZE = 500;
 const markdownRenderCache = new Map<string, Promise<string>>();
+
+const escapeHtml = (input: string): string => {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
+const getFallbackHtml = (content: string): string => {
+  if (!content) return '';
+
+  const plainText = extractPlainText(content, 1200);
+  if (!plainText) return '';
+
+  return `<p>${escapeHtml(plainText)}</p>`;
+};
+
+const setMarkdownCache = (content: string, promise: Promise<string>) => {
+  if (markdownRenderCache.has(content)) {
+    markdownRenderCache.delete(content);
+  }
+
+  markdownRenderCache.set(content, promise);
+
+  if (markdownRenderCache.size > MAX_MARKDOWN_CACHE_SIZE) {
+    const oldestKey = markdownRenderCache.keys().next().value;
+    if (typeof oldestKey === 'string') {
+      markdownRenderCache.delete(oldestKey);
+    }
+  }
+};
 
 /**
  * Hook for rendering markdown content
@@ -85,10 +119,11 @@ const markdownRenderCache = new Map<string, Promise<string>>();
  * @returns rendered HTML string
  */
 export function useMarkdown(content: string): string {
-  const [html, setHtml] = useState('');
+  const [html, setHtml] = useState(() => getFallbackHtml(content));
 
   useEffect(() => {
     let isCancelled = false;
+    const fallbackHtml = getFallbackHtml(content);
 
     if (!content) {
       setHtml('');
@@ -97,15 +132,17 @@ export function useMarkdown(content: string): string {
       };
     }
 
+    setHtml(fallbackHtml);
+
     void renderMarkdown(content)
       .then(renderedHtml => {
         if (!isCancelled) {
-          setHtml(renderedHtml);
+          setHtml(renderedHtml || fallbackHtml);
         }
       })
       .catch(() => {
         if (!isCancelled) {
-          setHtml('');
+          setHtml(fallbackHtml);
         }
       });
 
@@ -126,13 +163,15 @@ export async function renderMarkdown(content: string): Promise<string> {
   if (!content) return '';
 
   if (!markdownRenderCache.has(content)) {
-    markdownRenderCache.set(
-      content,
-      markdownProcessor
-        .process(content)
-        .then(file => String(file).trim())
-        .catch(() => '')
-    );
+    const renderPromise = markdownProcessor
+      .process(content)
+      .then(file => String(file).trim())
+      .catch(() => {
+        markdownRenderCache.delete(content);
+        return '';
+      });
+
+    setMarkdownCache(content, renderPromise);
   }
 
   return markdownRenderCache.get(content) as Promise<string>;
