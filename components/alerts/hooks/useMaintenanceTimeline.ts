@@ -11,16 +11,14 @@ export interface MaintenanceTimeline {
   progressPercent: number;
 }
 
-const normalizeDateTime = (value: string) => value.replace(/\s\+0000$/, '');
-
 export function useMaintenanceTimeline(maintenance: Maintenance, now: number): MaintenanceTimeline | null {
   return useMemo(() => {
     const currentTimeSlot = maintenance.timeslotList?.[0];
     if (!currentTimeSlot) return null;
 
     const timeZoneOffset = maintenance.timezoneOffset || 'UTC';
-    const startDate = normalizeDateTime(currentTimeSlot.startDate);
-    const endDate = normalizeDateTime(currentTimeSlot.endDate);
+    const startDate = currentTimeSlot.startDate;
+    const endDate = currentTimeSlot.endDate;
 
     const startTime = dateStringToTimestamp(startDate, timeZoneOffset);
     const endTime = dateStringToTimestamp(endDate, timeZoneOffset);

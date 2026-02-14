@@ -99,10 +99,6 @@ const getFallbackHtml = (content: string): string => {
 };
 
 const setMarkdownCache = (content: string, promise: Promise<string>) => {
-  if (markdownRenderCache.has(content)) {
-    markdownRenderCache.delete(content);
-  }
-
   markdownRenderCache.set(content, promise);
 
   if (markdownRenderCache.size > MAX_MARKDOWN_CACHE_SIZE) {
