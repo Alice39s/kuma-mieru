@@ -14,15 +14,15 @@ export const getUserLocale = async () => {
   const acceptLang = (await headers()).get('Accept-Language');
   if (!acceptLang) return defaultLocale;
 
-  const languages = acceptLang.split(',').map((lang) => {
+  const languages = acceptLang.split(',').map(lang => {
     const [languageCode] = lang.split(';');
     return languageCode.trim();
   });
 
-  const validLocales = new Set(locales.map((locale) => locale.key));
+  const validLocales = new Set(locales.map(locale => locale.key));
 
   // First try exact-match
-  const exactMatch = languages.find((lang) => validLocales.has(lang as Locale));
+  const exactMatch = languages.find(lang => validLocales.has(lang as Locale));
   if (exactMatch) return exactMatch;
 
   // If no exact match, try matching language base
@@ -31,7 +31,7 @@ export const getUserLocale = async () => {
 
     // Find first locale that starts with the base language
     const matchingLocale = Array.from(validLocales).find(
-      (validLocale) => validLocale.startsWith(`${baseLanguage}-`) || validLocale === baseLanguage,
+      validLocale => validLocale.startsWith(`${baseLanguage}-`) || validLocale === baseLanguage
     );
 
     if (matchingLocale) return matchingLocale;

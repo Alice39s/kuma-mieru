@@ -60,7 +60,7 @@ const formatOverrideForLog = ({ isDefined, value }: StringOverride): string => {
 
 const buildIconCandidates = (
   sources: Array<string | undefined | null>,
-  defaultIcon: string,
+  defaultIcon: string
 ): string[] => {
   const seen = new Set<string>();
   const candidates: string[] = [];
@@ -98,19 +98,16 @@ const resolveSiteMeta = ({
   remoteMeta?: Partial<Pick<SiteMeta, 'title' | 'description' | 'icon'>>;
 }): SiteMeta => {
   const title = overrides.title.isDefined
-    ? overrides.title.value ?? ''
-    : remoteMeta?.title ?? DEFAULT_SITE_META.title;
+    ? (overrides.title.value ?? '')
+    : (remoteMeta?.title ?? DEFAULT_SITE_META.title);
 
   const description = overrides.description.isDefined
-    ? overrides.description.value ?? ''
-    : remoteMeta?.description ?? DEFAULT_SITE_META.description;
+    ? (overrides.description.value ?? '')
+    : (remoteMeta?.description ?? DEFAULT_SITE_META.description);
 
   const iconCandidates = buildIconCandidates(
-    [
-      overrides.icon.isDefined ? overrides.icon.value : undefined,
-      remoteMeta?.icon,
-    ],
-    DEFAULT_SITE_META.icon,
+    [overrides.icon.isDefined ? overrides.icon.value : undefined, remoteMeta?.icon],
+    DEFAULT_SITE_META.icon
   );
 
   return siteMetaSchema.parse({
@@ -213,15 +210,17 @@ async function fetchSiteMeta(baseUrl: string, pageId: string) {
 
     if (resolvedMeta.iconCandidates.length > 1) {
       console.log(
-        `[env] - FEATURE_ICON_CANDIDATES: ${resolvedMeta.iconCandidates.map((item, index) => {
-          const label =
-            index === 0 && iconOverride.isDefined
-              ? `${item} (env)`
-              : index === 0
-              ? `${item} (resolved)`
-              : item;
-          return label;
-        }).join(' -> ')}`,
+        `[env] - FEATURE_ICON_CANDIDATES: ${resolvedMeta.iconCandidates
+          .map((item, index) => {
+            const label =
+              index === 0 && iconOverride.isDefined
+                ? `${item} (env)`
+                : index === 0
+                  ? `${item} (resolved)`
+                  : item;
+            return label;
+          })
+          .join(' -> ')}`
       );
     }
 
@@ -240,8 +239,8 @@ async function fetchSiteMeta(baseUrl: string, pageId: string) {
 function parsePageIds(rawValue: string): string[] {
   const parsed = rawValue
     .split(/[,\s]+/)
-    .map((id) => id.trim())
-    .filter((id) => id.length > 0);
+    .map(id => id.trim())
+    .filter(id => id.length > 0);
 
   return Array.from(new Set(parsed));
 }
@@ -292,7 +291,7 @@ async function generateConfig() {
       }
     }
 
-    const defaultSiteMeta = pageConfigEntries.find((entry) => entry.id === defaultPageId)?.siteMeta;
+    const defaultSiteMeta = pageConfigEntries.find(entry => entry.id === defaultPageId)?.siteMeta;
 
     if (!defaultSiteMeta) {
       throw new Error(`Unable to resolve site metadata for default page "${defaultPageId}"`);

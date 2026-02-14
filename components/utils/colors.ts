@@ -74,7 +74,7 @@ export const DEFAULT_PING_THRESHOLDS: PingThresholds = {
 // 基于固定阈值的颜色判断
 export const getPingColorClass = (
   ping: number,
-  thresholds: PingThresholds = DEFAULT_PING_THRESHOLDS,
+  thresholds: PingThresholds = DEFAULT_PING_THRESHOLDS
 ) => {
   if (ping <= thresholds.excellent) return COLOR_SYSTEM.excellent;
   if (ping <= thresholds.good) return COLOR_SYSTEM.good;
@@ -85,7 +85,7 @@ export const getPingColorClass = (
 // 基于统计数据的颜色判断
 export const getStatusColorByStats = (
   ping: number,
-  stats: { p25: number; p50: number; p75: number; max: number },
+  stats: { p25: number; p50: number; p75: number; max: number }
 ) => {
   if (!ping) return COLOR_SYSTEM.excellent;
 

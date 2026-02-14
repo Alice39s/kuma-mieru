@@ -6,7 +6,7 @@ services:
     container_name: kuma-mieru
     restart: unless-stopped
     ports:
-      - "3883:3000"
+      - '3883:3000'
     env_file:
       - .env
     environment:
@@ -20,7 +20,7 @@ services:
       - FEATURE_ICON=${FEATURE_ICON}
       - ALLOW_EMBEDDING=${ALLOW_EMBEDDING}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
       interval: 30s
       timeout: 3s
       retries: 3

@@ -81,7 +81,7 @@ export function MonitorCard({
 
   const toggleView = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setLocalLiteView((prev) => !prev);
+    setLocalLiteView(prev => !prev);
   };
 
   if (isLiteView) {
@@ -111,7 +111,7 @@ export function MonitorCard({
         className={clsx(
           'h-full grid grid-rows-[auto_1fr]',
           isHome ? 'w-full' : 'w-full md:w-2/3 mx-auto',
-          isHome && 'cursor-pointer hover:shadow-md transition-all',
+          isHome && 'cursor-pointer hover:shadow-md transition-all'
         )}
       >
         <CardHeader className="grid grid-cols-[1fr_auto] gap-4 items-start">
@@ -125,7 +125,7 @@ export function MonitorCard({
             <div>
               {monitor.tags && monitor.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {monitor.tags.map((tag) => (
+                  {monitor.tags.map(tag => (
                     <Chip
                       key={tag.id}
                       size="sm"

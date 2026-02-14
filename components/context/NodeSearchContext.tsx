@@ -42,10 +42,10 @@ export function NodeSearchProvider({ children }: { children: React.ReactNode }) 
   const [inputValue, setInputValueState] = useState(() => searchParams.get(SEARCH_PARAM) || '');
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get(SEARCH_PARAM) || '');
   const [filterStatus, setFilterStatusLocal] = useState<FilterStatus>(
-    () => (searchParams.get(STATUS_PARAM) as FilterStatus) || 'all',
+    () => (searchParams.get(STATUS_PARAM) as FilterStatus) || 'all'
   );
   const [searchInGroup, setSearchInGroupLocal] = useState(
-    () => searchParams.get(SEARCH_GROUP_PARAM) === 'true',
+    () => searchParams.get(SEARCH_GROUP_PARAM) === 'true'
   );
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -87,7 +87,7 @@ export function NodeSearchProvider({ children }: { children: React.ReactNode }) 
       const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
       router.replace(newUrl, { scroll: false });
     },
-    [pathname, router, searchParams],
+    [pathname, router, searchParams]
   );
 
   const setInputValue = useCallback(
@@ -105,7 +105,7 @@ export function NodeSearchProvider({ children }: { children: React.ReactNode }) 
         }
       }, DEBOUNCE_DELAY);
     },
-    [updateUrl],
+    [updateUrl]
   );
 
   useEffect(() => {
@@ -117,7 +117,7 @@ export function NodeSearchProvider({ children }: { children: React.ReactNode }) 
       setFilterStatusLocal(status);
       updateUrl({ status });
     },
-    [updateUrl],
+    [updateUrl]
   );
 
   const setSearchInGroup = useCallback(
@@ -125,7 +125,7 @@ export function NodeSearchProvider({ children }: { children: React.ReactNode }) 
       setSearchInGroupLocal(value);
       updateUrl({ group: value });
     },
-    [updateUrl],
+    [updateUrl]
   );
 
   const clearSearch = useCallback(() => {

@@ -42,7 +42,7 @@ export function MonitorDetailContent({ monitorId }: MonitorDetailContentProps) {
 
   const homePath = useMemo(
     () => (pageConfig.pageId === pageConfig.defaultPageId ? '/' : `/${pageConfig.pageId}`),
-    [pageConfig.defaultPageId, pageConfig.pageId],
+    [pageConfig.defaultPageId, pageConfig.pageId]
   );
 
   const { monitor, monitoringData, isLoading, isError, error } = useMonitor(monitorId);

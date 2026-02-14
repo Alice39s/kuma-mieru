@@ -17,7 +17,10 @@ function jsonToJsObject(jsonStr: string): string {
       return '[' + value.map(stringify).join(',') + ']';
     }
     if (typeof value === 'object') {
-      const pairs = Object.entries(value).map(([k, v]) => `${/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(k) ? k : JSON.stringify(k)}:${stringify(v)}`);
+      const pairs = Object.entries(value).map(
+        ([k, v]) =>
+          `${/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(k) ? k : JSON.stringify(k)}:${stringify(v)}`
+      );
       return '{' + pairs.join(',') + '}';
     }
     return String(value);

@@ -1,7 +1,7 @@
 export function getEmojiUrl(emoji: string) {
   // Split emoji into array of code points
   const codePoints = [...emoji]
-    .map((char) => char.codePointAt(0)?.toString(16).toLowerCase())
+    .map(char => char.codePointAt(0)?.toString(16).toLowerCase())
     .filter(Boolean);
 
   // Handle flag emojis

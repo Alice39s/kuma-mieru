@@ -46,7 +46,7 @@ export const I18NSwitch = () => {
       } catch (error) {
         console.error('Failed to change locale:', error);
         toast.error(
-          `${t('locale.changeError')}: ${error instanceof Error ? error.message : t('error.unknown')}`,
+          `${t('locale.changeError')}: ${error instanceof Error ? error.message : t('error.unknown')}`
         );
       }
     });
@@ -64,7 +64,7 @@ export const I18NSwitch = () => {
         </Button>
       </DropdownTrigger>
       <DropdownMenu aria-label="Switch Language" variant="faded">
-        {locales.map((item) => {
+        {locales.map(item => {
           const FlagComponent = flagComponents[item.alpha2Code];
           return (
             <DropdownItem

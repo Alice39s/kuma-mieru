@@ -12,7 +12,7 @@ import { customFetch } from './utils/fetch';
 function processHeartbeatData(data: HeartbeatData): HeartbeatData {
   const processed: HeartbeatData = {};
   for (const [key, heartbeats] of Object.entries(data)) {
-    processed[key] = heartbeats.map((hb) => ({
+    processed[key] = heartbeats.map(hb => ({
       ...hb,
       time: ensureUTCTimezone(hb.time),
     }));
@@ -23,7 +23,7 @@ function processHeartbeatData(data: HeartbeatData): HeartbeatData {
 class MonitorDataError extends Error {
   constructor(
     message: string,
-    public readonly cause?: unknown,
+    public readonly cause?: unknown
   ) {
     super(message);
     this.name = 'MonitorDataError';
@@ -47,7 +47,6 @@ export async function getMonitoringData(pageId?: string): Promise<{
   }
 
   try {
-
     // 使用共享的预加载数据获取函数
     const preloadData = await getPreloadData(config);
 
@@ -61,7 +60,7 @@ export async function getMonitoringData(pageId?: string): Promise<{
 
     if (!apiResponse.ok) {
       throw new MonitorDataError(
-        `API request failed: ${apiResponse.status} ${apiResponse.statusText}`,
+        `API request failed: ${apiResponse.status} ${apiResponse.statusText}`
       );
     }
 
@@ -116,7 +115,7 @@ export async function getMonitoringData(pageId?: string): Promise<{
               }
             : error,
         endpoint: config.apiEndpoint,
-      },
+      }
     );
 
     // 返回默认值

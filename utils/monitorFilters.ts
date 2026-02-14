@@ -8,7 +8,7 @@ import type { HeartbeatData } from '@/types/monitor';
 export const filterMonitorByStatus = (
   monitor: Monitor,
   filterStatus: FilterStatus,
-  heartbeatList: HeartbeatData,
+  heartbeatList: HeartbeatData
 ) => {
   if (filterStatus === 'all') return true;
 

@@ -16,7 +16,7 @@ type ErrorResponse = ApiResponse;
 
 export async function createApiResponse<T>(
   handler: () => Promise<T>,
-  options: CacheOptions = {},
+  options: CacheOptions = {}
 ): Promise<NextResponse<SuccessResponse<T> | ErrorResponse>> {
   try {
     const data = await handler();
@@ -41,7 +41,7 @@ export async function createApiResponse<T>(
       {
         status: 200,
         headers,
-      },
+      }
     );
   } catch (error) {
     console.error('API Error:', error);
@@ -51,7 +51,7 @@ export async function createApiResponse<T>(
         error: error instanceof Error ? error.message : 'Connection Error',
         timestamp: Date.now(),
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

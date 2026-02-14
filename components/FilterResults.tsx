@@ -38,7 +38,7 @@ export default function FilterResults({ matchedMonitorsCount }: FilterResultsPro
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setSearchInGroup(e.target.checked);
     },
-    [setSearchInGroup],
+    [setSearchInGroup]
   );
 
   if (!isFiltering) return null;

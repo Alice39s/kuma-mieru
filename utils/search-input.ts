@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export function useSearch<T>(
   items: T[],
   searchFn: (item: T, searchTerm: string) => boolean,
-  delay = 300,
+  delay = 300
 ) {
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<T[]>(items);
@@ -20,10 +20,10 @@ export function useSearch<T>(
         setResults(items);
         return;
       }
-      const filtered = items.filter((item) => searchFn(item, term.toLowerCase()));
+      const filtered = items.filter(item => searchFn(item, term.toLowerCase()));
       setResults(filtered);
     },
-    [items, searchFn],
+    [items, searchFn]
   );
 
   const handleSetSearchTerm = useCallback((term: string, isComposingEvent = false) => {

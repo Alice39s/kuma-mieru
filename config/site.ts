@@ -61,7 +61,7 @@ export const resolveIconCandidates = (icons: string[]): string[] => {
 };
 
 const getVisibleNavItems = (items: NavItem[]): NavItem[] => {
-  return items.filter((item) => (item.label !== 'page.edit' ? true : env.config.isEditThisPage));
+  return items.filter(item => (item.label !== 'page.edit' ? true : env.config.isEditThisPage));
 };
 
 const iconCandidates = resolveIconCandidates(env.config.siteMeta.iconCandidates);

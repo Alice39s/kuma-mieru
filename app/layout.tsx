@@ -53,7 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         className={clsx(
           'min-h-screen bg-background font-sans antialiased',
           fontSans.variable,
-          fontMono.variable,
+          fontMono.variable
         )}
       >
         {googleAnalyticsId && <Analytics id={googleAnalyticsId} />}

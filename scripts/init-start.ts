@@ -10,7 +10,7 @@ import chalk from 'chalk';
  *
  * Next.js standalone output will not automatically copy the public and .next/static folders,
  * so we need to manually copy them to the correct location to avoid 404 errors.
- * 
+ *
  * Reference: https://nextjs.org/docs/app/api-reference/config/next-config-js/output#automatically-copying-traced-files
  */
 

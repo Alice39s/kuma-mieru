@@ -84,7 +84,7 @@ function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
       const elapsed = now - startTime;
       const progressPercent = Math.min(
         Math.max(Math.floor((elapsed / totalDuration) * 100), 0),
-        100,
+        100
       );
 
       return (
@@ -102,12 +102,12 @@ function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
               <div
                 className={clsx(
                   'my-4 w-full rounded-lg border border-amber-200/50 dark:border-amber-700/50 prose-amber prose-sm prose-p:m-0',
-                  getMarkdownClasses(),
+                  getMarkdownClasses()
                 )}
               >
                 <div
                   className="prose-amber prose-sm prose-p:m-0 p-4"
-                  // biome-ignore lint/security/noDangerouslySetInnerHtml: 相信 markdown-it 的安全性
+                  // oxlint-disable-next-line react/no-danger -- 相信 markdown-it 的安全性
                   dangerouslySetInnerHTML={{ __html: renderedDescription }}
                 />
               </div>
@@ -170,7 +170,7 @@ function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
             {maintenance.description && (
               <div
                 className={`${getMarkdownClasses()} mb-4 p-3 bg-white/50 dark:bg-black/20 rounded-lg border border-blue-200/50 dark:border-blue-700/50`}
-                // biome-ignore lint/security/noDangerouslySetInnerHtml: 相信 markdown-it 的安全性
+                // oxlint-disable-next-line react/no-danger -- 相信 markdown-it 的安全性
                 dangerouslySetInnerHTML={{ __html: renderedDescription }}
               />
             )}

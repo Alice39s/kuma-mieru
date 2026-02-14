@@ -3,31 +3,31 @@
 
 version: 2
 updates:
-  - package-ecosystem: "bun"
-    directory: "/"
+  - package-ecosystem: 'bun'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "thursday"
-      time: "00:00"
-      timezone: "Etc/UTC"
+      interval: 'weekly'
+      day: 'thursday'
+      time: '00:00'
+      timezone: 'Etc/UTC'
     commit-message:
-      prefix: "chore(deps)"
+      prefix: 'chore(deps)'
     labels:
-      - "dependencies"
-      - "deps-bun"
-      - "automerge"
+      - 'dependencies'
+      - 'deps-bun'
+      - 'automerge'
     open-pull-requests-limit: 10
-  - package-ecosystem: "docker"
-    directory: "/"
+  - package-ecosystem: 'docker'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "thursday"
-      time: "00:00"
-      timezone: "Etc/UTC"
+      interval: 'weekly'
+      day: 'thursday'
+      time: '00:00'
+      timezone: 'Etc/UTC'
     commit-message:
-      prefix: "chore(deps)"
+      prefix: 'chore(deps)'
     labels:
-      - "dependencies"
-      - "deps-docker"
-      - "automerge"
+      - 'dependencies'
+      - 'deps-docker'
+      - 'automerge'
     open-pull-requests-limit: 5

@@ -38,7 +38,7 @@ function decodeUnicodeEscapes(value: unknown): unknown {
               t: '\t',
               '\\': '\\',
             }) as Record<string, string>
-          )[char] || char,
+          )[char] || char
       )
 
       // 处理 Unicode 转义序列 - \uXXXX
@@ -57,7 +57,7 @@ function decodeUnicodeEscapes(value: unknown): unknown {
 
     // 3. 替换数字实体 (十六进制, 如 &#x00A9;)
     result = result.replace(/&#x([0-9a-f]+);/gi, (_, hex) =>
-      String.fromCharCode(Number.parseInt(hex, 16)),
+      String.fromCharCode(Number.parseInt(hex, 16))
     );
 
     return result;
@@ -71,7 +71,7 @@ function decodeUnicodeEscapes(value: unknown): unknown {
   // 对象类型递归处理每个属性
   if (value && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value as DeepRecord).map(([k, v]) => [k, decodeUnicodeEscapes(v)]),
+      Object.entries(value as DeepRecord).map(([k, v]) => [k, decodeUnicodeEscapes(v)])
     );
   }
 

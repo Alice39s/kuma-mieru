@@ -22,13 +22,13 @@ function resolvePageConfig(pageId?: string): Config {
 }
 
 function processMaintenanceData(maintenanceList: Maintenance[]): Maintenance[] {
-  return maintenanceList.map((maintenance) => {
+  return maintenanceList.map(maintenance => {
     const processed = {
       ...maintenance,
     };
 
     if (maintenance.timeslotList && maintenance.timeslotList.length > 0) {
-      processed.timeslotList = maintenance.timeslotList.map((slot) => ({
+      processed.timeslotList = maintenance.timeslotList.map(slot => ({
         startDate: ensureUTCTimezone(slot.startDate),
         endDate: ensureUTCTimezone(slot.endDate),
       }));
@@ -98,7 +98,7 @@ export const getPageTabsMetadata = cache(async (): Promise<PageTabMeta[]> => {
   const uniquePageIds = Array.from(new Set(baseConfig.pageIds));
 
   const tabs = await Promise.all(
-    uniquePageIds.map(async (pageId) => {
+    uniquePageIds.map(async pageId => {
       const pageConfig = getConfig(pageId);
 
       if (!pageConfig) {
@@ -109,9 +109,10 @@ export const getPageTabsMetadata = cache(async (): Promise<PageTabMeta[]> => {
         const preloadData = await getPreloadData(pageConfig);
         const meta = preloadData.config ?? {};
 
-        const title = typeof meta.title === 'string' && meta.title.trim().length > 0
-          ? meta.title.trim()
-          : pageConfig.siteMeta.title?.trim() || pageId;
+        const title =
+          typeof meta.title === 'string' && meta.title.trim().length > 0
+            ? meta.title.trim()
+            : pageConfig.siteMeta.title?.trim() || pageId;
 
         const description =
           typeof meta.description === 'string' && meta.description.trim().length > 0
@@ -141,14 +142,15 @@ export const getPageTabsMetadata = cache(async (): Promise<PageTabMeta[]> => {
         return {
           id: pageId,
           title: fallbackTitle && fallbackTitle.length > 0 ? fallbackTitle : pageId,
-          description: fallbackDescription && fallbackDescription.length > 0 ? fallbackDescription : undefined,
+          description:
+            fallbackDescription && fallbackDescription.length > 0 ? fallbackDescription : undefined,
           icon: pageConfig.siteMeta.icon,
         } satisfies PageTabMeta;
       }
-    }),
+    })
   );
 
-  return tabs.filter((tab) => tab !== null) as PageTabMeta[];
+  return tabs.filter(tab => tab !== null) as PageTabMeta[];
 });
 
 export const getGlobalConfig = cache(async (pageId?: string): Promise<GlobalConfig> => {
@@ -206,7 +208,7 @@ export const getGlobalConfig = cache(async (pageId?: string): Promise<GlobalConf
       {
         error,
         endpoint: config.htmlEndpoint,
-      },
+      }
     );
 
     return {
@@ -235,13 +237,13 @@ export async function getPreloadData(config: Config) {
 
     if (!htmlResponse.ok) {
       throw new ConfigError(
-        `Failed to get HTML: ${htmlResponse.status} ${htmlResponse.statusText}`,
+        `Failed to get HTML: ${htmlResponse.status} ${htmlResponse.statusText}`
       );
     }
 
     const html = await htmlResponse.text();
     const $ = cheerio.load(html);
-    
+
     // Uptime Kuma version > 1.18.4, use script#preload-data to get preload data
     // @see https://github.com/louislam/uptime-kuma/commit/6e07ed20816969bfd1c6c06eb518171938312782
     // & https://github.com/louislam/uptime-kuma/issues/2186#issuecomment-1270471470
@@ -262,7 +264,10 @@ export async function getPreloadData(config: Config) {
           preloadScript = match[1];
           console.log('Successfully extracted preload data from window.preloadData');
         } else {
-          console.error('Failed to extract preload data with regex. Script content:', scriptWithPreloadData.slice(0, 200));
+          console.error(
+            'Failed to extract preload data with regex. Script content:',
+            scriptWithPreloadData.slice(0, 200)
+          );
         }
       }
     }
@@ -274,7 +279,10 @@ export async function getPreloadData(config: Config) {
           baseUrl: config.baseUrl,
           pageId: config.pageId,
           fetchFn: (url, init) =>
-            customFetch(url, init as RequestInit & { maxRetries?: number; retryDelay?: number; timeout?: number }),
+            customFetch(
+              url,
+              init as RequestInit & { maxRetries?: number; retryDelay?: number; timeout?: number }
+            ),
           requestInit: customFetchOptions,
         });
         console.info('Using status page API fallback for preload data');
@@ -286,7 +294,12 @@ export async function getPreloadData(config: Config) {
 
     if (!preloadScript || preloadScript.trim() === '') {
       console.error('HTML response preview:', html.slice(0, 500));
-      console.error('Available script tags:', $('script').map((i, el) => $(el).attr('id') || 'no-id').get());
+      console.error(
+        'Available script tags:',
+        $('script')
+          .map((i, el) => $(el).attr('id') || 'no-id')
+          .get()
+      );
       throw new ConfigError('Preload script tag not found or empty');
     }
 
@@ -297,7 +310,7 @@ export async function getPreloadData(config: Config) {
       if (error instanceof SyntaxError) {
         throw new ConfigError(
           `JSON parsing failed: ${error.message}\nProcessed data: ${preloadScript.slice(0, 100)}...`,
-          error,
+          error
         );
       }
       if (error instanceof ConfigError) {
@@ -305,7 +318,7 @@ export async function getPreloadData(config: Config) {
       }
       throw new ConfigError(
         `Failed to parse preload data: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error,
+        error
       );
     }
   } catch (error) {
@@ -325,7 +338,7 @@ export async function getPreloadData(config: Config) {
           : error,
     });
     throw new ConfigError(
-      'Failed to get preload data, please check network connection and server status',
+      'Failed to get preload data, please check network connection and server status'
     );
   }
 }

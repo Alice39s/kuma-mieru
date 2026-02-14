@@ -41,7 +41,7 @@ const parseUrl = (url: string | null): { hostname: string; protocol: ImageProtoc
 
 const addDomainToMap = (
   map: Map<string, Set<ImageProtocol>>,
-  value: { hostname: string; protocol: ImageProtocol } | null,
+  value: { hostname: string; protocol: ImageProtocol } | null
 ) => {
   if (!value) return;
 
@@ -60,14 +60,14 @@ const generateImageDomains = (): void => {
     ([hostname, protocols]) => ({
       hostname,
       protocols: Array.from(protocols).sort(),
-    }),
+    })
   );
 
   if (patterns.length === 0) {
     patterns.push({ hostname: '*', protocols: [...supportedProtocols] });
   }
 
-  const legacyDomains = patterns.map((pattern) => pattern.hostname);
+  const legacyDomains = patterns.map(pattern => pattern.hostname);
 
   const domainsConfig: ImageDomainsConfig = {
     timestamp: new Date().toISOString(),

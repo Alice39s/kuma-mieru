@@ -2,14 +2,8 @@
 
 import { useEffect } from 'react';
 
-// biome-ignore lint/suspicious/noShadowRestrictedNames: <explanation>
-export default function Error({
-  error,
-  reset,
-}: {
-  error: Error;
-  reset: () => void;
-}) {
+// oxlint-disable-next-line no-shadow-restricted-names
+export default function Error({ error, reset }: { error: Error; reset: () => void }) {
   useEffect(() => {
     // Log the error to an error reporting service
     /* eslint-disable no-console */

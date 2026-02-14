@@ -70,7 +70,7 @@ function IncidentMarkdownAlert({ incident }: { incident: Incident }) {
           prose-headings:text-gray-800 dark:prose-headings:text-gray-100
           prose-code:text-gray-800 dark:prose-code:text-gray-100
           prose-code:font-mono prose-code:text-sm"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: 相信 markdown-it 的安全性
+        // oxlint-disable-next-line react/no-danger -- 相信 markdown-it 的安全性
         dangerouslySetInnerHTML={{ __html: htmlContent }}
       />
       <div className="flex flex-col items-end gap-1 mt-4">
@@ -85,7 +85,7 @@ function IncidentMarkdownAlert({ incident }: { incident: Incident }) {
           {t('createdAt', {
             time: format.dateTime(
               dateStringToTimestamp(createdDate) + timezoneOffsetToMs('+00:00'),
-              dateTimeFormat,
+              dateTimeFormat
             ),
           })}
         </span>

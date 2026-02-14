@@ -70,7 +70,7 @@ function SimplifiedChart({
             type="number"
             scale="time"
             domain={['dataMin', 'dataMax']}
-            tickFormatter={(time) => new Date(time).toLocaleTimeString()}
+            tickFormatter={time => new Date(time).toLocaleTimeString()}
             axisLine={false}
             tickLine={false}
             minTickGap={30}
@@ -151,12 +151,12 @@ export function MonitoringChart({
   const filteredData = useMemo(() => {
     if (!heartbeats || !Array.isArray(heartbeats)) return [];
 
-    const count = countRanges.find((r) => r.key === selectedRange)?.count || 100;
+    const count = countRanges.find(r => r.key === selectedRange)?.count || 100;
 
     return heartbeats
       .slice(-count)
-      .filter((hb) => hb && typeof hb.ping === 'number' && !Number.isNaN(hb.ping))
-      .map((hb) => ({
+      .filter(hb => hb && typeof hb.ping === 'number' && !Number.isNaN(hb.ping))
+      .map(hb => ({
         time: new Date(hb.time).getTime(),
         ping: hb.ping || 0,
         status: hb.status,
@@ -164,7 +164,7 @@ export function MonitoringChart({
       }));
   }, [heartbeats, selectedRange]);
 
-  const pings = filteredData.map((d) => d.ping).filter((p) => p > 0 && !Number.isNaN(p));
+  const pings = filteredData.map(d => d.ping).filter(p => p > 0 && !Number.isNaN(p));
   const minPing = pings.length > 0 ? Math.max(0, Math.min(...pings) - 10) : 0;
   const maxPing = pings.length > 0 ? Math.max(...pings) + 10 : 100;
 
@@ -191,7 +191,7 @@ export function MonitoringChart({
           onSelectionChange={handleRangeChange}
           className="font-light text-sm"
         >
-          {countRanges.map((range) => (
+          {countRanges.map(range => (
             <Tab key={range.key} title={t('node.count', { count: range.count })} />
           ))}
         </Tabs>

@@ -30,13 +30,13 @@ const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
 };
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function makeRequest(
   url: string,
   options: RequestInit & RetryOptions = {},
-  retryCount = 0,
+  retryCount = 0
 ): Promise<CustomResponse> {
   const {
     maxRetries = DEFAULT_RETRY_OPTIONS.maxRetries,
@@ -74,7 +74,7 @@ async function makeRequest(
         maxVersion: 'TLSv1.3',
         ciphers: 'HIGH:!aNULL:!MD5',
       },
-      (res) => {
+      res => {
         let responseBody = '';
 
         res.setEncoding('utf8');
@@ -91,7 +91,7 @@ async function makeRequest(
               Object.entries(res.headers).map(([key, value]) => [
                 key,
                 Array.isArray(value) ? value.join(', ') : value || '',
-              ]),
+              ])
             ),
             text: async () => responseBody,
             json: async () => JSON.parse(responseBody),
@@ -99,7 +99,7 @@ async function makeRequest(
 
           resolve(response);
         });
-      },
+      }
     );
 
     req.on('error', async (error: NodeError) => {
@@ -158,7 +158,7 @@ async function makeRequest(
 
 export async function customFetch(
   url: string,
-  options: RequestInit & RetryOptions = {},
+  options: RequestInit & RetryOptions = {}
 ): Promise<CustomResponse> {
   return makeRequest(url, options);
 }

@@ -46,7 +46,7 @@ function normalizeHeaders(headers?: HeadersInit): Record<string, string> {
 }
 
 function ensureAcceptHeader(headers: Record<string, string>) {
-  const hasAcceptHeader = Object.keys(headers).some((key) => key.toLowerCase() === 'accept');
+  const hasAcceptHeader = Object.keys(headers).some(key => key.toLowerCase() === 'accept');
   if (!hasAcceptHeader) {
     headers.Accept = 'application/json';
   }
@@ -114,7 +114,7 @@ export async function fetchPreloadDataFromApi({
 
   if (!response.ok) {
     throw new ConfigError(
-      `Failed to fetch preload data from API: ${response.status} ${response.statusText}`,
+      `Failed to fetch preload data from API: ${response.status} ${response.statusText}`
     );
   }
 

@@ -18,7 +18,7 @@ const configSchema = z.object({
     z.object({
       id: z.string(),
       siteMeta: siteMetaSchema,
-    }),
+    })
   ),
   siteMeta: siteMetaSchema,
   isPlaceholder: z.boolean(),

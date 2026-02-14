@@ -13,8 +13,8 @@ export async function generateStaticParams() {
   }
 
   return getAvailablePageIds()
-    .filter((pageId) => pageId !== defaultConfig.defaultPageId)
-    .map((pageId) => ({ pageId }));
+    .filter(pageId => pageId !== defaultConfig.defaultPageId)
+    .map(pageId => ({ pageId }));
 }
 
 export default async function StatusPageRoute({

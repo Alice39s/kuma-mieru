@@ -21,11 +21,11 @@ export function PageTabs({ tabs: providedTabs }: PageTabsProps) {
     return null;
   }
 
-  const providedMeta = new Map(providedTabs?.map((tab) => [tab.id, tab]));
+  const providedMeta = new Map(providedTabs?.map(tab => [tab.id, tab]));
 
-  const resolvedTabs = pageConfig.pageIds.map((id) => {
+  const resolvedTabs = pageConfig.pageIds.map(id => {
     const metaFromPreload = providedMeta.get(id);
-    const fallbackSiteMeta = pageConfig.pages.find((page) => page.id === id)?.siteMeta;
+    const fallbackSiteMeta = pageConfig.pages.find(page => page.id === id)?.siteMeta;
 
     const title = metaFromPreload?.title?.trim() || fallbackSiteMeta?.title?.trim() || id;
     const description =
@@ -60,7 +60,7 @@ export function PageTabs({ tabs: providedTabs }: PageTabsProps) {
                 'group inline-flex items-center gap-3 min-w-[176px] rounded-2xl border px-4 py-3 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary',
                 isActive
                   ? 'border-primary/60 bg-primary/10 text-primary shadow-md'
-                  : 'border-default-200 text-default-500 hover:border-primary/40 hover:text-primary hover:bg-default-100/70',
+                  : 'border-default-200 text-default-500 hover:border-primary/40 hover:text-primary hover:bg-default-100/70'
               )}
             >
               <span className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-default-200 bg-default-100">

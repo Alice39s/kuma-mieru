@@ -18,7 +18,7 @@ export default function Analytics({ id }: AnalyticsProps) {
       <Script
         id="google-analytics"
         strategy="afterInteractive"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: <explanation>
+        // oxlint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{
           __html: `
             window.dataLayer = window.dataLayer || [];

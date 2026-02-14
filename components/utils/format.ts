@@ -99,7 +99,7 @@ export function extractSentence(markdown: string): string {
   const noInlineCode = noCode.replace(/`[^`]+`/g, '');
 
   const lines = noInlineCode.split('\n');
-  const contentLines = lines.filter((line) => {
+  const contentLines = lines.filter(line => {
     const trimmed = line.trim();
     if (!trimmed) return false;
     if (/^#{1,6}\s/.test(trimmed)) return false;

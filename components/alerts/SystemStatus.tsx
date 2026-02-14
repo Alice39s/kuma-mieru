@@ -33,15 +33,15 @@ export function SystemStatusAlert() {
   const totalMonitors = monitorGroups.reduce((sum, group) => sum + group.monitorList.length, 0);
 
   const onlineMonitors = Object.entries(monitoringData?.heartbeatList || {}).filter(
-    ([_, heartbeats]) => heartbeats.length > 0 && heartbeats[0].status === 1,
+    ([_, heartbeats]) => heartbeats.length > 0 && heartbeats[0].status === 1
   ).length;
 
   const offlineMonitors = Object.entries(monitoringData?.heartbeatList || {}).filter(
-    ([_, heartbeats]) => heartbeats.length > 0 && heartbeats[0].status === 0,
+    ([_, heartbeats]) => heartbeats.length > 0 && heartbeats[0].status === 0
   ).length;
 
   const maintenanceMonitors = Object.entries(monitoringData?.heartbeatList || {}).filter(
-    ([_, heartbeats]) => heartbeats.length > 0 && heartbeats[0].status === 2,
+    ([_, heartbeats]) => heartbeats.length > 0 && heartbeats[0].status === 2
   ).length;
 
   let systemStatus = 'normal';

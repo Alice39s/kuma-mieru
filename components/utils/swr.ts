@@ -94,8 +94,8 @@ export function useMonitor(monitorId: number | string, config?: SWRConfiguration
   });
 
   const monitor = data?.monitorGroups
-    ?.flatMap((group) => group.monitorList)
-    .find((m) => m.id === numericId);
+    ?.flatMap(group => group.monitorList)
+    .find(m => m.id === numericId);
 
   const monitoringData: MonitoringData = {
     heartbeatList: {

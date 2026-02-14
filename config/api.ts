@@ -29,7 +29,7 @@ export const getConfig = (pageId?: string): Config | null => {
   }
 
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
-  const resolvedSiteMeta = pages.find((page) => page.id === resolvedPageId)?.siteMeta ?? siteMeta;
+  const resolvedSiteMeta = pages.find(page => page.id === resolvedPageId)?.siteMeta ?? siteMeta;
 
   const config: Config = {
     baseUrl,

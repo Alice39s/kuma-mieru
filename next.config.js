@@ -10,10 +10,10 @@ const __dirname = dirname(__filename);
 
 const defaultProtocols = ['https', 'http'];
 
-const normalizePatterns = (patterns) => {
+const normalizePatterns = patterns => {
   const seen = new Set();
 
-  return patterns.filter((pattern) => {
+  return patterns.filter(pattern => {
     if (!pattern?.hostname || !pattern?.protocol) return false;
 
     const key = `${pattern.protocol}://${pattern.hostname}`;
@@ -32,9 +32,10 @@ const getImageRemotePatterns = () => {
       const patterns = config.patterns.flatMap(({ hostname, protocols }) => {
         if (!hostname) return [];
 
-        const resolvedProtocols = Array.isArray(protocols) && protocols.length > 0 ? protocols : defaultProtocols;
+        const resolvedProtocols =
+          Array.isArray(protocols) && protocols.length > 0 ? protocols : defaultProtocols;
 
-        return resolvedProtocols.map((protocol) => ({ hostname, protocol }));
+        return resolvedProtocols.map(protocol => ({ hostname, protocol }));
       });
 
       const normalized = normalizePatterns(patterns);
@@ -44,8 +45,8 @@ const getImageRemotePatterns = () => {
     }
 
     if (Array.isArray(config?.domains) && config.domains.length > 0) {
-      const patterns = config.domains.flatMap((hostname) =>
-        defaultProtocols.map((protocol) => ({ hostname, protocol })),
+      const patterns = config.domains.flatMap(hostname =>
+        defaultProtocols.map(protocol => ({ hostname, protocol }))
       );
 
       const normalized = normalizePatterns(patterns);
@@ -57,7 +58,7 @@ const getImageRemotePatterns = () => {
     // Fallback to defaults below
   }
 
-  return normalizePatterns(defaultProtocols.map((protocol) => ({ hostname: '*', protocol })));
+  return normalizePatterns(defaultProtocols.map(protocol => ({ hostname: '*', protocol })));
 };
 
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -158,11 +159,11 @@ const productionConfig = {
       // Parse comma-separated origin list, auto-add 'self'
       const origins = allowEmbedding
         .split(',')
-        .map((origin) => origin.trim())
+        .map(origin => origin.trim())
         .filter(Boolean);
 
       // Normalize origins: add https:// protocol if missing
-      const normalizedOrigins = origins.map((origin) => {
+      const normalizedOrigins = origins.map(origin => {
         if (origin.startsWith('http')) return origin;
         return `https://${origin}`;
       });

@@ -8,7 +8,7 @@ export class ApiDataError extends Error {
   constructor(
     message: string,
     public readonly cause?: unknown,
-    public readonly endpoint?: string,
+    public readonly endpoint?: string
   ) {
     super(message);
     this.name = 'ApiDataError';
@@ -23,7 +23,7 @@ export class ApiDataError extends Error {
  */
 export async function fetchApiData<T>(
   endpoint: string,
-  options: RequestInit = customFetchOptions,
+  options: RequestInit = customFetchOptions
 ): Promise<T> {
   try {
     const apiResponse = await customFetch(endpoint, options);
@@ -32,7 +32,7 @@ export async function fetchApiData<T>(
       throw new ApiDataError(
         `API request failed: ${apiResponse.status} ${apiResponse.statusText}`,
         undefined,
-        endpoint,
+        endpoint
       );
     }
 
@@ -51,7 +51,7 @@ export async function fetchApiData<T>(
     throw new ApiDataError(
       `Failed to fetch data from API: ${error instanceof Error ? error.message : 'Unknown error'}`,
       error,
-      endpoint,
+      endpoint
     );
   }
 }
@@ -65,7 +65,7 @@ export async function fetchApiData<T>(
 export function logApiError(
   context: string,
   error: unknown,
-  additionalInfo?: Record<string, unknown>,
+  additionalInfo?: Record<string, unknown>
 ): void {
   console.error(
     `Failed to ${context}:`,
@@ -82,7 +82,7 @@ export function logApiError(
             }
           : error,
       endpoint: error instanceof ApiDataError ? error.endpoint : undefined,
-    },
+    }
   );
 }
 

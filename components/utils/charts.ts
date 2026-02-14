@@ -28,8 +28,8 @@ export interface PingMetrics {
 
 export const calculatePingStats = (heartbeats: Heartbeat[]): PingStats | null => {
   const onlinePings = heartbeats
-    .filter((hb) => hb.status === 1 && hb.ping)
-    .map((hb) => hb.ping as number);
+    .filter(hb => hb.status === 1 && hb.ping)
+    .map(hb => hb.ping as number);
 
   if (onlinePings.length === 0) return null;
 
@@ -45,8 +45,8 @@ export const calculatePingStats = (heartbeats: Heartbeat[]): PingStats | null =>
 
 export const calculatePingMetrics = (heartbeats: Heartbeat[]): PingMetrics | null => {
   const onlinePings = heartbeats
-    .filter((hb) => hb.status === 1 && hb.ping)
-    .map((hb) => hb.ping as number);
+    .filter(hb => hb.status === 1 && hb.ping)
+    .map(hb => hb.ping as number);
 
   if (onlinePings.length === 0) return null;
 
@@ -62,7 +62,7 @@ export const calculatePingMetrics = (heartbeats: Heartbeat[]): PingMetrics | nul
   const trimEnd = Math.ceil(sorted.length * 0.9);
   const trimmedPings = sorted.slice(trimStart, trimEnd);
   const trimmedAvgPing = Math.round(
-    trimmedPings.reduce((acc, curr) => acc + curr, 0) / trimmedPings.length,
+    trimmedPings.reduce((acc, curr) => acc + curr, 0) / trimmedPings.length
   );
 
   return {

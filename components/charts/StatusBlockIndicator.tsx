@@ -44,7 +44,7 @@ export function StatusBlockIndicator({
   const heartbeatBlocks = useMemo(() => {
     if (heartbeats.length === 0) return [];
 
-    return heartbeats.map((hb) => {
+    return heartbeats.map(hb => {
       const colorInfo = getStatusColor(hb, pingStats);
       const tooltipContent = (
         <div key={hb.time} className="flex w-full items-center gap-x-2">
@@ -78,7 +78,7 @@ export function StatusBlockIndicator({
         <div
           className={clsx(
             'flex items-center gap-2 text-xs text-foreground/80 dark:text-foreground/60',
-            isHome && 'ml-auto',
+            isHome && 'ml-auto'
           )}
         >
           {Object.entries(COLOR_SYSTEM)
