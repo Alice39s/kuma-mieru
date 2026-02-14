@@ -98,7 +98,13 @@ function MaintenanceScheduleCard({
 
 function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
   const t = useTranslations('maintenance');
+  const format = useFormatter();
   const now = Date.now();
+  const dateTimeFormat: DateTimeFormatOptions = {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'UTC',
+  };
 
   const isActive = maintenance.status === 'under-maintenance';
   const isScheduled = maintenance.status === 'scheduled';
@@ -119,7 +125,7 @@ function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
   const previewText = maintenance.description
     ? extractPlainText(maintenance.description, 150)
     : timeline
-      ? `${new Date(timeline.displayStartTime).toLocaleString()} - ${new Date(timeline.displayEndTime).toLocaleString()}`
+      ? `${format.dateTime(timeline.displayStartTime, dateTimeFormat)} - ${format.dateTime(timeline.displayEndTime, dateTimeFormat)}`
       : '';
 
   return (

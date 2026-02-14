@@ -127,24 +127,21 @@ export function useMarkdown(content: string): string {
 
     if (!content) {
       setHtml('');
-      return () => {
-        isCancelled = true;
-      };
+    } else {
+      setHtml(fallbackHtml);
+
+      void renderMarkdown(content)
+        .then(renderedHtml => {
+          if (!isCancelled) {
+            setHtml(renderedHtml || fallbackHtml);
+          }
+        })
+        .catch(() => {
+          if (!isCancelled) {
+            setHtml(fallbackHtml);
+          }
+        });
     }
-
-    setHtml(fallbackHtml);
-
-    void renderMarkdown(content)
-      .then(renderedHtml => {
-        if (!isCancelled) {
-          setHtml(renderedHtml || fallbackHtml);
-        }
-      })
-      .catch(() => {
-        if (!isCancelled) {
-          setHtml(fallbackHtml);
-        }
-      });
 
     return () => {
       isCancelled = true;
