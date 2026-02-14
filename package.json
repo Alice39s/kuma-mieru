@@ -33,7 +33,7 @@
     "@mdx-js/mdx": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
     "@next/bundle-analyzer": "^15.5.12",
-    "@opennextjs/cloudflare": "^1.16.4",
+    "@opennextjs/cloudflare": "^1.16.5",
     "@react-aria/ssr": "3.9.7",
     "@react-aria/visually-hidden": "3.8.20",
     "@sankyu/react-circle-flags": "^1.6.2",
@@ -60,7 +60,7 @@
     "sonner": "^2.0.7",
     "swr": "^2.4.0",
     "tailwind-merge": "^3.4.0",
-    "tm-themes": "^1.11.1",
+    "tm-themes": "^1.11.2",
     "usehooks-ts": "^3.1.1",
     "zod": "^3.25.76"
   },
