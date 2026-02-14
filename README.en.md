@@ -31,7 +31,7 @@ Built with Next.js 16, TypeScript, and Recharts, this project enhances Uptime Ku
 
 ## Table of Contents
 
-- [Kuma Mieru :traffic_light:](#kuma-mieru-traffic_light)
+- [Kuma Mieru :traffic\_light:](#kuma-mieru-traffic_light)
   - [Table of Contents](#table-of-contents)
   - [Key Features :sparkles:](#key-features-sparkles)
   - [Preview :camera:](#preview-camera)
