@@ -75,21 +75,23 @@ export function StatusBlockIndicator({
       {/* 图例和延迟统计 */}
       <div className="absolute -top-5 flex w-full items-center justify-between">
         {!isGlobalLiteView && <PingStats heartbeats={recentHeartbeats} isHome={isHome} />}
-        <div
-          className={clsx(
-            'flex items-center gap-2 text-xs text-foreground/80 dark:text-foreground/60',
-            isHome && 'ml-auto'
-          )}
-        >
-          {Object.entries(COLOR_SYSTEM)
-            .filter(([_, value]) => value.showInLegend)
-            .map(([key, value]) => (
-              <div key={key} className="flex items-center gap-1 text-xs">
-                <div className={clsx('w-1.5 h-1.5 rounded-full', value.bg.dark)} />
-                <span>{t(value.label)}</span>
-              </div>
-            ))}
-        </div>
+        {!isGlobalLiteView && (
+          <div
+            className={clsx(
+              'flex items-center gap-2 text-xs text-foreground/80 dark:text-foreground/60',
+              isHome && 'ml-auto'
+            )}
+          >
+            {Object.entries(COLOR_SYSTEM)
+              .filter(([_, value]) => value.showInLegend)
+              .map(([key, value]) => (
+                <div key={key} className="flex items-center gap-1 text-xs">
+                  <div className={clsx('w-1.5 h-1.5 rounded-full', value.bg.dark)} />
+                  <span>{t(value.label)}</span>
+                </div>
+              ))}
+          </div>
+        )}
       </div>
 
       {/* 状态块 */}
