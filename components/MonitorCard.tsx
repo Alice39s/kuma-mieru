@@ -3,16 +3,21 @@ import type { MonitorCardProps } from '@/types/monitor';
 import { Button, Card, CardBody, CardHeader, Chip, Divider, Tooltip } from '@heroui/react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
-import { AlertCircle, CheckCircle2, LayoutList, MinusCircle, Wrench } from 'lucide-react';
+import { LayoutList } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { MONITOR_STATUS_VISUAL, getMonitorStatusKey } from '@/utils/monitor-status';
 import { MonitorCardLite } from './MonitorCardLite';
 import { MonitoringChart } from './charts/MonitoringChart';
 import { ResponsStats } from './charts/ResponsStats';
 import { StatusBlockIndicator } from './charts/StatusBlockIndicator';
 import { usePageConfig } from './context/PageConfigContext';
+import {
+  getMonitorCardStatusMeta,
+  getMonitorDetailPath,
+  getTagChipStyle,
+  getUptimeRingData,
+} from './utils/monitor-card';
 
 const VIEW_PREFERENCE_KEY = 'view-preference-monitor-card';
 
@@ -59,28 +64,12 @@ export function MonitorCard({
     }
   }, [localLiteView, externalLiteView]);
 
-  const lastHeartbeat = heartbeats[heartbeats.length - 1];
-  const currentStatus = getMonitorStatusKey(lastHeartbeat?.status);
-  const statusVisual = MONITOR_STATUS_VISUAL[currentStatus];
-  const statusIconMap = {
-    up: CheckCircle2,
-    pending: MinusCircle,
-    down: AlertCircle,
-    maintenance: Wrench,
-    unknown: AlertCircle,
-  } as const;
-  const StatusIcon = statusIconMap[currentStatus];
-
-  const uptimeData = [
-    {
-      value: uptime24h * 100,
-      fill: statusVisual.ringFill,
-    },
-  ];
+  const { statusVisual, StatusIcon } = getMonitorCardStatusMeta(heartbeats);
+  const uptimeData = getUptimeRingData(uptime24h, statusVisual.ringFill);
 
   const handleClick = () => {
     if (isHome) {
-      const detailPath = `/monitor/${monitor.id}?pageId=${encodeURIComponent(pageConfig.pageId)}`;
+      const detailPath = getMonitorDetailPath(monitor.id, pageConfig.pageId);
       router.push(detailPath);
     }
   };
@@ -125,7 +114,7 @@ export function MonitorCard({
             <div className="flex items-center gap-2 w-full min-w-0">
               <StatusIcon className={clsx(statusVisual.iconClassName, 'h-5 w-5 ml-1 shrink-0')} />
               <Tooltip content={monitor.name} placement="top" delay={300}>
-                <h3 className="text-lg font-semibold truncate text-ellipsis max-w-[11rem] md:max-w-[14rem] lg:max-w-[16rem]">
+                <h3 className="text-lg font-semibold truncate text-ellipsis max-w-36 md:max-w-40 lg:max-w-48">
                   {monitor.name}
                 </h3>
               </Tooltip>
@@ -134,15 +123,7 @@ export function MonitorCard({
               {monitor.tags && monitor.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {monitor.tags.map(tag => (
-                    <Chip
-                      key={tag.id}
-                      size="sm"
-                      variant="flat"
-                      style={{
-                        backgroundColor: `${tag.color}15`,
-                        color: tag.color,
-                      }}
-                    >
+                    <Chip key={tag.id} size="sm" variant="flat" style={getTagChipStyle(tag.color)}>
                       {tag.name}
                       {tag?.value && `: ${tag.value}`}
                     </Chip>
@@ -184,7 +165,7 @@ export function MonitorCard({
               />
             )}{' '}
             {isSafari && (
-              <div className="w-full h-[120px] flex items-center justify-center text-default-500">
+              <div className="w-full h-30 flex items-center justify-center text-default-500">
                 {t('view.safariWarning')}
               </div>
             )}
