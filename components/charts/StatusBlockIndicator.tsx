@@ -2,7 +2,7 @@ import type { Heartbeat } from '@/types/monitor';
 import { clsx } from 'clsx';
 import dayjs from 'dayjs';
 import { useTranslations } from 'next-intl';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CustomTooltip } from '../ui/CustomTooltip';
 import { calculatePingStats, getStatusColor } from '../utils/charts';
 import { COLOR_SYSTEM } from '../utils/colors';
@@ -71,7 +71,7 @@ export function StatusBlockIndicator({
   }, [heartbeats, pingStats, t]);
 
   return (
-    <div className={clsx(className, 'relative mt-4 flex flex-col gap-1 min-w-[0]')}>
+    <div className={clsx('relative mt-4 flex flex-col gap-1 min-w-0', className)}>
       {/* 图例和延迟统计 */}
       <div className="absolute -top-5 flex w-full items-center justify-between">
         {!isGlobalLiteView && <PingStats heartbeats={recentHeartbeats} isHome={isHome} />}
