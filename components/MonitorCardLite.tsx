@@ -65,24 +65,35 @@ export function MonitorCardLite({
 
               {monitor.tags && monitor.tags.length > 0 && (
                 <div className="flex-wrap gap-1 ml-2 hidden sm:flex">
-                  {monitor.tags.slice(0, 2).map(tag => (
-                    <Chip
-                      key={tag.id}
-                      size="sm"
-                      variant="flat"
-                      style={{
-                        backgroundColor: `${tag.color}15`,
-                        color: tag.color,
-                      }}
-                      className="h-5"
+                  <Chip
+                    key={monitor.tags[0].id}
+                    size="sm"
+                    variant="flat"
+                    style={{
+                      backgroundColor: `${monitor.tags[0].color}15`,
+                      color: monitor.tags[0].color,
+                    }}
+                    className="h-5"
+                  >
+                    {monitor.tags[0].name}
+                  </Chip>
+                  {monitor.tags.length > 1 && (
+                    <Tooltip
+                      content={
+                        <div className="px-1 py-2">
+                          {monitor.tags.slice(1).map(tag => (
+                            <div key={tag.id} className="text-tiny">
+                              {tag.name}
+                              {tag.value ? `: ${tag.value}` : ''}
+                            </div>
+                          ))}
+                        </div>
+                      }
                     >
-                      {tag.name}
-                    </Chip>
-                  ))}
-                  {monitor.tags.length > 2 && (
-                    <Chip size="sm" variant="flat" className="h-5">
-                      +{monitor.tags.length - 2}
-                    </Chip>
+                      <Chip size="sm" variant="flat" className="h-5 cursor-help">
+                        +{monitor.tags.length - 1}
+                      </Chip>
+                    </Tooltip>
                   )}
                 </div>
               )}
