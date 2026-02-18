@@ -20,7 +20,7 @@ interface MonitoringChartProps {
   heartbeats: Heartbeat[];
   height?: number;
   showGrid?: boolean;
-  color?: 'success' | 'warning' | 'danger' | 'default';
+  color?: 'success' | 'warning' | 'danger' | 'primary' | 'default';
 }
 
 const countRanges = [

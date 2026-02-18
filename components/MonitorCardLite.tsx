@@ -1,8 +1,9 @@
 import type { MonitorCardProps } from '@/types/monitor';
+import { MONITOR_STATUS_VISUAL, getMonitorStatusKey } from '@/utils/monitor-status';
 import { Button, Card, CardBody, Chip, Tooltip } from '@heroui/react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
-import { AlertCircle, CheckCircle2, LayoutGrid, MinusCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, LayoutGrid, MinusCircle, Wrench } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { ResponsStats } from './charts/ResponsStats';
@@ -25,15 +26,22 @@ export function MonitorCardLite({
   const router = useRouter();
   const pageConfig = usePageConfig();
   const lastHeartbeat = heartbeats[heartbeats.length - 1];
-  const status = lastHeartbeat?.status ?? 0;
-  const chartColor = status === 1 ? 'success' : status === 2 ? 'warning' : 'danger';
-  const StatusIcon = status === 1 ? CheckCircle2 : status === 2 ? MinusCircle : AlertCircle;
+  const currentStatus = getMonitorStatusKey(lastHeartbeat?.status);
+  const statusVisual = MONITOR_STATUS_VISUAL[currentStatus];
+  const statusIconMap = {
+    up: CheckCircle2,
+    pending: MinusCircle,
+    down: AlertCircle,
+    maintenance: Wrench,
+    unknown: AlertCircle,
+  } as const;
+  const StatusIcon = statusIconMap[currentStatus];
   const t = useTranslations('');
 
   const uptimeData = [
     {
       value: uptime24h * 100,
-      fill: uptime24h > 0.98 ? '#17c964' : uptime24h > 0.9 ? '#f5a524' : '#f31260',
+      fill: statusVisual.ringFill,
     },
   ];
 
@@ -60,8 +68,10 @@ export function MonitorCardLite({
         <CardBody className="py-2 px-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <StatusIcon className={`text-${chartColor} h-5 w-5 shrink-0`} />
-              <h3 className="font-semibold truncate text-ellipsis">{monitor.name}</h3>
+              <StatusIcon className={clsx(statusVisual.iconClassName, 'h-5 w-5 shrink-0')} />
+              <Tooltip content={monitor.name} placement="top" delay={300}>
+                <h3 className="font-semibold truncate text-ellipsis">{monitor.name}</h3>
+              </Tooltip>
 
               {monitor.tags && monitor.tags.length > 0 && (
                 <div className="flex-wrap gap-1 ml-2 hidden sm:flex">
@@ -106,6 +116,7 @@ export function MonitorCardLite({
                   fill={uptimeData[0].fill}
                   isHome={isHome}
                   size="sm"
+                  valueClassName={statusVisual.valueClassName}
                 />
               </div>
               {!disableViewToggle && (

@@ -9,6 +9,7 @@ interface ResponsStatsProps {
   fill: string;
   isHome?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  valueClassName?: string;
 }
 
 const TOOLTIP_MOTION_PROPS = {
@@ -30,7 +31,13 @@ const TOOLTIP_MOTION_PROPS = {
   },
 } as const;
 
-export function ResponsStats({ value, fill, isHome, size = 'md' }: ResponsStatsProps) {
+export function ResponsStats({
+  value,
+  fill,
+  isHome,
+  size = 'md',
+  valueClassName,
+}: ResponsStatsProps) {
   const t = useTranslations('node');
   const formattedValue = useMemo(() => value.toFixed(2), [value]);
   const data = useMemo(() => [{ value, fill }], [value, fill]);
@@ -80,7 +87,7 @@ export function ResponsStats({ value, fill, isHome, size = 'md' }: ResponsStatsP
             </RadialBarChart>
           </ResponsiveContainer>
         </div>
-        <span className={`${textSize} text-gray-500`}>{formattedValue}%</span>
+        <span className={clsx(textSize, valueClassName ?? 'text-gray-500')}>{formattedValue}%</span>
       </div>
     </HeroUITooltip>
   );
