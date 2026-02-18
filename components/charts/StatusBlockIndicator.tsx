@@ -1,4 +1,5 @@
 import type { Heartbeat } from '@/types/monitor';
+import { Tooltip } from '@heroui/react';
 import { clsx } from 'clsx';
 import dayjs from 'dayjs';
 import { useTranslations } from 'next-intl';
@@ -40,6 +41,17 @@ export function StatusBlockIndicator({
 
   // 计算延迟动态分布
   const pingStats = useMemo(() => calculatePingStats(recentHeartbeats), [recentHeartbeats]);
+  const legendItems = useMemo(
+    () =>
+      Object.entries(COLOR_SYSTEM)
+        .filter(([_, value]) => value.showInLegend)
+        .map(([key, value]) => ({
+          key,
+          label: t(value.label),
+          dotClassName: value.bg.dark,
+        })),
+    [t]
+  );
 
   const heartbeatBlocks = useMemo(() => {
     if (heartbeats.length === 0) return [];
@@ -75,23 +87,46 @@ export function StatusBlockIndicator({
       {/* 图例和延迟统计 */}
       <div className="absolute -top-5 flex w-full items-center justify-between">
         {!isGlobalLiteView && <PingStats heartbeats={recentHeartbeats} isHome={isHome} />}
-        {!isGlobalLiteView && (
-          <div
-            className={clsx(
-              'flex items-center gap-2 text-xs text-foreground/80 dark:text-foreground/60',
-              isHome && 'ml-auto'
-            )}
-          >
-            {Object.entries(COLOR_SYSTEM)
-              .filter(([_, value]) => value.showInLegend)
-              .map(([key, value]) => (
-                <div key={key} className="flex items-center gap-1 text-xs">
-                  <div className={clsx('w-1.5 h-1.5 rounded-full', value.bg.dark)} />
-                  <span>{t(value.label)}</span>
-                </div>
-              ))}
-          </div>
-        )}
+        <div
+          className={clsx(
+            'flex items-center gap-2 text-xs text-foreground/80 dark:text-foreground/60',
+            isHome && 'ml-auto'
+          )}
+        >
+          {!isGlobalLiteView &&
+            legendItems.map(({ key, dotClassName, label }) => (
+              <div key={key} className="flex items-center gap-1 text-xs">
+                <div className={clsx('w-1.5 h-1.5 rounded-full', dotClassName)} />
+                <span>{label}</span>
+              </div>
+            ))}
+          {isGlobalLiteView && legendItems[0] && (
+            <>
+              <div className="flex items-center gap-1 text-xs">
+                <div className={clsx('w-1.5 h-1.5 rounded-full', legendItems[0].dotClassName)} />
+                <span>{legendItems[0].label}</span>
+              </div>
+              {legendItems.length > 1 && (
+                <Tooltip
+                  content={
+                    <div className="px-1 py-2">
+                      {legendItems.slice(1).map(({ key, dotClassName, label }) => (
+                        <div key={key} className="flex items-center gap-1.5 text-xs">
+                          <div className={clsx('h-1.5 w-1.5 rounded-full', dotClassName)} />
+                          <span>{label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  }
+                >
+                  <span className="cursor-help rounded-full border border-default-200 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-foreground/70 dark:border-default-100/20">
+                    +{legendItems.length - 1}
+                  </span>
+                </Tooltip>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* 状态块 */}
