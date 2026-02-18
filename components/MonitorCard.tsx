@@ -125,7 +125,7 @@ export function MonitorCard({
             <div className="flex items-center gap-2 w-full min-w-0">
               <StatusIcon className={clsx(statusVisual.iconClassName, 'h-5 w-5 ml-1 shrink-0')} />
               <Tooltip content={monitor.name} placement="top" delay={300}>
-                <h3 className="text-lg font-semibold truncate text-ellipsis max-w-full">
+                <h3 className="text-lg font-semibold truncate text-ellipsis max-w-[11rem] md:max-w-[14rem] lg:max-w-[16rem]">
                   {monitor.name}
                 </h3>
               </Tooltip>

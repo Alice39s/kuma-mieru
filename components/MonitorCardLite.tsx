@@ -70,7 +70,9 @@ export function MonitorCardLite({
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <StatusIcon className={clsx(statusVisual.iconClassName, 'h-5 w-5 shrink-0')} />
               <Tooltip content={monitor.name} placement="top" delay={300}>
-                <h3 className="font-semibold truncate text-ellipsis">{monitor.name}</h3>
+                <h3 className="font-semibold truncate text-ellipsis max-w-[8.5rem] md:max-w-[11rem]">
+                  {monitor.name}
+                </h3>
               </Tooltip>
 
               {monitor.tags && monitor.tags.length > 0 && (
@@ -90,12 +92,21 @@ export function MonitorCardLite({
                   {monitor.tags.length > 1 && (
                     <Tooltip
                       content={
-                        <div className="px-1 py-2">
+                        <div className="px-1 py-2 flex max-w-[16rem] flex-wrap gap-1.5">
                           {monitor.tags.slice(1).map(tag => (
-                            <div key={tag.id} className="text-tiny">
+                            <Chip
+                              key={tag.id}
+                              size="sm"
+                              variant="flat"
+                              style={{
+                                backgroundColor: `${tag.color}15`,
+                                color: tag.color,
+                              }}
+                              className="h-5"
+                            >
                               {tag.name}
                               {tag.value ? `: ${tag.value}` : ''}
-                            </div>
+                            </Chip>
                           ))}
                         </div>
                       }
