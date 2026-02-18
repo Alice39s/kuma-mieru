@@ -59,7 +59,7 @@ export function ResponsStats({
   const chartSize = size === 'sm' ? 'w-6 h-6' : size === 'lg' ? 'w-12 h-12' : 'w-10 h-10';
   const textSize = size === 'sm' ? 'text-xs' : size === 'lg' ? 'text-base' : 'text-sm';
   const barSize = size === 'sm' ? 6 : size === 'lg' ? 14 : 12;
-  const gapClass = size === 'lg' ? 'gap-1' : 'gap-0.5';
+  const gapClass = size === 'lg' ? 'gap-0.2' : 'gap-0.1';
 
   return (
     <HeroUITooltip
