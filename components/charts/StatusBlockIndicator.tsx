@@ -16,7 +16,7 @@ interface StatusBlockIndicatorProps {
 
 const VIEW_PREFERENCE_KEY = 'view-preference';
 const BLOCK_BASE_CLASS =
-  'flex-1 h-full cursor-pointer transition-all hover:opacity-80 dark:hover:opacity-90';
+  'flex-1 h-full cursor-pointer transition-all hover:opacity-80 dark:hover:opacity-90 min-w-[4px]';
 
 export function StatusBlockIndicator({
   heartbeats,
@@ -71,7 +71,7 @@ export function StatusBlockIndicator({
   }, [heartbeats, pingStats, t]);
 
   return (
-    <div className={clsx(className, 'relative mt-4 flex flex-col gap-1')}>
+    <div className={clsx(className, 'relative mt-4 flex flex-col gap-1 min-w-[0]')}>
       {/* 图例和延迟统计 */}
       <div className="absolute -top-5 flex w-full items-center justify-between">
         {!isGlobalLiteView && <PingStats heartbeats={recentHeartbeats} isHome={isHome} />}
@@ -93,7 +93,7 @@ export function StatusBlockIndicator({
       </div>
 
       {/* 状态块 */}
-      <div className="flex gap-0.5 mt-2 h-3 w-[98%] justify-center items-center mx-auto rounded-sm overflow-hidden">
+      <div className="flex gap-0.5 mt-2 h-3 w-[98%] justify-end items-center mx-auto rounded-sm overflow-hidden">
         {heartbeatBlocks.map(({ key, tooltipContent, blockClassName }) => (
           <CustomTooltip key={key} content={tooltipContent}>
             <div className={blockClassName} />
