@@ -46,7 +46,7 @@
     "dayjs": "^1.11.19",
     "expressive-code": "^0.41.6",
     "framer-motion": "^12.34.2",
-    "intl-messageformat": "^10.7.18",
+    "intl-messageformat": "^11.1.2",
     "json5": "^2.2.3",
     "lucide-react": "^0.483.0",
     "next": "^16.1.6",
