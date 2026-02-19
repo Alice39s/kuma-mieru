@@ -48,7 +48,7 @@
     "framer-motion": "^12.34.2",
     "intl-messageformat": "^10.7.18",
     "json5": "^2.2.3",
-    "lucide-react": "^0.483.0",
+    "lucide-react": "^0.574.0",
     "next": "^16.1.6",
     "next-intl": "^4.8.3",
     "next-themes": "^0.4.6",
