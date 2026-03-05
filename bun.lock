@@ -5,13 +5,13 @@
     "": {
       "name": "kuma-mieru",
       "dependencies": {
-        "@expressive-code/plugin-shiki": "^0.41.6",
+        "@expressive-code/plugin-shiki": "^0.41.7",
         "@heroui/react": "^2.8.9",
         "@heroui/theme": "^2.4.26",
         "@mdx-js/mdx": "^3.1.1",
         "@mdx-js/react": "^3.1.1",
         "@next/bundle-analyzer": "^15.5.12",
-        "@opennextjs/cloudflare": "^1.16.6",
+        "@opennextjs/cloudflare": "^1.17.1",
         "@react-aria/ssr": "3.9.7",
         "@react-aria/visually-hidden": "3.8.20",
         "@sankyu/react-circle-flags": "^1.6.4",
@@ -21,7 +21,7 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "dayjs": "^1.11.19",
-        "expressive-code": "^0.41.6",
+        "expressive-code": "^0.41.7",
         "framer-motion": "^12.34.3",
         "intl-messageformat": "^10.7.18",
         "json5": "^2.2.3",
@@ -32,7 +32,7 @@
         "react": "^19.2.4",
         "react-dom": "^19.2.4",
         "recharts": "^2.15.4",
-        "rehype-expressive-code": "^0.41.6",
+        "rehype-expressive-code": "^0.41.7",
         "rehype-external-links": "^3.0.0",
         "rehype-raw": "^7.0.0",
         "rehype-sanitize": "^6.0.0",
@@ -43,16 +43,16 @@
         "remark-rehype": "^11.1.2",
         "remark-smartypants": "^3.0.2",
         "sonner": "^2.0.7",
-        "swr": "^2.4.0",
+        "swr": "^2.4.1",
         "tailwind-merge": "^3.5.0",
-        "tm-themes": "^1.11.2",
+        "tm-themes": "^1.12.1",
         "unified": "^11.0.5",
         "usehooks-ts": "^3.1.1",
         "zod": "^3.25.76",
       },
       "devDependencies": {
         "@next/eslint-plugin-next": "15.3.0",
-        "@react-types/shared": "3.28.0",
+        "@react-types/shared": "3.33.1",
         "@tailwindcss/typography": "^0.5.19",
         "@types/node": "22.13.14",
         "@types/react": "^19.2.14",
@@ -63,11 +63,11 @@
         "oxfmt": "^0.32.0",
         "oxlint": "^1.50.0",
         "postcss": "8.5.3",
-        "shiki": "^3.22.0",
+        "shiki": "^3.23.0",
         "tailwind-variants": "1.0.0",
         "tailwindcss": "^4.2.1",
         "typescript": "^5.9.3",
-        "wrangler": "^4.67.0",
+        "wrangler": "^4.69.0",
       },
     },
   },
@@ -868,7 +868,7 @@
 
     "@react-types/radio": ["@react-types/radio@3.9.3", "", { "dependencies": { "@react-types/shared": "^3.33.0" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1" } }, "sha512-w2BrMGIiZxYXPCnnB2NQyifwE/rRFMIW87MyawrKO9zPSbnDkqLIHAAtqmlNk2zkz1ZEWjk9opNsuztjP7D4sA=="],
 
-    "@react-types/shared": ["@react-types/shared@3.28.0", "", { "peerDependencies": { "react": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1" } }, "sha512-9oMEYIDc3sk0G5rysnYvdNrkSg7B04yTKl50HHSZVbokeHpnU0yRmsDaWb9B/5RprcKj8XszEk5guBO8Sa/Q+Q=="],
+    "@react-types/shared": ["@react-types/shared@3.33.1", "", { "peerDependencies": { "react": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1" } }, "sha512-oJHtjvLG43VjwemQDadlR5g/8VepK56B/xKO2XORPHt9zlW6IZs3tZrYlvH29BMvoqC7RtE7E5UjgbnbFtDGag=="],
 
     "@react-types/slider": ["@react-types/slider@3.8.3", "", { "dependencies": { "@react-types/shared": "^3.33.0" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1" } }, "sha512-HCDegYiUA27CcJKvFwgpR8ktFKf2nAirXqQEgVPV4uxk6JIeiRx41yqM/xPJGfmaqa7BARYARLT41yN2V8Kadg=="],
 
@@ -2671,6 +2671,8 @@
     "@react-aria/utils/@react-stately/utils": ["@react-stately/utils@3.10.8", "", { "dependencies": { "@swc/helpers": "^0.5.0" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1" } }, "sha512-SN3/h7SzRsusVQjQ4v10LaVsDc81jyyR0DD5HnsQitm/I5WDpaSr2nRHtyloPFU48jlql1XX/S04T2DLQM7Y3g=="],
 
     "@react-aria/utils/@react-types/shared": ["@react-types/shared@3.31.0", "", { "peerDependencies": { "react": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1" } }, "sha512-ua5U6V66gDcbLZe4P2QeyNgPp4YWD1ymGA6j3n+s8CGExtrCPe64v+g4mvpT8Bnb985R96e4zFT61+m0YCwqMg=="],
+
+    "@react-aria/visually-hidden/@react-types/shared": ["@react-types/shared@3.28.0", "", { "peerDependencies": { "react": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1" } }, "sha512-9oMEYIDc3sk0G5rysnYvdNrkSg7B04yTKl50HHSZVbokeHpnU0yRmsDaWb9B/5RprcKj8XszEk5guBO8Sa/Q+Q=="],
 
     "@react-stately/calendar/@react-types/shared": ["@react-types/shared@3.33.0", "", { "peerDependencies": { "react": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1" } }, "sha512-xuUpP6MyuPmJtzNOqF5pzFUIHH2YogyOQfUQHag54PRmWB7AbjuGWBUv0l1UDmz6+AbzAYGmDVAzcRDOu2PFpw=="],
 
