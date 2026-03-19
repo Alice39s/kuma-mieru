@@ -45,7 +45,7 @@
         "sonner": "^2.0.7",
         "swr": "^2.4.1",
         "tailwind-merge": "^3.5.0",
-        "tm-themes": "^1.12.1",
+        "tm-themes": "^1.12.2",
         "unified": "^11.0.5",
         "usehooks-ts": "^3.1.1",
         "zod": "^3.25.76",
@@ -2072,7 +2072,7 @@
 
     "tinypool": ["tinypool@2.1.0", "", {}, "sha512-Pugqs6M0m7Lv1I7FtxN4aoyToKg1C4tu+/381vH35y8oENM/Ai7f7C4StcoK4/+BSw9ebcS8jRiVrORFKCALLw=="],
 
-    "tm-themes": ["tm-themes@1.12.1", "", {}, "sha512-CjDpAN+lZopqqfa4TPhbzI9Z4EJk016rNpCba9V1f94N+AlXnybW6TMxGkKmdpwleDzhvEe5APTPg1b0XxKKug=="],
+    "tm-themes": ["tm-themes@1.12.2", "", {}, "sha512-DDcp7Feso0zvb8McGdChR1elzS0kWYcaGjxcz1R3L88xv3hvN9wP3GvOagj5JKexFrPneiGOoU5AZELXTWk4oA=="],
 
     "to-regex-range": ["to-regex-range@5.0.1", "", { "dependencies": { "is-number": "^7.0.0" } }, "sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ=="],
 
