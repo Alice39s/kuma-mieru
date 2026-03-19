@@ -38,7 +38,7 @@
     "@react-aria/ssr": "3.9.7",
     "@react-aria/visually-hidden": "3.8.31",
     "@sankyu/react-circle-flags": "^1.6.4",
-    "@tailwindcss/postcss": "^4.2.1",
+    "@tailwindcss/postcss": "^4.2.2",
     "chalk": "5.6.2",
     "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
