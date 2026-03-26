@@ -89,7 +89,7 @@
     "shiki": "^4.0.2",
     "tailwind-variants": "1.0.0",
     "tailwindcss": "^4.2.1",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.2",
     "wrangler": "^4.75.0"
   },
   "trustedDependencies": [
