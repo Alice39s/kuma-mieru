@@ -83,7 +83,7 @@
     "@typescript-eslint/eslint-plugin": "8.57.2",
     "@typescript-eslint/parser": "8.57.2",
     "dotenv": "^16.6.1",
-    "oxfmt": "^0.42.0",
+    "oxfmt": "^0.43.0",
     "oxlint": "^1.57.0",
     "postcss": "8.5.8",
     "shiki": "^4.0.2",
