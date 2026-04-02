@@ -20,7 +20,14 @@ interface ApiEnvelope {
  */
 const fetcher = async <T>(url: string): Promise<T> => {
   const response = await fetch(url);
-  const data = (await response.json()) as ApiEnvelope & Record<string, unknown>;
+  let data: ApiEnvelope & Record<string, unknown>;
+  try {
+    data = (await response.json()) as ApiEnvelope & Record<string, unknown>;
+  } catch {
+    throw new Error(
+      `HTTP ${response.status}: Failed to parse response as JSON from ${url}`
+    );
+  }
 
   if (!response.ok) {
     const statusText = response.statusText || 'Unknown Status';
