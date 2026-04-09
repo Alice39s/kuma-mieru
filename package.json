@@ -85,7 +85,7 @@
     "dotenv": "^17.4.0",
     "oxfmt": "^0.43.0",
     "oxlint": "^1.58.0",
-    "postcss": "8.5.8",
+    "postcss": "8.5.9",
     "shiki": "^4.0.2",
     "tailwind-variants": "1.0.0",
     "tailwindcss": "^4.2.1",
