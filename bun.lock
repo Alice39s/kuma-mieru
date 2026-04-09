@@ -30,7 +30,7 @@
         "next-intl": "^4.9.0",
         "next-themes": "^0.4.6",
         "react": "^19.2.4",
-        "react-dom": "^19.2.4",
+        "react-dom": "^19.2.5",
         "recharts": "^3.8.1",
         "rehype-expressive-code": "^0.41.7",
         "rehype-external-links": "^3.0.0",
@@ -1828,7 +1828,7 @@
 
     "react-aria-components": ["react-aria-components@1.16.0", "", { "dependencies": { "@internationalized/date": "^3.12.0", "@internationalized/string": "^3.2.7", "@react-aria/autocomplete": "3.0.0-rc.6", "@react-aria/collections": "^3.0.3", "@react-aria/dnd": "^3.11.6", "@react-aria/focus": "^3.21.5", "@react-aria/interactions": "^3.27.1", "@react-aria/live-announcer": "^3.4.4", "@react-aria/overlays": "^3.31.2", "@react-aria/ssr": "^3.9.10", "@react-aria/textfield": "^3.18.5", "@react-aria/toolbar": "3.0.0-beta.24", "@react-aria/utils": "^3.33.1", "@react-aria/virtualizer": "^4.1.13", "@react-stately/autocomplete": "3.0.0-beta.4", "@react-stately/layout": "^4.6.0", "@react-stately/selection": "^3.20.9", "@react-stately/table": "^3.15.4", "@react-stately/utils": "^3.11.0", "@react-stately/virtualizer": "^4.4.6", "@react-types/form": "^3.7.18", "@react-types/grid": "^3.3.8", "@react-types/shared": "^3.33.1", "@react-types/table": "^3.13.6", "@swc/helpers": "^0.5.0", "client-only": "^0.0.1", "react-aria": "^3.47.0", "react-stately": "^3.45.0", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1", "react-dom": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1" } }, "sha512-MjHbTLpMFzzD2Tv5KbeXoZwPczuUWZcRavVvQQlNHRtXHH38D+sToMEYpNeir7Wh3K/XWtzeX3EujfJW6QNkrw=="],
 
-    "react-dom": ["react-dom@19.2.4", "", { "dependencies": { "scheduler": "^0.27.0" }, "peerDependencies": { "react": "^19.2.4" } }, "sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ=="],
+    "react-dom": ["react-dom@19.2.5", "", { "dependencies": { "scheduler": "^0.27.0" }, "peerDependencies": { "react": "^19.2.5" } }, "sha512-J5bAZz+DXMMwW/wV3xzKke59Af6CHY7G4uYLN1OvBcKEsWOs4pQExj86BBKamxl/Ik5bx9whOrvBlSDfWzgSag=="],
 
     "react-is": ["react-is@18.3.1", "", {}, "sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg=="],
 
