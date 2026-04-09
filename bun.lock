@@ -14,7 +14,7 @@
         "@opennextjs/cloudflare": "^1.18.0",
         "@react-aria/ssr": "3.9.7",
         "@react-aria/visually-hidden": "3.8.31",
-        "@sankyu/react-circle-flags": "^1.6.4",
+        "@sankyu/react-circle-flags": "^1.6.7",
         "@tailwindcss/postcss": "^4.2.2",
         "chalk": "5.6.2",
         "cheerio": "^1.2.0",
@@ -796,7 +796,7 @@
 
     "@sankyu/circle-flags-core": ["@sankyu/circle-flags-core@1.6.3", "", {}, "sha512-6By1BjN1BJij96P4S/KrHc0a1qwZZjCg3ecEBTTN5fcx3YG7SiJ5U0x9+FUALS7DD1W4OIStaTv/qghGOxnLMg=="],
 
-    "@sankyu/react-circle-flags": ["@sankyu/react-circle-flags@1.6.4", "", { "dependencies": { "@sankyu/circle-flags-core": "^1.5.4" }, "peerDependencies": { "react": ">=16.0.0" } }, "sha512-XtVjYJjBVJgPDEUVWHJsyt3jn3RVpsfKJmnYs/S7TZJtWPEELy5NQgOwj8Dw6lCZF4vJ0LUj7msncTEXD+1pkg=="],
+    "@sankyu/react-circle-flags": ["@sankyu/react-circle-flags@1.6.7", "", { "dependencies": { "@sankyu/circle-flags-core": "^1.5.4" }, "peerDependencies": { "react": ">=16.0.0" } }, "sha512-RcuIY7aGLODe1qgDEbz47yUYGcXIn0ePAjI72gdSb0/rE81eP1MUHzOPee7J0tkjUtAgwrc9kC+SbKUHjKyOgw=="],
 
     "@schummar/icu-type-parser": ["@schummar/icu-type-parser@1.21.5", "", {}, "sha512-bXHSaW5jRTmke9Vd0h5P7BtWZG9Znqb8gSDxZnxaGSJnGwPLDPfS+3g0BKzeWqzgZPsIVZkM7m2tbo18cm5HBw=="],
 
