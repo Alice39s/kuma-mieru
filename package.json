@@ -44,7 +44,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.20",
-    "expressive-code": "^0.41.7",
+    "expressive-code": "^0.42.0",
     "framer-motion": "^12.38.0",
     "intl-messageformat": "^11.2.4",
     "json5": "^2.2.3",
