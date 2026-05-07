@@ -28,7 +28,7 @@
     "generate:banner": "bun scripts/banner.ts"
   },
   "dependencies": {
-    "@expressive-code/plugin-shiki": "^0.41.7",
+    "@expressive-code/plugin-shiki": "^0.42.0",
     "@heroui/react": "2.8.9",
     "@heroui/theme": "2.4.26",
     "@mdx-js/mdx": "^3.1.1",
