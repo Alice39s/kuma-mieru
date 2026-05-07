@@ -1,7 +1,7 @@
 # ============================================
 # Build stage
 # ============================================
-FROM node:24-alpine AS builder
+FROM node:26-alpine AS builder
 
 RUN npm install -g bun@latest
 
@@ -44,7 +44,7 @@ RUN set -e && \
 # ============================================
 # Runtime stage
 # ============================================
-FROM node:24-alpine
+FROM node:26-alpine
 WORKDIR /app
 
 # 运行时的所有 ARG 和 ENV 配置
