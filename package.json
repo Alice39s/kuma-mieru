@@ -90,7 +90,7 @@
     "tailwind-variants": "1.0.0",
     "tailwindcss": "^4.2.1",
     "typescript": "^6.0.3",
-    "wrangler": "^4.88.0"
+    "wrangler": "^4.90.1"
   },
   "trustedDependencies": [
     "@heroui/shared-utils",
