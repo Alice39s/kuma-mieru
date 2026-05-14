@@ -80,7 +80,7 @@
     "@types/node": "25.7.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "8.59.2",
+    "@typescript-eslint/eslint-plugin": "8.59.3",
     "@typescript-eslint/parser": "8.59.3",
     "dotenv": "^17.4.2",
     "oxfmt": "^0.49.0",
