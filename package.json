@@ -86,7 +86,7 @@
     "oxfmt": "^0.51.0",
     "oxlint": "^1.64.0",
     "postcss": "8.5.15",
-    "shiki": "^4.0.2",
+    "shiki": "^4.1.0",
     "tailwind-variants": "1.0.0",
     "tailwindcss": "^4.2.1",
     "typescript": "^6.0.3",
