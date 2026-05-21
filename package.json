@@ -45,7 +45,7 @@
     "clsx": "^2.1.1",
     "dayjs": "^1.11.20",
     "expressive-code": "^0.42.0",
-    "framer-motion": "^12.38.0",
+    "framer-motion": "^12.39.0",
     "intl-messageformat": "^11.2.5",
     "json5": "^2.2.3",
     "lucide-react": "^1.14.0",
