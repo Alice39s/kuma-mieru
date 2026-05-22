@@ -1,0 +1,114 @@
+{
+  "page": {
+    "main": "Accueil",
+    "edit": "Modifier cette page",
+    "back": "Retour",
+    "backMonitor": "Retour à la liste des moniteurs"
+  },
+  "timer": {
+    "pause": "Pause",
+    "paused": "En pause",
+    "refreshing": "Rafraîchissement...",
+    "refreshNow": "Rafraîchir maintenant",
+    "lastTime": "Dernier rafraîchissement : {time}",
+    "nextTime": "Rafraîchissement dans {sec} secondes",
+    "refreshSuccess": "Rafraîchissement réussi",
+    "pausedInfo": "Rafraîchissement automatique en pause",
+    "resumedInfo": "Rafraîchissement automatique repris"
+  },
+  "locale": {
+    "changing": "Changement vers {locale}...",
+    "changed": "Langue changée pour {locale}",
+    "changeError": "Échec du changement de langue"
+  },
+  "error": {
+    "unknown": "Erreur inconnue",
+    "refresh": "Échec du rafraîchissement",
+    "monitorNotFound": "Moniteur introuvable",
+    "requestData": "Échec de la récupération des données"
+  },
+  "node": {
+    "search": "Rechercher des moniteurs...",
+    "clearSearch": "Effacer la recherche",
+    "filterResults": "{count} nœuds correspondants trouvés",
+    "noMatchingResults": "Aucun moniteur correspondant trouvé",
+    "clearFilter": "Effacer le filtre",
+    "searchTime": "Temps : {time}ms",
+    "uptimeStatus": "État de disponibilité (Quotidien)",
+    "latestPing": "Dernier ping",
+    "avgPing": "Ping moyen",
+    "trimmedAvgPing": "Moyenne tronquée",
+    "online": "En ligne",
+    "offline": "Hors ligne",
+    "pending": "En attente",
+    "maintenance": "Maint.",
+    "count": "{count} dernières fois",
+    "allStatus": "Tous les statuts",
+    "filterByStatus": "Filtrer par statut",
+    "searchInGroups": "Rechercher dans les groupes",
+    "filterTooltip": "Activer la recherche dans les noms de groupes",
+    "groupMatched": "Groupe correspondant",
+    "statusFilter": {
+      "up": "En ligne",
+      "down": "Hors ligne",
+      "pending": "En attente",
+      "maintenance": "Maintenance"
+    }
+  },
+  "alert": {
+    "createdAt": "Publié le {time}",
+    "updatedAt": "Mis à jour le {time}"
+  },
+  "navbar": {
+    "main": "Navigation principale",
+    "toolbar": "Barre d'outils",
+    "mobileToolbar": "Barre d'outils mobile",
+    "mobileNav": "Navigation mobile",
+    "search": "Rechercher",
+    "pageTabs": "Onglets de la page de statut"
+  },
+  "mode": {
+    "light": "Clair",
+    "dark": "Sombre",
+    "system": "Système"
+  },
+  "noData": "Aucune donnée disponible",
+  "safariWarning": "Le navigateur Safari n'est pas encore pris en charge",
+  "view": {
+    "switchToLite": "Passer en vue simplifiée",
+    "switchToFull": "Passer en vue complète",
+    "safariWarning": "Pas encore pris en charge"
+  },
+  "maintenance": {
+    "default": "Maintenance programmée en cours",
+    "InProgress": "Maintenance en cours",
+    "Scheduled": "Maintenance programmée",
+    "Progress": "Progression de la maintenance",
+    "StartsIn": "Début prévu à {time}",
+    "EndsIn": "Fin estimée vers {time}",
+    "timezoneInfo": "Fuseau horaire : {timezone}",
+    "scheduledMaintenance": "Maintenance planifiée",
+    "maintenanceInProgress": "Maintenance"
+  },
+  "status": {
+    "loading": "Chargement...",
+    "systemNormal": "Tous les systèmes sont opérationnels",
+    "systemWarning": "Dégradation partielle du service détectée",
+    "systemError": "Défaillance critique du système",
+    "systemUnknown": "Statut du système indisponible"
+  },
+  "errorPage": {
+    "title": "Une erreur est survenue !",
+    "currentUnavailableTitle": "Cette page de statut est actuellement indisponible",
+    "globalTitle": "500 - Système indisponible",
+    "notFoundTitle": "404 - Page introuvable",
+    "diagnostics": "Voici les informations de diagnostic d'erreur",
+    "httpStatus": "Statut HTTP",
+    "httpStatusUnavailable": "Aucune réponse HTTP",
+    "retry": "Réessayer",
+    "retrying": "Nouvelle tentative...",
+    "backHome": "Retour à l'accueil",
+    "globalMessage": "Les sources de statut en amont sont actuellement inaccessibles. Veuillez réessayer dans quelques instants.",
+    "notFoundMessage": "La page de statut demandée n'existe pas ou n'est plus disponible."
+  }
+}

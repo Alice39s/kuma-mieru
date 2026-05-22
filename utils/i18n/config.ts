@@ -43,4 +43,10 @@ export const locales = [
     flag: '🇷🇺',
     alpha2Code: 'RU',
   },
+  {
+    key: 'fr-FR',
+    name: 'Français',
+    flag: '🇫🇷',
+    alpha2Code: 'FR',
+  },
 ] as const;
