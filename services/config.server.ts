@@ -265,7 +265,7 @@ export const getGlobalConfigResult = cache(async (pageId?: string): Promise<Glob
       .filter(incident => incident && incident.active !== false)
       .map(incident => ({
         ...incident,
-        createdDate: ensureUTCTimezone(incident.createdDate),
+        createdDate: incident.createdDate ? ensureUTCTimezone(incident.createdDate) : '',
         lastUpdatedDate: incident.lastUpdatedDate
           ? ensureUTCTimezone(incident.lastUpdatedDate)
           : null,
