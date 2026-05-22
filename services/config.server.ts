@@ -261,10 +261,13 @@ export const getGlobalConfigResult = cache(async (pageId?: string): Promise<Glob
         ? [preloadData.incident]
         : [];
 
+    // `active` is omitted by legacy Kuma (single-incident shape) — treat missing as active
+    // so back-compat consumers keep seeing the incident. Newer Kuma sends an explicit boolean.
     const incidents = rawIncidents
       .filter(incident => incident && incident.active !== false)
       .map(incident => ({
         ...incident,
+        pin: Boolean(incident.pin),
         createdDate: ensureUTCTimezone(incident.createdDate),
         lastUpdatedDate: incident.lastUpdatedDate
           ? ensureUTCTimezone(incident.lastUpdatedDate)
