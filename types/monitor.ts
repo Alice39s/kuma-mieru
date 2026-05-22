@@ -88,9 +88,11 @@ export interface Incident {
   // dark -> secondary
   title: string;
   content: string;
-  pin: number;
+  pin: number | boolean;
   createdDate: string;
-  lastUpdatedDate: string;
+  lastUpdatedDate: string | null;
+  active?: boolean;
+  status_page_id?: number;
 }
 
 /**

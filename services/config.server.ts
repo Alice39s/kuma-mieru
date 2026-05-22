@@ -255,19 +255,29 @@ export const getGlobalConfigResult = cache(async (pageId?: string): Promise<Glob
       ? processMaintenanceData(preloadData.maintenanceList)
       : [];
 
+    const rawIncidents = Array.isArray(preloadData.incidents)
+      ? preloadData.incidents
+      : preloadData.incident
+        ? [preloadData.incident]
+        : [];
+
+    const incidents = rawIncidents
+      .filter(incident => incident && incident.active !== false)
+      .map(incident => ({
+        ...incident,
+        createdDate: ensureUTCTimezone(incident.createdDate),
+        lastUpdatedDate: incident.lastUpdatedDate
+          ? ensureUTCTimezone(incident.lastUpdatedDate)
+          : null,
+      }));
+
     const result: GlobalConfig = {
       config: {
         ...preloadData.config,
         icon: buildIconProxyUrl(config.pageId),
         theme,
       },
-      incident: preloadData.incident
-        ? {
-            ...preloadData.incident,
-            createdDate: ensureUTCTimezone(preloadData.incident.createdDate),
-            lastUpdatedDate: ensureUTCTimezone(preloadData.incident.lastUpdatedDate),
-          }
-        : undefined,
+      incidents: incidents.length > 0 ? incidents : undefined,
       maintenanceList,
     };
 

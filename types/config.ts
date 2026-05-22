@@ -35,7 +35,7 @@ export interface SiteConfig {
 
 export interface GlobalConfig {
   config: SiteConfig;
-  incident?: Incident;
+  incidents?: Incident[];
   maintenanceList?: Maintenance[];
 }
 
@@ -109,6 +109,9 @@ export interface PreloadData {
   // 维护计划列表
   maintenanceList: Maintenance[];
 
-  // 维护信息
+  // 维护信息 (legacy single-incident shape, kept for backward compatibility)
   incident?: Incident;
+
+  // 维护信息列表 (newer Kuma versions return an array)
+  incidents?: Incident[];
 }

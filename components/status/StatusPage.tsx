@@ -171,7 +171,9 @@ export function StatusPage() {
           <MaintenanceAlert key={maintenance.id} maintenance={maintenance} />
         ))}
 
-        {globalConfig?.incident && <IncidentMarkdownAlert incident={globalConfig.incident} />}
+        {globalConfig?.incidents?.map(incident => (
+          <IncidentMarkdownAlert key={incident.id} incident={incident} />
+        ))}
 
         <FilterResults matchedMonitorsCount={matchedMonitorsCount} />
 
