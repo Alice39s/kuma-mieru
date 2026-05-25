@@ -30,7 +30,7 @@
   "node": {
     "search": "Buscar monitores...",
     "clearSearch": "Limpar busca",
-    "filterResults": "{count} nó(s) encontrado(s)",
+    "filterResults": "{count} monitor(es) encontrado(s)",
     "noMatchingResults": "Nenhum monitor encontrado",
     "clearFilter": "Limpar filtro",
     "searchTime": "Tempo: {time}ms",
@@ -92,7 +92,7 @@
   },
   "status": {
     "loading": "Carregando...",
-    "systemNormal": "Todos os sistemas operacionais",
+    "systemNormal": "Todos os sistemas estão operando normalmente",
     "systemWarning": "Degradação parcial de serviço detectada",
     "systemError": "Falha crítica no sistema",
     "systemUnknown": "Status do sistema indisponível"
