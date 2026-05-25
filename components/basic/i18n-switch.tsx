@@ -10,6 +10,7 @@ import {
   Dropdown as HeroUIDropdown,
 } from '@heroui/react';
 import {
+  FlagBr,
   FlagCn,
   FlagFr,
   FlagHk,
@@ -25,6 +26,7 @@ import { useTransition } from 'react';
 import { toast } from 'sonner';
 
 const flagComponents: Record<string, React.ComponentType<{ width?: number; height?: number }>> = {
+  BR: FlagBr,
   CN: FlagCn,
   TW: FlagTw,
   HK: FlagHk,

@@ -1,0 +1,114 @@
+{
+  "page": {
+    "main": "Início",
+    "edit": "Editar esta página",
+    "back": "Voltar",
+    "backMonitor": "Voltar à lista de monitores"
+  },
+  "timer": {
+    "pause": "Pausar",
+    "paused": "Pausado",
+    "refreshing": "Atualizando...",
+    "refreshNow": "Atualizar agora",
+    "lastTime": "Última atualização: {time}",
+    "nextTime": "Atualiza em {sec} segundos",
+    "refreshSuccess": "Atualização concluída",
+    "pausedInfo": "Atualização automática pausada",
+    "resumedInfo": "Atualização automática retomada"
+  },
+  "locale": {
+    "changing": "Alterando para {locale}...",
+    "changed": "Alterado para {locale}",
+    "changeError": "Falha ao alterar o idioma"
+  },
+  "error": {
+    "unknown": "Erro desconhecido",
+    "refresh": "Falha na atualização",
+    "monitorNotFound": "Monitor não encontrado",
+    "requestData": "Falha ao buscar dados"
+  },
+  "node": {
+    "search": "Buscar monitores...",
+    "clearSearch": "Limpar busca",
+    "filterResults": "{count} nó(s) encontrado(s)",
+    "noMatchingResults": "Nenhum monitor encontrado",
+    "clearFilter": "Limpar filtro",
+    "searchTime": "Tempo: {time}ms",
+    "uptimeStatus": "Status de Disponibilidade (Diário)",
+    "latestPing": "Último Ping",
+    "avgPing": "Ping Médio",
+    "trimmedAvgPing": "Média Aparada",
+    "online": "Online",
+    "offline": "Offline",
+    "pending": "Pendente",
+    "maintenance": "Manutenção",
+    "count": "Últimas {count} vezes",
+    "allStatus": "Todos os Status",
+    "filterByStatus": "Filtrar por Status",
+    "searchInGroups": "Buscar em Grupos",
+    "filterTooltip": "Ativar para buscar nos nomes dos grupos",
+    "groupMatched": "Grupo correspondente",
+    "statusFilter": {
+      "up": "Online",
+      "down": "Offline",
+      "pending": "Pendente",
+      "maintenance": "Manutenção"
+    }
+  },
+  "alert": {
+    "createdAt": "Publicado em {time}",
+    "updatedAt": "Atualizado em {time}"
+  },
+  "navbar": {
+    "main": "Navegação principal",
+    "toolbar": "Barra de ferramentas",
+    "mobileToolbar": "Barra de ferramentas mobile",
+    "mobileNav": "Navegação mobile",
+    "search": "Buscar",
+    "pageTabs": "Abas da página de status"
+  },
+  "mode": {
+    "light": "Claro",
+    "dark": "Escuro",
+    "system": "Sistema"
+  },
+  "noData": "Nenhum dado disponível",
+  "safariWarning": "O navegador Safari ainda não é suportado",
+  "view": {
+    "switchToLite": "Alternar para Visualização Lite",
+    "switchToFull": "Alternar para Visualização Completa",
+    "safariWarning": "Ainda não suportado"
+  },
+  "maintenance": {
+    "default": "Em Manutenção Programada",
+    "InProgress": "Manutenção em Andamento",
+    "Scheduled": "Manutenção Programada",
+    "Progress": "Progresso da Manutenção",
+    "StartsIn": "Previsto para iniciar às {time}",
+    "EndsIn": "Previsão de término às {time}",
+    "timezoneInfo": "Fuso horário: {timezone}",
+    "scheduledMaintenance": "Planejar manutenção",
+    "maintenanceInProgress": "Manutenção"
+  },
+  "status": {
+    "loading": "Carregando...",
+    "systemNormal": "Todos os sistemas operacionais",
+    "systemWarning": "Degradação parcial de serviço detectada",
+    "systemError": "Falha crítica no sistema",
+    "systemUnknown": "Status do sistema indisponível"
+  },
+  "errorPage": {
+    "title": "Algo deu errado!",
+    "currentUnavailableTitle": "Esta página de status está indisponível no momento",
+    "globalTitle": "500 - Sistema Indisponível",
+    "notFoundTitle": "404 - Página não encontrada",
+    "diagnostics": "A seguir estão as informações de diagnóstico do erro",
+    "httpStatus": "Status HTTP",
+    "httpStatusUnavailable": "Sem resposta HTTP",
+    "retry": "Tentar novamente",
+    "retrying": "Tentando novamente...",
+    "backHome": "Voltar ao início",
+    "globalMessage": "As fontes de status upstream estão inacessíveis no momento. Por favor, tente novamente em alguns instantes.",
+    "notFoundMessage": "A página de status solicitada não existe ou não está mais disponível."
+  }
+}
