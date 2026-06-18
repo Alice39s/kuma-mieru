@@ -1,3 +1,6 @@
+import 'server-only';
+
+import { getErrorLogDetails, getErrorMessage } from '@/utils/errors';
 import { customFetchOptions } from './common';
 import { customFetch } from './fetch';
 
@@ -49,7 +52,7 @@ export async function fetchApiData<T>(
       throw error;
     }
     throw new ApiDataError(
-      `Failed to fetch data from API: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to fetch data from API: ${getErrorMessage(error)}`,
       error,
       endpoint
     );
@@ -72,15 +75,7 @@ export function logApiError(
     error instanceof ApiDataError ? error.message : 'Unknown error',
     {
       ...additionalInfo,
-      error:
-        error instanceof Error
-          ? {
-              name: error.name,
-              message: error.message,
-              stack: error.stack,
-              cause: error.cause,
-            }
-          : error,
+      error: getErrorLogDetails(error),
       endpoint: error instanceof ApiDataError ? error.endpoint : undefined,
     }
   );
