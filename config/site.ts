@@ -1,3 +1,5 @@
+import 'server-only';
+
 import { DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_ICON, DEFAULT_SITE_TITLE } from './defaults';
 import { env } from './env';
 import { buildIconProxyUrl } from '@/utils/icon-proxy';
