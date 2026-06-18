@@ -1,8 +1,37 @@
+import { booleanEnvSchema } from '@/utils/boolean-schema';
+import { extractHttpStatusDetailsFromMessage, parseHttpStatusCode } from '@/utils/http-status';
+
 export interface ParsedErrorDetails {
   kind: 'current_unavailable' | 'all_unavailable' | 'generic';
   diagnostics: string;
   statusCode?: number;
   statusMessage?: string;
+}
+
+export interface ErrorPageDevDetailsOptions {
+  publicDevMode: string | undefined;
+  nodeEnv: string | undefined;
+}
+
+function splitErrorPayload(message: string, fieldCount: number): string[] {
+  const fields: string[] = [];
+  let remainder = message;
+
+  for (let index = 0; index < fieldCount - 1; index += 1) {
+    const separatorIndex = remainder.indexOf('::');
+
+    if (separatorIndex === -1) {
+      fields.push(remainder);
+      remainder = '';
+      continue;
+    }
+
+    fields.push(remainder.slice(0, separatorIndex));
+    remainder = remainder.slice(separatorIndex + 2);
+  }
+
+  fields.push(remainder);
+  return fields;
 }
 
 function parseCurrentPageUnavailable(message: string): ParsedErrorDetails | null {
@@ -17,13 +46,13 @@ function parseCurrentPageUnavailable(message: string): ParsedErrorDetails | null
     statusCodeRaw = '0',
     statusMessage = 'Unknown',
     diagnostics = 'Unknown error',
-  ] = message.split('::');
-  const statusCode = Number.parseInt(statusCodeRaw, 10);
+  ] = splitErrorPayload(message, 6);
+  const statusCode = parseHttpStatusCode(statusCodeRaw);
 
   return {
     kind: 'current_unavailable',
     diagnostics: `${diagnostics} (page: ${pageId}, reason: ${failureType})`,
-    statusCode: Number.isNaN(statusCode) || statusCode <= 0 ? undefined : statusCode,
+    statusCode,
     statusMessage,
   };
 }
@@ -34,13 +63,13 @@ function parseAllPagesUnavailable(message: string): ParsedErrorDetails | null {
   }
 
   const [, statusCodeRaw = '0', statusMessage = 'Unknown', diagnostics = 'All pages unavailable'] =
-    message.split('::');
-  const statusCode = Number.parseInt(statusCodeRaw, 10);
+    splitErrorPayload(message, 4);
+  const statusCode = parseHttpStatusCode(statusCodeRaw);
 
   return {
     kind: 'all_unavailable',
     diagnostics,
-    statusCode: Number.isNaN(statusCode) || statusCode <= 0 ? undefined : statusCode,
+    statusCode,
     statusMessage,
   };
 }
@@ -56,13 +85,12 @@ export function parseErrorDetails(message: string): ParsedErrorDetails {
     return allPages;
   }
 
-  const directHttpMatch = message.match(/\b([1-5]\d\d)\s+([A-Za-z][A-Za-z\s-]{1,})\b/);
-  if (directHttpMatch?.[1]) {
+  const directHttpDetails = extractHttpStatusDetailsFromMessage(message);
+  if (directHttpDetails) {
     return {
       kind: 'generic',
       diagnostics: message,
-      statusCode: Number.parseInt(directHttpMatch[1], 10),
-      statusMessage: directHttpMatch[2]?.trim(),
+      ...directHttpDetails,
     };
   }
 
@@ -72,4 +100,16 @@ export function parseErrorDetails(message: string): ParsedErrorDetails {
     statusCode: undefined,
     statusMessage: undefined,
   };
+}
+
+export function shouldShowErrorPageDevDetails({
+  publicDevMode,
+  nodeEnv,
+}: ErrorPageDevDetailsOptions) {
+  if (nodeEnv === 'development') {
+    return true;
+  }
+
+  const parsedPublicDevMode = booleanEnvSchema.safeParse(publicDevMode);
+  return parsedPublicDevMode.success ? parsedPublicDevMode.data : false;
 }
