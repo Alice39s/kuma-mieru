@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import chalk from 'chalk';
+import { z } from 'zod';
 import packageJson from '../package.json';
 
 const banner = `
@@ -27,12 +28,19 @@ interface ConfigGroup {
   items: ConfigItem[];
 }
 
-const getEnvStatus = (value: string | undefined | boolean, defaultValue = 'Not configured') => {
-  if (typeof value === 'boolean') {
-    return value ? chalk.green('true') : chalk.yellow('false');
-  }
-  return value ? chalk.green(value) : chalk.yellow(defaultValue);
-};
+const envStatusValueSchema = z.union([
+  z.boolean().transform(value => (value ? chalk.green('true') : chalk.yellow('false'))),
+  z
+    .string()
+    .min(1)
+    .transform(value => chalk.green(value)),
+  z.unknown().transform(() => null),
+]);
+
+export const getEnvStatus = (
+  value: string | undefined | boolean,
+  defaultValue = 'Not configured'
+) => envStatusValueSchema.parse(value) ?? chalk.yellow(defaultValue);
 
 const printConfigGroup = ({ title, icon, color, items }: ConfigGroup) => {
   console.log(chalk[color](`${icon} ${title}:`));
@@ -176,4 +184,6 @@ const printStartupInfo = () => {
   }
 };
 
-printStartupInfo();
+if (import.meta.main) {
+  printStartupInfo();
+}
