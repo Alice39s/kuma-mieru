@@ -1,22 +1,34 @@
-type DeepRecord = { [key: string]: DeepRecord | unknown };
+import { z } from 'zod';
+import { decodeHtmlEntities, decodeHtmlEntityCodePoint } from './html-entities';
 
-// HTML实体映射表
-const HTML_ENTITIES: Record<string, string> = {
-  '&amp;': '&',
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&apos;': "'",
-  '&nbsp;': ' ',
-  '&copy;': '©',
-  '&reg;': '®',
-  '&trade;': '™',
-  '&mdash;': '—',
-  '&ndash;': '–',
-  '&hellip;': '…',
-  '&laquo;': '«',
-  '&raquo;': '»',
-};
+const decodeStringSchema = z.string();
+const decodeArraySchema = z.array(z.unknown());
+const decodeRecordSchema = z.record(z.string(), z.unknown());
+
+function decodeStringValue(value: string): string {
+  const result = value
+    // 处理常见转义字符
+    .replace(
+      /\\([nrt\\])/g,
+      (_, char: string) =>
+        (
+          ({
+            n: '\n',
+            r: '\r',
+            t: '\t',
+            '\\': '\\',
+          }) as Record<string, string>
+        )[char] || char
+    )
+
+    // 处理 Unicode 转义序列 - \uXXXX
+    .replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => decodeHtmlEntityCodePoint(hex, 16) ?? match)
+    // 二次转义序列
+    .replace(/\\\\u([0-9a-fA-F]{4})/g, (match, hex) => decodeHtmlEntityCodePoint(hex, 16) ?? match);
+
+  // 处理HTML实体
+  return decodeHtmlEntities(result);
+}
 
 /**
  * 递归解码对象中所有字符串的转义序列
@@ -24,54 +36,23 @@ const HTML_ENTITIES: Record<string, string> = {
  * @returns 解码后的值
  */
 function decodeUnicodeEscapes(value: unknown): unknown {
-  // 字符串类型处理转义序列
-  if (typeof value === 'string') {
-    let result = value
-      // 处理常见转义字符
-      .replace(
-        /\\([nrt\\])/g,
-        (_, char: string) =>
-          (
-            ({
-              n: '\n',
-              r: '\r',
-              t: '\t',
-              '\\': '\\',
-            }) as Record<string, string>
-          )[char] || char
-      )
-
-      // 处理 Unicode 转义序列 - \uXXXX
-      .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-      // 二次转义序列
-      .replace(/\\\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)));
-
-    // 处理HTML实体
-    // 1. 替换命名实体
-    for (const [entity, char] of Object.entries(HTML_ENTITIES)) {
-      result = result.replace(new RegExp(entity, 'g'), char);
-    }
-
-    // 2. 替换数字实体 (十进制, 如 &#169;)
-    result = result.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number.parseInt(dec, 10)));
-
-    // 3. 替换数字实体 (十六进制, 如 &#x00A9;)
-    result = result.replace(/&#x([0-9a-f]+);/gi, (_, hex) =>
-      String.fromCharCode(Number.parseInt(hex, 16))
-    );
-
-    return result;
+  const stringValue = decodeStringSchema.safeParse(value);
+  if (stringValue.success) {
+    return decodeStringValue(stringValue.data);
   }
 
-  // 数组类型递归处理每个元素
-  if (Array.isArray(value)) {
-    return value.map(decodeUnicodeEscapes);
+  const arrayValue = decodeArraySchema.safeParse(value);
+  if (arrayValue.success) {
+    return arrayValue.data.map(decodeUnicodeEscapes);
   }
 
-  // 对象类型递归处理每个属性
-  if (value && typeof value === 'object') {
+  const recordValue = decodeRecordSchema.safeParse(value);
+  if (recordValue.success) {
     return Object.fromEntries(
-      Object.entries(value as DeepRecord).map(([k, v]) => [k, decodeUnicodeEscapes(v)])
+      Object.entries(recordValue.data).map(([key, nestedValue]) => [
+        key,
+        decodeUnicodeEscapes(nestedValue),
+      ])
     );
   }
 
