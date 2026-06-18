@@ -33,6 +33,13 @@ updates:
     open-pull-requests-limit: 5
     # 安全漏洞 PR 不受 group 限制，会单独立即创建
     # 非安全更新统一走 weekly batch，降低追新风险
+    # HeroUI v2 生态：冻结 major 升级，防止再次误升到 v3（见 #469）
+    # @heroui/react 必须留在 v2.x（与 @heroui/theme@2 + tailwind-variants@1 配套）
+    # 待 v3 迁移完成后再手动解除
+    ignore:
+      - dependency-name: '@heroui/*'
+        update-types:
+          - 'version-update:semver-major'
 
   - package-ecosystem: 'docker'
     directory: '/'
