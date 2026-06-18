@@ -303,15 +303,15 @@ docker run -d \
 | SSR_STRICT_MODE                 | No    | 是否启用严格 SSR 失败模式（多页面全部失败时触发全局错误页）                     | `true` / `false` （默认）                                                                                |
 | NEXT_PUBLIC_ERROR_PAGE_DEV_MODE | No    | 是否在错误页显示完整堆栈                                                        | `false`（默认） / `true`                                                                                 |
 | ALLOW_EMBEDDING                 | No    | 是否允许在 iframe 中嵌入（运行时生效，重建镜像后无需重新 build）                | `false` (禁止) / `true` (允许所有，不推荐) / `example.com,app.com` (白名单)                              |
-| STRICT_IMAGE_REMOTE_PATTERNS    | No    | 是否启用严格远程图片域名白名单（构建时生效）                                    | `false`（默认，放开所有远程图片域名） / `true`（仅允许 `generate-image-domains` 生成的域名）             |
+| ALLOW_ANY_IMAGE_REMOTE_PATTERNS | No    | 是否放开 `next/image` 远程图片域名限制（构建时生效，不推荐）                    | `false`（默认，仅允许 `generate-image-domains` 生成的域名） / `true`（放开所有远程图片域名）             |
 
 \* `UPTIME_KUMA_URLS` 与 `UPTIME_KUMA_BASE_URL + PAGE_ID` 二选一即可。若同时配置，优先使用 `UPTIME_KUMA_URLS`。
 
 修改 `.env` 后请执行 `docker compose up -d --force-recreate` 让容器重新注入环境变量。
 
 > [!WARNING]
-> 默认情况下（`STRICT_IMAGE_REMOTE_PATTERNS=false`）会放开 `next/image` 的远程图片域名限制，以避免 Docker 运行时域名变化导致图片加载失败。
-> 如果你运行在高安全要求环境，建议在自建镜像时设置 `STRICT_IMAGE_REMOTE_PATTERNS=true`，并确保构建阶段可生成完整域名白名单。
+> 默认情况下，`next/image` 仅允许 `generate-image-domains` 在构建阶段生成的远程图片域名。
+> 如果你需要兼容 Docker 运行时才确定的远程图片域名，可以设置 `ALLOW_ANY_IMAGE_REMOTE_PATTERNS=true` 放开限制；这会扩大可优化的远程图片范围，不建议在高安全要求环境使用。
 
 ## 与 Uptime Kuma 集成 :link:
 
