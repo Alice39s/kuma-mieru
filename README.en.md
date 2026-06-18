@@ -52,6 +52,7 @@ Built with Next.js 16, TypeScript, and Recharts, this project enhances Uptime Ku
       - [3. Start Container Service](#3-start-container-service)
         - [Using GHCR Image](#using-ghcr-image)
   - [Version Strategy](#version-strategy)
+  - [Upgrading from v1 to v2 (2.0.0-alpha)](#upgrading-from-v1-to-v2-200-alpha)
   - [Environment Variables](#environment-variables)
   - [Integration with Uptime Kuma :link:](#integration-with-uptime-kuma-link)
   - [FAQ :question:](#faq-question)
@@ -264,6 +265,51 @@ docker run -d \
 >
 > Pinning to minor/patch versions (e.g., `:1.6` or `:1.6.2`) is not recommended unless you have a clear canary and rollback strategy.
 
+## Upgrading from v1 to v2 (2.0.0-alpha)
+
+v2 is a major release with several Breaking Changes. The current release is `2.0.0-alpha.1`, intended to gather feedback and **not recommended for production**. If you choose to upgrade, review the checklist below item by item.
+
+### Must read: remote image domain policy tightened by default
+
+This is the change most likely to affect existing deployments.
+
+| Item | v1 (1.x) | v2 (2.0.0-alpha) |
+| --- | --- | --- |
+| Env var | `STRICT_IMAGE_REMOTE_PATTERNS` (default `false` = allow all domains) | `ALLOW_ANY_IMAGE_REMOTE_PATTERNS` (default `false` = **only build-time generated domains**) |
+| SVG icons | `dangerouslyAllowSVG: true` (allowed) | `dangerouslyAllowSVG: false` (**blocked**) |
+| Image proxy redirects | followed | `maximumRedirects: 0` (**not followed**) |
+
+**If you dynamically switch the Uptime Kuma domain at Docker runtime**, images may fail to load after upgrading. Two options:
+
+1. (Recommended) Keep the strict default and let `generate-image-domains` collect every needed domain at build time via `UPTIME_KUMA_URLS`.
+2. (Not recommended) Set `ALLOW_ANY_IMAGE_REMOTE_PATTERNS=true` to restore the v1 permissive behavior.
+
+### HeroUI dependency rollback (fixes #469)
+
+Dependabot previously bumped `@heroui/react` to v3 (incompatible with the existing v2 component code, breaking the build in #469). v2 rolls it back to `^2.8.10` and freezes `@heroui/*` major bumps via dependabot config. If you manage dependencies in your own fork, do not let `@heroui/react` upgrade to v3 unless you have completed the HeroUI v3 migration.
+
+### Behavior changes (may affect monitoring / API consumers)
+
+- **pageId query param allowlist**: `/api/config`, `/api/monitor`, `/api/manage-status-page` now validate `pageId` against the configured list. Passing an unknown pageId falls back to the default page instead of being forwarded verbatim.
+- **API error responses no longer leak internals**: `createApiResponse` returns a fixed `'Internal Server Error'` string on 500 errors instead of echoing the raw error message (to avoid leaking internals). External scripts parsing this field will see the change.
+- **Icon proxy byte-stream hard limit**: `/api/icon` now enforces `maxResponseBytes` (2MB) while reading the stream, instead of relying solely on the spoofable/absent `Content-Length` header. Oversized icons are aborted.
+- **Build script execution**: `scripts/banner.ts` now only prints under `import.meta.main` (i.e. when executed as a script); importing it as a library no longer has side effects.
+- **pageId character validation**: pageIds containing `/ ? # \` in `UPTIME_KUMA_URLS` now fail at build time instead of being silently trimmed.
+
+### Internal changes (usually invisible, but relevant for forks)
+
+- Introduced zod schemas for runtime validation at data boundaries (preload-data, uptime-kuma API responses, etc.).
+- Split several "god files" into smaller, testable modules (e.g. `fetch.ts` → `custom-fetch-core` + `request-policy`).
+- The project now ships its first tests (node:test, ~20 test files).
+- Multiple server-only modules are marked with `import 'server-only'` to prevent accidental client bundling.
+
+### How to go back to v1
+
+If v2-alpha causes issues, you can temporarily stay on the v1 stable line:
+
+- Docker: use `ghcr.io/alice39s/kuma-mieru:1` instead of `:2` or `:latest`.
+- Vercel/self-build: roll the repo back to the `1.7.3` tag.
+
 ## Environment Variables
 
 First, assume your Uptime Kuma status page URL is:
@@ -302,15 +348,15 @@ Environment variables (including backward compatibility):
 | SSR_STRICT_MODE                 | No       | Enable strict SSR failure mode (trigger global error page when all pages fail)                                       | `true` / `false` (default)                                                                                 |
 | NEXT_PUBLIC_ERROR_PAGE_DEV_MODE | No       | Whether to show full stack trace in error page                                                                       | `false` (default) / `true`                                                                                 |
 | ALLOW_EMBEDDING                 | No       | Whether to allow embedding in iframe (applies at runtime; no image rebuild needed)                                   | `false` (block) / `true` (allow all, not recommended) / `example.com,app.com` (whitelist)                  |
-| STRICT_IMAGE_REMOTE_PATTERNS    | No       | Enable strict remote image domain allowlist (build-time)                                                             | `false` (default, allow all remote image domains) / `true` (allow only domains generated by image-domains) |
+| ALLOW_ANY_IMAGE_REMOTE_PATTERNS | No       | Relax `next/image` remote image domain restrictions (build-time, not recommended)                                    | `false` (default, allow only domains generated by image-domains) / `true` (allow all remote image domains) |
 
 \* Use either `UPTIME_KUMA_URLS` or `UPTIME_KUMA_BASE_URL + PAGE_ID`. If both are set, `UPTIME_KUMA_URLS` takes precedence.
 
 After editing `.env`, run `docker compose up -d --force-recreate` so the container picks up updated environment variables.
 
 > [!WARNING]
-> By default (`STRICT_IMAGE_REMOTE_PATTERNS=false`), `next/image` remote domain restrictions are relaxed to avoid image failures when Docker runtime endpoints change.
-> In high-security environments, set `STRICT_IMAGE_REMOTE_PATTERNS=true` for self-built images and ensure your build step generates a complete domain allowlist.
+> By default, `next/image` allows only remote image domains generated by `generate-image-domains` at build time.
+> If you need to support remote image domains that are only known at Docker runtime, set `ALLOW_ANY_IMAGE_REMOTE_PATTERNS=true` to relax the restriction. This expands the remote image optimization surface and is not recommended for high-security environments.
 
 ## Integration with Uptime Kuma :link:
 

@@ -1,5 +1,8 @@
+import 'server-only';
+
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getErrorMessage } from '@/utils/errors';
 import { z } from 'zod';
 import { generatedConfigSchema } from './schemas';
 
@@ -10,7 +13,7 @@ function loadGeneratedConfig() {
     const raw = readFileSync(configPath, 'utf8');
     return JSON.parse(raw);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
+    const reason = getErrorMessage(error, String(error));
     throw new Error(`Failed to load generated config at ${configPath}: ${reason}`);
   }
 }

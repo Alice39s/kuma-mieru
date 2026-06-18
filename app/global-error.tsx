@@ -1,6 +1,6 @@
 'use client';
 
-import { parseErrorDetails } from '@/app/lib/error-details';
+import { parseErrorDetails, shouldShowErrorPageDevDetails } from '@/app/lib/error-details';
 import { Footer } from '@/components/Footer';
 import enUS from '@/messages/en-US.json';
 import { defaultLocale, type Locale } from '@/utils/i18n/config';
@@ -21,9 +21,10 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
   }, [error]);
 
   const parsed = parseErrorDetails(error.message ?? 'Unknown error');
-  const isDevDetailsMode =
-    process.env.NEXT_PUBLIC_ERROR_PAGE_DEV_MODE === 'true' ||
-    process.env.NODE_ENV === 'development';
+  const isDevDetailsMode = shouldShowErrorPageDevDetails({
+    publicDevMode: process.env.NEXT_PUBLIC_ERROR_PAGE_DEV_MODE,
+    nodeEnv: process.env.NODE_ENV,
+  });
 
   useEffect(() => {
     const candidates =
