@@ -1,11 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { z } from 'zod';
 import {
   DEFAULT_SITE_ICON,
   DEFAULT_SITE_META as DEFAULT_SITE_META_VALUES,
 } from '../config/defaults';
 import { generatedConfigSchema, siteMetaSchema } from '../config/schemas';
 import type { SiteMeta } from '../config/schemas';
+import { getErrorMessage } from '../utils/errors';
 import { resolvePreloadDataFromHtml } from '../utils/preload-data';
 import { getString, getBooleanWithSource, formatResolved } from './lib/env';
 import { resolveEndpointConfig } from './lib/uptime-kuma';
@@ -13,6 +15,8 @@ import { resolveEndpointConfig } from './lib/uptime-kuma';
 import 'dotenv/config';
 
 const DEFAULT_SITE_META = siteMetaSchema.parse(DEFAULT_SITE_META_VALUES);
+const PLACEHOLDER_BASE_URL = 'https://example.kuma-mieru.invalid';
+const PLACEHOLDER_PAGE_ID = 'default';
 
 interface StringOverride {
   value: string | undefined;
@@ -33,20 +37,23 @@ const formatOverrideForLog = ({ isDefined, value, source }: StringOverride): str
   return `${value ?? '(undefined)'}${label}`;
 };
 
-const buildIconCandidates = (
-  sources: Array<string | undefined | null>,
-  defaultIcon: string
-): string[] => {
+const iconCandidateSourcesSchema = z.array(
+  z
+    .string()
+    .transform(source => source.trim())
+    .pipe(z.string().min(1))
+    .optional()
+    .catch(undefined)
+);
+
+export const buildIconCandidates = (sources: unknown[], defaultIcon: string): string[] => {
   const seen = new Set<string>();
   const candidates: string[] = [];
 
-  for (const source of sources) {
-    if (typeof source !== 'string') continue;
-    const trimmed = source.trim();
-    if (!trimmed) continue;
-    if (seen.has(trimmed)) continue;
-    candidates.push(trimmed);
-    seen.add(trimmed);
+  for (const candidate of iconCandidateSourcesSchema.parse(sources)) {
+    if (candidate === undefined || seen.has(candidate)) continue;
+    candidates.push(candidate);
+    seen.add(candidate);
   }
 
   if (!seen.has(defaultIcon)) {
@@ -91,6 +98,42 @@ const resolveSiteMeta = ({
     icon: iconCandidates[0],
     iconCandidates,
   });
+};
+
+const hasEndpointEnv = (): boolean =>
+  Boolean(process.env.UPTIME_KUMA_URLS?.trim()) ||
+  Boolean(process.env.UPTIME_KUMA_BASE_URL?.trim()) ||
+  Boolean(process.env.PAGE_ID?.trim());
+
+export const createPlaceholderConfig = () =>
+  generatedConfigSchema.parse({
+    baseUrl: PLACEHOLDER_BASE_URL,
+    pageId: PLACEHOLDER_PAGE_ID,
+    pageIds: [PLACEHOLDER_PAGE_ID],
+    pages: [
+      {
+        id: PLACEHOLDER_PAGE_ID,
+        baseUrl: PLACEHOLDER_BASE_URL,
+        siteMeta: DEFAULT_SITE_META,
+      },
+    ],
+    siteMeta: DEFAULT_SITE_META,
+    isPlaceholder: true,
+    isEditThisPage: false,
+    isShowStarButton: true,
+  });
+
+const writeGeneratedConfig = (config: ReturnType<typeof createPlaceholderConfig>): string => {
+  const configPath = path.join(process.cwd(), 'config', 'generated-config.json');
+  const configDir = path.dirname(configPath);
+
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+
+  return configPath;
 };
 
 async function fetchSiteMeta(baseUrl: string, pageId: string) {
@@ -169,7 +212,26 @@ async function generateConfig() {
   try {
     console.log('[env] [generate-config] [start]');
 
-    const endpoint = resolveEndpointConfig();
+    let endpoint: ReturnType<typeof resolveEndpointConfig>;
+
+    try {
+      endpoint = resolveEndpointConfig();
+    } catch (error) {
+      if (hasEndpointEnv()) {
+        throw error;
+      }
+
+      const config = createPlaceholderConfig();
+      const configPath = writeGeneratedConfig(config);
+
+      console.warn(
+        '[env] No Uptime Kuma endpoint variables found; generated placeholder config for build.'
+      );
+      console.warn('[env] Set UPTIME_KUMA_URLS or UPTIME_KUMA_BASE_URL + PAGE_ID for live data.');
+      console.log(`[env] [generated-config.json] ${configPath}`);
+      return;
+    }
+
     const { baseUrl, pageIds, pageEndpoints } = endpoint;
 
     console.log(`[env] - source: ${endpoint.source}`);
@@ -240,25 +302,16 @@ async function generateConfig() {
       isShowStarButton: isShowStarButton.value,
     });
 
-    const configPath = path.join(process.cwd(), 'config', 'generated-config.json');
-
-    const configDir = path.dirname(configPath);
-    if (!fs.existsSync(configDir)) {
-      fs.mkdirSync(configDir, { recursive: true });
-    }
-
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    const configPath = writeGeneratedConfig(config);
 
     console.log('✅ Configuration file generated successfully!');
     console.log(`[env] [generated-config.json] ${configPath}`);
   } catch (error) {
-    if (error instanceof Error) {
-      console.error('❌ Error generating configuration file:', error.message);
-    } else {
-      console.error('❌ Unknown error generating configuration file');
-    }
+    console.error('❌ Error generating configuration file:', getErrorMessage(error));
     process.exit(1);
   }
 }
 
-generateConfig().catch(console.error);
+if (import.meta.main) {
+  generateConfig().catch(console.error);
+}

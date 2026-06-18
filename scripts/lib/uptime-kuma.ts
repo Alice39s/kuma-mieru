@@ -5,8 +5,19 @@
  */
 
 import { normalizeBaseUrl } from '../../utils/url';
+import { z } from 'zod';
 
 const STATUS_SEGMENT = 'status';
+const pageIdSchema = z.string().trim().min(1).refine(pageId => !/[/?#\\]/.test(pageId));
+
+function parsePageId(rawPageId: string, source: string): string {
+  const parsed = pageIdSchema.safeParse(rawPageId);
+  if (!parsed.success) {
+    throw new Error(`Invalid page id in ${source}: ${rawPageId}`);
+  }
+
+  return parsed.data;
+}
 
 export function parseStatusPageUrl(rawUrl: string): { baseUrl: string; pageId: string } {
   let parsed: URL;
@@ -25,10 +36,7 @@ export function parseStatusPageUrl(rawUrl: string): { baseUrl: string; pageId: s
     );
   }
 
-  const pageId = decodeURIComponent(segments[statusIndex + 1] ?? '').trim();
-  if (!pageId) {
-    throw new Error(`Empty page id in URL: ${rawUrl}`);
-  }
+  const pageId = parsePageId(decodeURIComponent(segments[statusIndex + 1] ?? ''), rawUrl);
 
   const basePathSegments = segments.slice(0, statusIndex);
   const basePath = basePathSegments.length > 0 ? `/${basePathSegments.join('/')}` : '';
@@ -58,8 +66,7 @@ function parsePageIds(raw: string): string[] {
     new Set(
       raw
         .split(/[,\s]+/)
-        .map(id => id.trim())
-        .filter(Boolean)
+        .map(id => parsePageId(id, 'PAGE_ID'))
     )
   );
 }
