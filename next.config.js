@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
-import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import createNextIntlPlugin from 'next-intl/plugin';
 import bundleAnalyzer from '@next/bundle-analyzer';
+import { getImageRemotePatterns } from './config/image-remote-patterns.js';
 
 let __dirname;
 try {
@@ -12,63 +12,6 @@ try {
 } catch {
   __dirname = process.cwd();
 }
-
-const defaultProtocols = ['https', 'http'];
-
-const normalizePatterns = patterns => {
-  const seen = new Set();
-
-  return patterns.filter(pattern => {
-    if (!pattern?.hostname || !pattern?.protocol) return false;
-
-    const key = `${pattern.protocol}://${pattern.hostname}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-};
-
-const getImageRemotePatterns = () => {
-  if (process.env.STRICT_IMAGE_REMOTE_PATTERNS !== 'true') {
-    return normalizePatterns(defaultProtocols.map(protocol => ({ hostname: '*', protocol })));
-  }
-
-  try {
-    const configPath = join(process.cwd(), 'config', 'generated', 'image-domains.json');
-    const config = JSON.parse(readFileSync(configPath, 'utf8'));
-
-    if (Array.isArray(config?.patterns) && config.patterns.length > 0) {
-      const patterns = config.patterns.flatMap(({ hostname, protocols }) => {
-        if (!hostname) return [];
-
-        const resolvedProtocols =
-          Array.isArray(protocols) && protocols.length > 0 ? protocols : defaultProtocols;
-
-        return resolvedProtocols.map(protocol => ({ hostname, protocol }));
-      });
-
-      const normalized = normalizePatterns(patterns);
-      if (normalized.length > 0) {
-        return normalized;
-      }
-    }
-
-    if (Array.isArray(config?.domains) && config.domains.length > 0) {
-      const patterns = config.domains.flatMap(hostname =>
-        defaultProtocols.map(protocol => ({ hostname, protocol }))
-      );
-
-      const normalized = normalizePatterns(patterns);
-      if (normalized.length > 0) {
-        return normalized;
-      }
-    }
-  } catch (e) {
-    // Fallback to defaults below
-  }
-
-  return normalizePatterns(defaultProtocols.map(protocol => ({ hostname: '*', protocol })));
-};
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
@@ -86,7 +29,8 @@ const baseConfig = {
       },
     ],
     formats: ['image/avif', 'image/webp'],
-    dangerouslyAllowSVG: true,
+    dangerouslyAllowSVG: false,
+    maximumRedirects: 0,
   },
 
   webpack: (config, { isServer, dev }) => {
