@@ -1,28 +1,22 @@
 'use server';
 
 import { cookies, headers } from 'next/headers';
-import { type Locale, defaultLocale } from './config';
-import { resolveLocaleFromCandidates } from './resolve-locale';
+import type { Locale } from './config';
+import { parseLocale } from './locale-schema';
+import { resolveUserLocale } from './user-locale';
 
 const COOKIE_NAME = 'Next_i18n';
 
 export const getUserLocale = async () => {
-  // First check if locale is stored in cookie
-  if ((await cookies()).get(COOKIE_NAME)?.value) {
-    return (await cookies()).get(COOKIE_NAME)?.value;
-  }
+  const cookieStore = await cookies();
+  const headersList = await headers();
+  const cookieLocale = cookieStore.get(COOKIE_NAME)?.value;
+  const acceptLanguage = headersList.get('Accept-Language');
 
-  const acceptLang = (await headers()).get('Accept-Language');
-  if (!acceptLang) return defaultLocale;
-
-  const languages = acceptLang.split(',').map(lang => {
-    const [languageCode] = lang.split(';');
-    return languageCode.trim();
-  });
-
-  return resolveLocaleFromCandidates(languages);
+  return resolveUserLocale(cookieLocale, acceptLanguage);
 };
 
 export const setUserLocale = async (locale: Locale) => {
-  (await cookies()).set(COOKIE_NAME, locale);
+  const parsedLocale = parseLocale(locale);
+  (await cookies()).set(COOKIE_NAME, parsedLocale);
 };
