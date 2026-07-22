@@ -172,10 +172,34 @@ export const noticePublicationSnapshotSchema = publicationSnapshotBaseSchema.ext
   ...noticeWindowShape,
 });
 
+export const postmortemStateSchema = z.enum(['draft', 'reviewed', 'published']);
+
+export const postmortemCreateSchema = z.object({
+  incidentId: z.string().uuid(),
+  title: z.string().min(1).max(200),
+  body: z.string().min(1).max(50_000),
+  state: z.literal('draft').default('draft'),
+  occurredAt: occurredAtSchema.optional(),
+});
+
+export const postmortemUpdateSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+  state: postmortemStateSchema,
+  body: z.string().min(1).max(50_000),
+  occurredAt: occurredAtSchema.optional(),
+});
+
+export const postmortemPublicationSnapshotSchema = publicationSnapshotBaseSchema.extend({
+  type: z.literal('postmortem'),
+  state: postmortemStateSchema,
+  incidentId: z.string().uuid(),
+});
+
 export const publicationSnapshotSchema = z.discriminatedUnion('type', [
   incidentPublicationSnapshotSchema,
   maintenancePublicationSnapshotSchema,
   noticePublicationSnapshotSchema,
+  postmortemPublicationSnapshotSchema,
 ]);
 
 export type IncidentCreateInput = z.infer<typeof incidentCreateSchema>;
@@ -192,3 +216,7 @@ export type NoticeUpdateInput = z.infer<typeof noticeUpdateSchema>;
 export type NoticeState = z.infer<typeof noticeStateSchema>;
 export type NoticeKind = z.infer<typeof noticeKindSchema>;
 export type NoticePublicationSnapshot = z.infer<typeof noticePublicationSnapshotSchema>;
+export type PostmortemCreateInput = z.infer<typeof postmortemCreateSchema>;
+export type PostmortemUpdateInput = z.infer<typeof postmortemUpdateSchema>;
+export type PostmortemState = z.infer<typeof postmortemStateSchema>;
+export type PostmortemPublicationSnapshot = z.infer<typeof postmortemPublicationSnapshotSchema>;

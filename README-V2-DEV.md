@@ -248,6 +248,15 @@ Notice creation, update, review, explicit notification choice, public read API, 
 projection use the shared native-event transaction core. The dedicated Notice editor and automatic
 expiry scheduler remain disabled until their UI and scheduler gates are implemented.
 
+## Postmortem core
+
+Postmortem is an append-only child aggregate of Incident. Creation is rejected until the parent
+Incident is `resolved`; Page, affected components, and incident-scoped subscriber eligibility are
+inherited from that parent. Its `draft → reviewed → published` transitions, Expected Version,
+Publication Review, explicit notification choice, Outbox transaction, and Feed link use the shared
+native-event core. Admin/Public routes and the dedicated editor remain disabled until the next
+integration slice.
+
 ## Migration invariants
 
 Migration files use the form `000001_name.up.sql`. Startup rejects gaps, invalid names, missing
@@ -255,6 +264,7 @@ historical files, changed checksums, failed integrity checks, and failed foreign
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
 The current implementation does not yet provide passkey enrollment UI, identity administration,
-the Maintenance/Notice editors and automatic schedulers, Postmortem aggregate, SMTP Secret Store
-configuration, or Subscriber/Delivery administration UI. Their control-plane capabilities must
-remain disabled until the corresponding contracts and security gates are implemented.
+the Maintenance/Notice editors and automatic schedulers, Postmortem Admin/Public integration,
+SMTP Secret Store configuration, or Subscriber/Delivery administration UI. Their control-plane
+capabilities must remain disabled until the corresponding contracts and security gates are
+implemented.

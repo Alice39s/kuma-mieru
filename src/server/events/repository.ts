@@ -68,12 +68,13 @@ export interface IncidentRecord {
 
 export interface PublishableEventRecord {
   id: string;
-  type: 'incident' | 'maintenance' | 'notice';
+  type: 'incident' | 'maintenance' | 'notice' | 'postmortem';
   pageId: string;
   title: string;
   state: string;
   version: number;
   publicationDetails: Record<string, unknown>;
+  subscriptionScopeEventId?: string;
   latestEntry: {
     sequence: number;
     body: string;
@@ -327,16 +328,17 @@ const matchingSubscriptions = (
   database: Database.Database,
   event: PublishableEventRecord
 ): SubscriptionRow[] => {
+  const subscriptionScopeEventId = event.subscriptionScopeEventId ?? event.id;
   const rows = database
     .prepare(
       `SELECT id, incident_id, component_ids_json
        FROM email_subscriptions
        WHERE page_id = ? AND state = 'active' AND (incident_id IS NULL OR incident_id = ?)`
     )
-    .all(event.pageId, event.id) as SubscriptionRow[];
+    .all(event.pageId, subscriptionScopeEventId) as SubscriptionRow[];
   const affected = new Set(event.latestEntry.affectedComponentIds);
   return rows.filter(row => {
-    if (row.incident_id === event.id) return true;
+    if (row.incident_id === subscriptionScopeEventId) return true;
     const components = JSON.parse(row.component_ids_json) as string[];
     return components.length === 0 || components.some(component => affected.has(component));
   });

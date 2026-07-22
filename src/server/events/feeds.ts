@@ -16,6 +16,9 @@ const publicationPath = (pageSlug: string, item: PublicationSnapshot) => {
   const event = encodeURIComponent(item.eventId);
   if (item.type === 'maintenance') return `/status/${page}/maintenance/${event}/`;
   if (item.type === 'notice') return `/status/${page}/notices/#${event}`;
+  if (item.type === 'postmortem') {
+    return `/status/${page}/incidents/${encodeURIComponent(item.incidentId)}/#postmortem-${event}`;
+  }
   return `/status/${page}/incidents/${event}/`;
 };
 
