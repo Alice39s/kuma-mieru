@@ -45,9 +45,9 @@ const siteConfigSchema = z
     title: z.string(),
     description: z.string(),
     icon: z.string(),
-    theme: z.string().transform(theme =>
-      theme === 'dark' ? 'dark' : theme === 'light' ? 'light' : 'system'
-    ),
+    theme: z
+      .string()
+      .transform(theme => (theme === 'dark' ? 'dark' : theme === 'light' ? 'light' : 'system')),
     published: z.boolean(),
     showTags: z.boolean(),
     customCSS: z.string(),
@@ -63,7 +63,7 @@ const monitorGroupListSchema = z.array(z.unknown());
 const incidentSchema = z
   .object({
     id: z.number(),
-    style: z.enum(['info', 'warning', 'danger', 'primary', 'light', 'dark']),
+    style: z.enum(['info', 'warning', 'danger', 'primary', 'light', 'dark']).catch('info'),
     title: z.string(),
     content: z.string(),
     pin: z.union([z.number(), z.boolean()]).transform(Boolean),

@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 import { customFetchCore } from './custom-fetch-core';
 
 const servers = new Set();
@@ -41,6 +41,21 @@ test('customFetch allows responses that fit within maxResponseBytes', async () =
 
   expect(response.ok).toBe(true);
   expect(await response.text()).toBe('ok');
+});
+
+test('customFetch destroys timed-out requests with an ETIMEDOUT error', async () => {
+  const { url } = await listen((_request, response) => {
+    setTimeout(() => response.end('late'), 100);
+  });
+  const consoleError = spyOn(console, 'error').mockImplementation(() => {});
+
+  try {
+    await expect(customFetchCore(url, { timeout: 10, maxRetries: 0 })).rejects.toMatchObject({
+      code: 'ETIMEDOUT',
+    });
+  } finally {
+    consoleError.mockRestore();
+  }
 });
 
 test('customFetch normalizes request headers before sending them to node http', async () => {

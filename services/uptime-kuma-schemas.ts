@@ -2,7 +2,7 @@ import type { HeartbeatData, MonitorGroup, MonitoringData, UptimeData } from '@/
 import { z } from 'zod';
 
 const heartbeatSchema = z.object({
-  status: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]),
+  status: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]).catch(0),
   time: z.string(),
   msg: z.string().default(''),
   ping: z.number().nullable(),

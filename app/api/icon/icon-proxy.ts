@@ -29,7 +29,12 @@ export function resolveUpstreamIconUrl(icon: string, baseUrl: string): string | 
   if (!icon || icon === FALLBACK_ICON || icon.startsWith('data:')) return null;
 
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
-  const baseOrigin = new URL(normalizedBaseUrl).origin;
+  let baseOrigin: string;
+  try {
+    baseOrigin = new URL(normalizedBaseUrl).origin;
+  } catch {
+    return null;
+  }
 
   if (/^https?:\/\//i.test(icon)) {
     const parsedIcon = absoluteHttpUrlSchema.safeParse(icon);

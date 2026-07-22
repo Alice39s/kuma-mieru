@@ -35,6 +35,11 @@ test('resolveUpstreamIconUrl rejects malformed absolute icon URLs', () => {
   expect(resolveUpstreamIconUrl('https://%', 'https://status.example.com')).toBeNull();
 });
 
+test('resolveUpstreamIconUrl rejects empty or malformed base URLs', () => {
+  expect(resolveUpstreamIconUrl('/upload/icon.png', '')).toBeNull();
+  expect(resolveUpstreamIconUrl('/upload/icon.png', 'https://%')).toBeNull();
+});
+
 test('isProxyableIconContentType rejects upstream SVG icons', () => {
   expect(isProxyableIconContentType('image/png')).toBe(true);
   expect(isProxyableIconContentType('image/webp; charset=binary')).toBe(true);

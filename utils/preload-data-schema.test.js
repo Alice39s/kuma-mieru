@@ -88,6 +88,23 @@ test('parseVisibleIncidents keeps valid active incidents and drops malformed one
   expect(parsed[0].createdDate).toBe('2026-06-10 00:00:00 +0000');
 });
 
+test('parseVisibleIncidents keeps incidents with an unknown style using the info fallback', () => {
+  const parsed = parseVisibleIncidents({
+    incident: {
+      id: 4,
+      style: 'success',
+      title: 'Recovered',
+      content: 'Service has recovered',
+      pin: false,
+      createdDate: '2026-06-10 00:00:00',
+      lastUpdatedDate: null,
+    },
+  });
+
+  expect(parsed).toHaveLength(1);
+  expect(parsed[0].style).toBe('info');
+});
+
 test('parseGlobalConfigData keeps config when incident entries are malformed', () => {
   const parsed = parseGlobalConfigData({
     config: validConfig,

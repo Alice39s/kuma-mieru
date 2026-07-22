@@ -152,7 +152,11 @@ async function makeRequest(
       }
     );
 
-    req.on('error', async (error: NodeError) => {
+    let didHandleRequestError = false;
+    const handleRequestError = async (error: NodeError) => {
+      if (didHandleRequestError) return;
+      didHandleRequestError = true;
+
       const shouldRetry =
         retryCount < maxRetries &&
         (error.code === 'ECONNRESET' ||
@@ -189,13 +193,17 @@ async function makeRequest(
         });
         reject(error);
       }
+    };
+
+    req.on('error', error => {
+      void handleRequestError(error);
     });
 
     req.on('timeout', () => {
-      req.destroy();
       const error = new Error('请求超时') as NodeError;
       error.code = 'ETIMEDOUT';
-      req.emit('error', error);
+      req.destroy(error);
+      void handleRequestError(error);
     });
 
     if (mergedOptions.body) {
