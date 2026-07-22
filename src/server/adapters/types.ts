@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+export interface SourceJsonRequester {
+  request<T>(url: URL, resourceKey: string, schema: z.ZodType<T>): Promise<T>;
+}
+
 export const normalizedStatusSchema = z.enum([
   'operational',
   'degraded',

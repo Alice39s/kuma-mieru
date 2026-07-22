@@ -14,7 +14,8 @@ export const signInSchema = z.object({
 
 export const sourceDraftSchema = z.object({
   id: z.string().min(1, 'Source ID is required.'),
-  baseUrl: z.string().url('Enter the complete Uptime Kuma URL.'),
+  kind: z.enum(['uptime-kuma', 'better-stack']),
+  baseUrl: z.string().url('Enter the complete public status-page URL.'),
   pageIds: z.string().min(1, 'Add at least one status page slug.'),
 });
 

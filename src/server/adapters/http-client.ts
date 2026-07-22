@@ -3,7 +3,7 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import type Database from 'better-sqlite3';
 import type { z } from 'zod';
-import type { SourceJsonRequester } from './uptime-kuma/adapter.js';
+import type { SourceJsonRequester } from './types.js';
 
 type ResolveHost = (
   hostname: string,

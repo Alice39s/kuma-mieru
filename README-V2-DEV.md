@@ -74,6 +74,20 @@ The HTTP boundary enforces protocol and credential rules, DNS-based private-addr
 redirect revalidation, a 10-second timeout, a three-redirect limit, a 2 MiB decompressed-body limit,
 JSON content type, and conditional `ETag`/`Last-Modified` requests.
 
+## Better Stack public adapter
+
+The Better Stack adapter reads only the public `index.json` document and does not require a Team
+Token. Its JSON:API-style status page, sections, resources, 90-day daily history, status reports,
+and status updates are validated at the trust boundary and normalized through the same snapshot
+store used by Uptime Kuma. Unknown Included resource types are ignored for forward compatibility;
+known resource types with malformed fields reject the snapshot, and unknown service or aggregate
+states become `unknown`, never `operational`. The provider's unspecific `availability` aggregate is
+not mislabeled as the normalized 24-hour uptime value.
+
+Source polling and Test Connection dispatch through a function-based Adapter Registry. Adding an
+adapter no longer requires a provider-specific branch in the scheduler, and public requests still
+read only the local last-known-good snapshot.
+
 ## Authentication and managed revisions
 
 Better Auth is mounted at `/api/auth/*` with public sign-up disabled. The first startup with no users

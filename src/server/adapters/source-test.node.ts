@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { z } from 'zod';
-import type { SourceJsonRequester } from './uptime-kuma/adapter.js';
+import type { SourceJsonRequester } from './types.js';
 import { createSourceTestService } from './source-test.js';
 
 const requester: SourceJsonRequester = {

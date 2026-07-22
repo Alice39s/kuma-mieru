@@ -161,7 +161,7 @@ export const createApp = ({
         managedConfig: runtime.mode === 'managed',
         fileConfig: runtime.mode === 'file',
         legacyEnvironment: runtime.mode === 'compatibility',
-        sourceAdapters: ['uptime-kuma'],
+        sourceAdapters: ['uptime-kuma', 'better-stack'],
       },
     });
   });

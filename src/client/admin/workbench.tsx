@@ -53,7 +53,7 @@ const Overview = ({ data }: { data: WorkbenchData }) => (
       <article>
         <span>Configured sources</span>
         <strong>{data.sources.length}</strong>
-        <small>Uptime Kuma public adapters</small>
+        <small>Public read-only adapters</small>
       </article>
       <article>
         <span>Published pages</span>

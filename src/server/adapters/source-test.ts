@@ -2,7 +2,8 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { sourceSchema, type CanonicalConfig } from '../config/schema.js';
 import { createHttpJsonClient } from './http-client.js';
-import { fetchUptimeKumaSnapshot, type SourceJsonRequester } from './uptime-kuma/adapter.js';
+import { fetchSourceSnapshot } from './registry.js';
+import type { SourceJsonRequester } from './types.js';
 
 export interface SourceTestResult {
   token: string;
@@ -55,12 +56,7 @@ export const createSourceTestService = ({
   const test = async (rawSource: CanonicalConfig['sources'][number]) => {
     const source = sourceSchema.parse(rawSource);
     const snapshots = await Promise.all(
-      source.pageIds.map(pageId =>
-        fetchUptimeKumaSnapshot(
-          { sourceId: source.id, baseUrl: source.baseUrl, pageId },
-          directRequester
-        )
-      )
+      source.pageIds.map(pageId => fetchSourceSnapshot(source, pageId, directRequester))
     );
     const expiresAt = new Date(Date.now() + lifetimeMs);
     const payload = Buffer.from(

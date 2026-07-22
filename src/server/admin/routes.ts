@@ -17,7 +17,11 @@ import {
 } from '../auth/security.js';
 import { mutateManagedConfig, rollbackManagedConfig } from '../config/managed-config.js';
 import { listManagedRevisions, type ConfigRevision } from '../config/repository.js';
-import { sourceSchema, statusPageSchema } from '../config/schema.js';
+import {
+  sourcePatchSchema as sourcePatchValueSchema,
+  sourceSchema,
+  statusPageSchema,
+} from '../config/schema.js';
 import type { RuntimeConfigSnapshot } from '../config/runtime-config.js';
 import {
   appendIncidentUpdate,
@@ -55,7 +59,7 @@ const sourceCreateSchema = z.object({
 });
 const sourcePatchSchema = z.object({
   expectedRevision: z.number().int().positive(),
-  patch: sourceSchema.partial().omit({ id: true }),
+  patch: sourcePatchValueSchema,
   testToken: z.string().min(1),
 });
 const idempotencyKeySchema = z.string().min(8).max(200);

@@ -21,7 +21,7 @@ interface VerifiedDraft {
 
 const toSource = (input: SourceDraftInput): AdminSource => ({
   id: input.id.trim(),
-  kind: 'uptime-kuma',
+  kind: input.kind,
   baseUrl: input.baseUrl.trim(),
   pageIds: input.pageIds
     .split(',')
@@ -35,7 +35,7 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
   const [saving, setSaving] = useState(false);
   const form = useForm<SourceDraftInput>({
     resolver: zodResolver(sourceDraftSchema),
-    defaultValues: { id: '', baseUrl: '', pageIds: 'default' },
+    defaultValues: { id: '', kind: 'uptime-kuma', baseUrl: '', pageIds: 'default' },
   });
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
         testToken: verified.token,
       });
       toast.success(`Revision ${result.data.revision} is active`);
-      form.reset({ id: '', baseUrl: '', pageIds: 'default' });
+      form.reset({ id: '', kind: 'uptime-kuma', baseUrl: '', pageIds: 'default' });
       setVerified(null);
       await onCommitted();
     } catch (error) {
@@ -87,7 +87,7 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
       <header className="editor-heading">
         <div>
           <p className="admin-eyebrow">Source wizard</p>
-          <h2>Connect Uptime Kuma</h2>
+          <h2>Connect a status source</h2>
         </div>
         <span className="revision-chip">Against r{revision}</span>
       </header>
@@ -104,20 +104,35 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
             {form.formState.errors.id ? <small>{form.formState.errors.id.message}</small> : null}
           </label>
           <label className="admin-field">
-            <span>Status page slugs</span>
+            <span>Adapter</span>
+            <select
+              {...form.register('kind', {
+                onChange: event => {
+                  if (event.target.value === 'better-stack') form.setValue('pageIds', 'index');
+                },
+              })}
+            >
+              <option value="uptime-kuma">Uptime Kuma public page</option>
+              <option value="better-stack">Better Stack public JSON</option>
+            </select>
+          </label>
+        </div>
+        <div className="admin-form-row">
+          <label className="admin-field">
+            <span>Base URL</span>
+            <input placeholder="https://status.example.com" {...form.register('baseUrl')} />
+            {form.formState.errors.baseUrl ? (
+              <small>{form.formState.errors.baseUrl.message}</small>
+            ) : null}
+          </label>
+          <label className="admin-field">
+            <span>Page slugs / snapshot keys</span>
             <input placeholder="default, api" {...form.register('pageIds')} />
             {form.formState.errors.pageIds ? (
               <small>{form.formState.errors.pageIds.message}</small>
             ) : null}
           </label>
         </div>
-        <label className="admin-field">
-          <span>Uptime Kuma base URL</span>
-          <input placeholder="https://status.example.com" {...form.register('baseUrl')} />
-          {form.formState.errors.baseUrl ? (
-            <small>{form.formState.errors.baseUrl.message}</small>
-          ) : null}
-        </label>
         <button className="admin-secondary-button" disabled={testing} type="submit">
           <FlaskConical size={17} /> {testing ? 'Testing boundary…' : 'Test connection'}
         </button>

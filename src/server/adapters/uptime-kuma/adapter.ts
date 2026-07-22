@@ -1,11 +1,12 @@
-import type { z } from 'zod';
-import { normalizedSnapshotSchema, type NormalizedSnapshot } from '../types.js';
+import {
+  normalizedSnapshotSchema,
+  type NormalizedSnapshot,
+  type SourceJsonRequester,
+} from '../types.js';
 import { normalizeUptimeKumaSnapshot } from './normalize.js';
 import { uptimeKumaHeartbeatSchema, uptimeKumaPageSchema } from './schemas.js';
 
-export interface SourceJsonRequester {
-  request<T>(url: URL, resourceKey: string, schema: z.ZodType<T>): Promise<T>;
-}
+export type { SourceJsonRequester } from '../types.js';
 
 export interface FetchUptimeKumaInput {
   sourceId: string;

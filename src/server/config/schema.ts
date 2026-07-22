@@ -2,11 +2,28 @@ import { z } from 'zod';
 
 export const configModeSchema = z.enum(['compatibility', 'managed', 'file']);
 
-export const sourceSchema = z.object({
+const sourceBaseSchema = z.object({
   id: z.string().min(1),
-  kind: z.literal('uptime-kuma'),
   baseUrl: z.string().url(),
   pageIds: z.array(z.string().min(1)).min(1),
+});
+
+export const uptimeKumaSourceSchema = sourceBaseSchema.extend({
+  kind: z.literal('uptime-kuma'),
+});
+
+export const betterStackSourceSchema = sourceBaseSchema.extend({
+  kind: z.literal('better-stack'),
+});
+
+export const sourceSchema = z.discriminatedUnion('kind', [
+  uptimeKumaSourceSchema,
+  betterStackSourceSchema,
+]);
+
+export const sourcePatchSchema = z.object({
+  baseUrl: z.string().url().optional(),
+  pageIds: z.array(z.string().min(1)).min(1).optional(),
 });
 
 export const statusPageSchema = z.object({

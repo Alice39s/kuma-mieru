@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { CanonicalConfig } from '../config/schema.js';
 import { createCachedSourceRequester, createHttpJsonClient } from './http-client.js';
+import { fetchSourceSnapshot } from './registry.js';
 import { getSourceSnapshot, recordSourceFailure, saveSourceSnapshot } from './source-store.js';
-import { fetchUptimeKumaSnapshot } from './uptime-kuma/adapter.js';
 
 export interface SourcePollerOptions {
   database: Database.Database;
@@ -54,10 +54,7 @@ export const startSourcePoller = ({
       const run = async () => {
         if (stopped) return;
         try {
-          const snapshot = await fetchUptimeKumaSnapshot(
-            { sourceId: source.id, baseUrl: source.baseUrl, pageId },
-            requester
-          );
+          const snapshot = await fetchSourceSnapshot(source, pageId, requester);
           saveSourceSnapshot(database, snapshot, new Date(Date.now() + staleAfterMs));
           consecutiveFailures = 0;
         } catch (error) {

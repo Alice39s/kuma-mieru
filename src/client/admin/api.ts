@@ -6,7 +6,7 @@ export interface AdminSession {
 
 export interface AdminSource {
   id: string;
-  kind: 'uptime-kuma';
+  kind: 'uptime-kuma' | 'better-stack';
   baseUrl: string;
   pageIds: string[];
 }
