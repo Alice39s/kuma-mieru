@@ -8,7 +8,11 @@ import { normalizeBaseUrl } from '../../utils/url';
 import { z } from 'zod';
 
 const STATUS_SEGMENT = 'status';
-const pageIdSchema = z.string().trim().min(1).refine(pageId => !/[/?#\\]/.test(pageId));
+const pageIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine(pageId => !/[/?#\\]/.test(pageId));
 
 function parsePageId(rawPageId: string, source: string): string {
   const parsed = pageIdSchema.safeParse(rawPageId);
@@ -62,13 +66,7 @@ function splitUrls(raw: string): string[] {
 }
 
 function parsePageIds(raw: string): string[] {
-  return Array.from(
-    new Set(
-      raw
-        .split(/[,\s]+/)
-        .map(id => parsePageId(id, 'PAGE_ID'))
-    )
-  );
+  return Array.from(new Set(raw.split(/[,\s]+/).map(id => parsePageId(id, 'PAGE_ID'))));
 }
 
 export function resolveEndpointConfig(): EndpointConfig {

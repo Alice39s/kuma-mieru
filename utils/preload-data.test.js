@@ -1,6 +1,10 @@
 import * as cheerio from 'cheerio';
 import { expect, test } from 'bun:test';
-import { fetchPreloadDataFromApi, getPreloadPayload, resolvePreloadDataFromHtml } from './preload-data';
+import {
+  fetchPreloadDataFromApi,
+  getPreloadPayload,
+  resolvePreloadDataFromHtml,
+} from './preload-data';
 
 test('getPreloadPayload decodes data-json attributes parsed by Cheerio', () => {
   const $ = cheerio.load(

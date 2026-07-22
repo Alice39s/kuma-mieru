@@ -274,11 +274,11 @@ v2 是一个包含多项 Breaking Changes 的大版本。当前发布的是 `2.0
 
 这是最容易影响现有部署的一项变更。
 
-| 项目 | v1 (1.x) | v2 (2.0.0-alpha) |
-| --- | --- | --- |
-| 环境变量 | `STRICT_IMAGE_REMOTE_PATTERNS`（默认 `false` = 放开所有域名） | `ALLOW_ANY_IMAGE_REMOTE_PATTERNS`（默认 `false` = **仅允许 build 时生成的域名**） |
-| SVG 图标 | `dangerouslyAllowSVG: true`（允许） | `dangerouslyAllowSVG: false`（**禁止**） |
-| 图片代理重定向 | 跟随 | `maximumRedirects: 0`（**不跟随**） |
+| 项目           | v1 (1.x)                                                      | v2 (2.0.0-alpha)                                                                  |
+| -------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| 环境变量       | `STRICT_IMAGE_REMOTE_PATTERNS`（默认 `false` = 放开所有域名） | `ALLOW_ANY_IMAGE_REMOTE_PATTERNS`（默认 `false` = **仅允许 build 时生成的域名**） |
+| SVG 图标       | `dangerouslyAllowSVG: true`（允许）                           | `dangerouslyAllowSVG: false`（**禁止**）                                          |
+| 图片代理重定向 | 跟随                                                          | `maximumRedirects: 0`（**不跟随**）                                               |
 
 **如果您在 Docker 运行时动态切换 Uptime Kuma 域名**，升级后图片可能加载失败。两种解决方式：
 

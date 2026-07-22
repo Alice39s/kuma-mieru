@@ -273,11 +273,11 @@ v2 is a major release with several Breaking Changes. The current release is `2.0
 
 This is the change most likely to affect existing deployments.
 
-| Item | v1 (1.x) | v2 (2.0.0-alpha) |
-| --- | --- | --- |
-| Env var | `STRICT_IMAGE_REMOTE_PATTERNS` (default `false` = allow all domains) | `ALLOW_ANY_IMAGE_REMOTE_PATTERNS` (default `false` = **only build-time generated domains**) |
-| SVG icons | `dangerouslyAllowSVG: true` (allowed) | `dangerouslyAllowSVG: false` (**blocked**) |
-| Image proxy redirects | followed | `maximumRedirects: 0` (**not followed**) |
+| Item                  | v1 (1.x)                                                             | v2 (2.0.0-alpha)                                                                            |
+| --------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Env var               | `STRICT_IMAGE_REMOTE_PATTERNS` (default `false` = allow all domains) | `ALLOW_ANY_IMAGE_REMOTE_PATTERNS` (default `false` = **only build-time generated domains**) |
+| SVG icons             | `dangerouslyAllowSVG: true` (allowed)                                | `dangerouslyAllowSVG: false` (**blocked**)                                                  |
+| Image proxy redirects | followed                                                             | `maximumRedirects: 0` (**not followed**)                                                    |
 
 **If you dynamically switch the Uptime Kuma domain at Docker runtime**, images may fail to load after upgrading. Two options:
 
