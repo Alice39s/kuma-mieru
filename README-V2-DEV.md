@@ -101,6 +101,18 @@ can mount a read-only keyring and set `KUMA_MIERU_MASTER_KEY_FILE`. A keyring de
 write key and may retain old read keys; the store can atomically re-encrypt old records before an
 operator removes retired keys.
 
+## UptimeRobot v3 adapter
+
+The UptimeRobot adapter uses the official REST v3 surface with a scoped read-only Bearer JWT from
+the encrypted Secret Store. It reads monitors and monitor groups only, requests at most 200 monitors
+per page, and follows numeric cursors only after rebuilding them against the configured same-origin,
+same-path endpoint. Repeated cursors, off-origin `nextLink` values, and more than 100 pages fail the
+snapshot without replacing the last-known-good copy.
+
+Monitor states, groups, tags, and the provider-defined 24-hour uptime histogram are normalized.
+Unknown future states become `unknown`, response time remains empty rather than being mislabeled,
+and no create, update, pause, or delete endpoint is called.
+
 ## Authentication and managed revisions
 
 Better Auth is mounted at `/api/auth/*` with public sign-up disabled. The first startup with no users

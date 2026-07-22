@@ -127,11 +127,12 @@ export const createHttpJsonClient = (options: HttpJsonClientOptions = {}) => {
 
   return async (inputUrl: URL, headers: Record<string, string> = {}): Promise<HttpJsonResponse> => {
     let url = new URL(inputUrl);
+    let requestHeaders = { ...headers };
     for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
       await validateTarget(url, allowPrivateAddresses, resolveHost);
       const response = await fetchImplementation(url, {
         method: 'GET',
-        headers: { Accept: 'application/json', ...headers },
+        headers: { Accept: 'application/json', ...requestHeaders },
         redirect: 'manual',
         signal: AbortSignal.timeout(timeoutMs),
       });
@@ -141,7 +142,16 @@ export const createHttpJsonClient = (options: HttpJsonClientOptions = {}) => {
         if (!location || redirectCount === maxRedirects) {
           throw requestError('redirect_rejected', 'Source redirect limit exceeded');
         }
-        url = new URL(location, url);
+        const nextUrl = new URL(location, url);
+        if (nextUrl.origin !== url.origin) {
+          requestHeaders = Object.fromEntries(
+            Object.entries(requestHeaders).filter(
+              ([name]) =>
+                !['authorization', 'cookie', 'proxy-authorization'].includes(name.toLowerCase())
+            )
+          );
+        }
+        url = nextUrl;
         continue;
       }
       if (response.status === 304) {
@@ -182,7 +192,12 @@ export const createCachedSourceRequester = (
   sourceId: string,
   requestJson = createHttpJsonClient()
 ): SourceJsonRequester => ({
-  request: async <T>(url: URL, resourceKey: string, schema: z.ZodType<T>) => {
+  request: async <T>(
+    url: URL,
+    resourceKey: string,
+    schema: z.ZodType<T>,
+    options?: { headers?: Record<string, string> }
+  ) => {
     const endpointHash = createHash('sha256')
       .update(`${url.origin}${url.pathname}`, 'utf8')
       .digest('hex')
@@ -194,9 +209,14 @@ export const createCachedSourceRequester = (
          FROM source_http_cache WHERE source_id = ? AND resource_key = ?`
       )
       .get(sourceId, cacheKey) as CacheRow | undefined;
-    const headers: Record<string, string> = {};
-    if (cached?.etag) headers['If-None-Match'] = cached.etag;
-    if (cached?.last_modified) headers['If-Modified-Since'] = cached.last_modified;
+    const headers: Record<string, string> = { ...options?.headers };
+    const authenticated = Object.keys(headers).some(name =>
+      ['authorization', 'cookie', 'proxy-authorization'].includes(name.toLowerCase())
+    );
+    if (!authenticated && cached?.etag) headers['If-None-Match'] = cached.etag;
+    if (!authenticated && cached?.last_modified) {
+      headers['If-Modified-Since'] = cached.last_modified;
+    }
 
     const response = await requestJson(url, headers);
     if (response.status === 304) {

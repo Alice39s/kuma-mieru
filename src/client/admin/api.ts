@@ -4,12 +4,14 @@ export interface AdminSession {
   csrfToken: string;
 }
 
-export interface AdminSource {
+interface AdminSourceBase {
   id: string;
-  kind: 'uptime-kuma' | 'better-stack';
   baseUrl: string;
   pageIds: string[];
 }
+
+export type AdminSource = AdminSourceBase &
+  ({ kind: 'uptime-kuma' | 'better-stack' } | { kind: 'uptime-robot'; secretRef: string });
 
 export interface AdminPage {
   id: string;
@@ -220,6 +222,21 @@ export const testSource = (session: AdminSession, source: AdminSource) =>
     method: 'POST',
     headers: mutationHeaders(session),
     body: JSON.stringify({ source }),
+  });
+
+export const putSourceToken = (session: AdminSession, resourceId: string, value: string) =>
+  request<{
+    data: {
+      secretRef: string;
+      resourceId: string;
+      fieldName: string;
+      purpose: string;
+      keyId: string;
+    };
+  }>('/api/v1/admin/secrets/source-token', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify({ resourceId, value }),
   });
 
 export const createSource = (

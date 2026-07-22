@@ -16,6 +16,7 @@ import type { BootstrapService } from './auth/bootstrap.js';
 import type { ConfigRevision } from './config/repository.js';
 import type { CanonicalConfig } from './config/schema.js';
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
+import type { SecretStore } from './secrets/store.js';
 import { getPublishedIncident, listPublishedIncidents } from './events/repository.js';
 import { feedEtag, renderAtom, renderRss } from './events/feeds.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
@@ -44,6 +45,7 @@ export interface AppOptions {
   onManagedRevision?: (revision: ConfigRevision) => void | Promise<void>;
   bootstrap?: BootstrapService;
   sourceTest?: SourceTestService;
+  secretStore?: SecretStore;
 }
 
 export const createApp = ({
@@ -61,6 +63,7 @@ export const createApp = ({
   onManagedRevision,
   bootstrap,
   sourceTest,
+  secretStore,
 }: AppOptions) => {
   const app = new Hono<AppEnvironment>();
   const currentSnapshot = () => getRuntimeSnapshot?.() ?? snapshot;
@@ -161,7 +164,7 @@ export const createApp = ({
         managedConfig: runtime.mode === 'managed',
         fileConfig: runtime.mode === 'file',
         legacyEnvironment: runtime.mode === 'compatibility',
-        sourceAdapters: ['uptime-kuma', 'better-stack'],
+        sourceAdapters: ['uptime-kuma', 'better-stack', 'uptime-robot'],
       },
     });
   });
@@ -420,6 +423,7 @@ export const createApp = ({
     authSecret,
     trustedOrigins,
     sourceTest,
+    secretStore,
     currentSnapshot,
     onManagedRevision,
   });

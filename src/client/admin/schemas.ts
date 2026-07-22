@@ -12,12 +12,23 @@ export const signInSchema = z.object({
   password: z.string().min(1, 'Password is required.'),
 });
 
-export const sourceDraftSchema = z.object({
-  id: z.string().min(1, 'Source ID is required.'),
-  kind: z.enum(['uptime-kuma', 'better-stack']),
-  baseUrl: z.string().url('Enter the complete public status-page URL.'),
-  pageIds: z.string().min(1, 'Add at least one status page slug.'),
-});
+export const sourceDraftSchema = z
+  .object({
+    id: z.string().min(1, 'Source ID is required.'),
+    kind: z.enum(['uptime-kuma', 'better-stack', 'uptime-robot']),
+    baseUrl: z.string().url('Enter the complete source API or status-page URL.'),
+    pageIds: z.string().min(1, 'Add at least one status page slug or snapshot key.'),
+    token: z.string(),
+  })
+  .superRefine((input, context) => {
+    if (input.kind === 'uptime-robot' && input.token.trim().length === 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['token'],
+        message: 'A read-only UptimeRobot v3 token is required.',
+      });
+    }
+  });
 
 export const pageDraftSchema = z.object({
   id: z.string().min(1, 'Page ID is required.'),

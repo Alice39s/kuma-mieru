@@ -16,14 +16,22 @@ export const betterStackSourceSchema = sourceBaseSchema.extend({
   kind: z.literal('better-stack'),
 });
 
+export const uptimeRobotSourceSchema = sourceBaseSchema.extend({
+  kind: z.literal('uptime-robot'),
+  pageIds: z.array(z.union([z.literal('all'), z.string().regex(/^\d+$/u)])).length(1),
+  secretRef: z.string().startsWith('sec_'),
+});
+
 export const sourceSchema = z.discriminatedUnion('kind', [
   uptimeKumaSourceSchema,
   betterStackSourceSchema,
+  uptimeRobotSourceSchema,
 ]);
 
 export const sourcePatchSchema = z.object({
   baseUrl: z.string().url().optional(),
   pageIds: z.array(z.string().min(1)).min(1).optional(),
+  secretRef: z.string().startsWith('sec_').optional(),
 });
 
 export const statusPageSchema = z.object({

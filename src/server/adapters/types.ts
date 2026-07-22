@@ -1,7 +1,12 @@
 import { z } from 'zod';
 
 export interface SourceJsonRequester {
-  request<T>(url: URL, resourceKey: string, schema: z.ZodType<T>): Promise<T>;
+  request<T>(
+    url: URL,
+    resourceKey: string,
+    schema: z.ZodType<T>,
+    options?: { headers?: Record<string, string> }
+  ): Promise<T>;
 }
 
 export const normalizedStatusSchema = z.enum([

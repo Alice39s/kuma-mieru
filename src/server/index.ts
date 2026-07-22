@@ -41,11 +41,12 @@ const migration = await migrateDatabase(database, {
   appBuild: buildVersion,
 });
 const secretKeyring = await loadOrCreateSecretKeyring(dataDirectory);
-createSecretStore(database, secretKeyring);
+const secretStore = createSecretStore(database, secretKeyring);
 let runtimeSnapshot = await loadRuntimeConfig({ database });
 let stopSourcePoller = startSourcePoller({
   database,
   config: runtimeSnapshot.config,
+  secretStore,
   allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
 });
 const authSecret = await loadOrCreateAuthSecret(dataDirectory);
@@ -53,6 +54,7 @@ const auth = createAuth({ database, baseURL, secret: authSecret, trustedOrigins 
 const sourceTest = createSourceTestService({
   secret: authSecret,
   allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
+  secretStore,
 });
 const bootstrap = createBootstrapService({
   database,
@@ -74,6 +76,7 @@ const app = createApp({
   trustedOrigins,
   bootstrap,
   sourceTest,
+  secretStore,
   publicDirectory: process.env.NODE_ENV === 'development' ? undefined : clientDirectory,
   loadPageSnapshots: page =>
     page.sourceRefs.flatMap(sourceId => {
@@ -95,6 +98,7 @@ const app = createApp({
     const stopNextPoller = startSourcePoller({
       database,
       config: nextSnapshot.config,
+      secretStore,
       allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
     });
     const stopPreviousPoller = stopSourcePoller;

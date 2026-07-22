@@ -95,3 +95,50 @@ test('reuses validated payloads when an upstream endpoint returns 304', async ()
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('does not send cached validators with authenticated source requests', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-auth-source-cache-'));
+  const databasePath = resolve(directory, 'test.sqlite3');
+  const { database } = openDatabase(databasePath);
+  try {
+    await migrateDatabase(database, {
+      directory: resolve(process.cwd(), 'migrations'),
+      databasePath,
+    });
+    let requests = 0;
+    const requester = createCachedSourceRequester(database, 'robot', async (_url, headers) => {
+      requests += 1;
+      assert.equal(headers?.Authorization, 'Bearer scoped-token');
+      assert.equal(headers?.['If-None-Match'], undefined);
+      return {
+        status: 200,
+        data: { value: requests },
+        etag: `"authenticated-${requests}"`,
+        lastModified: null,
+      };
+    });
+    const schema = z.object({ value: z.number() });
+    const options = { headers: { Authorization: 'Bearer scoped-token' } };
+    assert.deepEqual(
+      await requester.request(
+        new URL('https://api.uptimerobot.com/v3/monitors'),
+        'monitors:first',
+        schema,
+        options
+      ),
+      { value: 1 }
+    );
+    assert.deepEqual(
+      await requester.request(
+        new URL('https://api.uptimerobot.com/v3/monitors'),
+        'monitors:first',
+        schema,
+        options
+      ),
+      { value: 2 }
+    );
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

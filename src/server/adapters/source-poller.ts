@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { CanonicalConfig } from '../config/schema.js';
+import type { SecretStore } from '../secrets/store.js';
 import { createCachedSourceRequester, createHttpJsonClient } from './http-client.js';
 import { fetchSourceSnapshot } from './registry.js';
 import { getSourceSnapshot, recordSourceFailure, saveSourceSnapshot } from './source-store.js';
@@ -11,6 +12,7 @@ export interface SourcePollerOptions {
   allowPrivateAddresses?: boolean;
   intervalMs?: number;
   staleAfterMs?: number;
+  secretStore?: SecretStore;
 }
 
 const errorCode = (error: unknown) => {
@@ -34,6 +36,7 @@ export const startSourcePoller = ({
   allowPrivateAddresses = false,
   intervalMs = 60_000,
   staleAfterMs = 180_000,
+  secretStore,
 }: SourcePollerOptions) => {
   const timers = new Set<NodeJS.Timeout>();
   let stopped = false;
@@ -54,7 +57,7 @@ export const startSourcePoller = ({
       const run = async () => {
         if (stopped) return;
         try {
-          const snapshot = await fetchSourceSnapshot(source, pageId, requester);
+          const snapshot = await fetchSourceSnapshot(source, pageId, requester, secretStore);
           saveSourceSnapshot(database, snapshot, new Date(Date.now() + staleAfterMs));
           consecutiveFailures = 0;
         } catch (error) {

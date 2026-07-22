@@ -4,6 +4,7 @@ import { sourceSchema, type CanonicalConfig } from '../config/schema.js';
 import { createHttpJsonClient } from './http-client.js';
 import { fetchSourceSnapshot } from './registry.js';
 import type { SourceJsonRequester } from './types.js';
+import type { SecretStore } from '../secrets/store.js';
 
 export interface SourceTestResult {
   token: string;
@@ -26,6 +27,7 @@ export interface CreateSourceTestServiceOptions {
   allowPrivateAddresses?: boolean;
   lifetimeMs?: number;
   requester?: SourceJsonRequester;
+  secretStore?: SecretStore;
 }
 
 const sourceHash = (source: CanonicalConfig['sources'][number]) =>
@@ -38,13 +40,19 @@ export const createSourceTestService = ({
   allowPrivateAddresses = false,
   lifetimeMs = 5 * 60_000,
   requester,
+  secretStore,
 }: CreateSourceTestServiceOptions): SourceTestService => {
   const httpClient = createHttpJsonClient({ allowPrivateAddresses });
   const directRequester: SourceJsonRequester =
     requester ??
     ({
-      request: async <T>(url: URL, _resourceKey: string, schema: z.ZodType<T>) => {
-        const response = await httpClient(url);
+      request: async <T>(
+        url: URL,
+        _resourceKey: string,
+        schema: z.ZodType<T>,
+        options?: { headers?: Record<string, string> }
+      ) => {
+        const response = await httpClient(url, options?.headers);
         if (response.status === 304) throw new Error('Unexpected 304 during source test');
         return schema.parse(response.data);
       },
@@ -56,7 +64,9 @@ export const createSourceTestService = ({
   const test = async (rawSource: CanonicalConfig['sources'][number]) => {
     const source = sourceSchema.parse(rawSource);
     const snapshots = await Promise.all(
-      source.pageIds.map(pageId => fetchSourceSnapshot(source, pageId, directRequester))
+      source.pageIds.map(pageId =>
+        fetchSourceSnapshot(source, pageId, directRequester, secretStore)
+      )
     );
     const expiresAt = new Date(Date.now() + lifetimeMs);
     const payload = Buffer.from(

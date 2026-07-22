@@ -23,6 +23,7 @@ import {
   statusPageSchema,
 } from '../config/schema.js';
 import type { RuntimeConfigSnapshot } from '../config/runtime-config.js';
+import type { SecretStore } from '../secrets/store.js';
 import {
   appendIncidentUpdate,
   createIncident,
@@ -62,6 +63,10 @@ const sourcePatchSchema = z.object({
   patch: sourcePatchValueSchema,
   testToken: z.string().min(1),
 });
+const sourceTokenSecretSchema = z.object({
+  resourceId: z.string().min(1).max(200),
+  value: z.string().min(1).max(16_384),
+});
 const idempotencyKeySchema = z.string().min(8).max(200);
 
 export interface AdminRouteOptions {
@@ -70,6 +75,7 @@ export interface AdminRouteOptions {
   authSecret?: string;
   trustedOrigins: string[];
   sourceTest?: SourceTestService;
+  secretStore?: SecretStore;
   currentSnapshot: () => RuntimeConfigSnapshot;
   onManagedRevision?: (revision: ConfigRevision) => void | Promise<void>;
 }
@@ -82,6 +88,7 @@ export const registerAdminRoutes = (
     authSecret,
     trustedOrigins,
     sourceTest,
+    secretStore,
     currentSnapshot,
     onManagedRevision,
   }: AdminRouteOptions
@@ -257,6 +264,63 @@ export const registerAdminRoutes = (
     const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
     if (!authorization.ok) return authorization.response;
     return context.json({ data: currentSnapshot().config.sources });
+  });
+
+  app.post('/api/v1/admin/secrets/source-token', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!secretStore || !database) {
+      return errorResponse(context, 503, 'SECRET_STORE_NOT_READY', 'Secret storage is unavailable');
+    }
+    try {
+      const input = sourceTokenSecretSchema.parse(await context.req.json());
+      if (currentSnapshot().config.sources.some(source => source.id === input.resourceId)) {
+        writeAttemptAudit(
+          context,
+          authorization.principal.userId,
+          'failed',
+          'SOURCE_ALREADY_EXISTS'
+        );
+        return errorResponse(
+          context,
+          409,
+          'SOURCE_ALREADY_EXISTS',
+          'Create flow cannot replace a token bound to an existing source'
+        );
+      }
+      const metadata = database.transaction(() => {
+        const stored = secretStore.put(
+          { resourceId: input.resourceId, fieldName: 'apiToken', purpose: 'source-token' },
+          input.value
+        );
+        database
+          .prepare(
+            `INSERT INTO admin_audit
+              (id, occurred_at, actor_id, action, target_type, target_id, request_id,
+               user_agent, result, error_code)
+             VALUES (?, ?, ?, 'secret.upsert', 'secret', ?, ?, ?, 'success', NULL)`
+          )
+          .run(
+            randomUUID(),
+            new Date().toISOString(),
+            authorization.principal.userId,
+            input.resourceId,
+            context.get('requestId'),
+            context.req.header('user-agent') ?? null
+          );
+        return stored;
+      })();
+      return context.json({ data: metadata }, 201);
+    } catch (error) {
+      const code = error instanceof z.ZodError ? 'VALIDATION_FAILED' : 'SECRET_WRITE_FAILED';
+      writeAttemptAudit(context, authorization.principal.userId, 'failed', code);
+      return errorResponse(
+        context,
+        400,
+        code,
+        error instanceof z.ZodError ? 'Secret input is invalid' : 'Secret could not be stored'
+      );
+    }
   });
 
   const handleEventError = (

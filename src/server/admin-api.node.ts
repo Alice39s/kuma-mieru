@@ -10,6 +10,7 @@ import { createManagedRevision, type ConfigRevision } from './config/repository.
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 import { openDatabase } from './db/database.js';
 import { migrateDatabase } from './db/migrator.js';
+import { createSecretStore } from './secrets/store.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
 
 test('requires a Better Auth session, trusted origin and bound CSRF token for config writes', async () => {
@@ -48,6 +49,10 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     const baseURL = 'http://127.0.0.1:3882';
     const secret = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGH';
     const auth = createAuth({ database, baseURL, secret });
+    const secretStore = createSecretStore(database, {
+      currentKeyId: 'test-key',
+      keys: new Map([['test-key', Buffer.alloc(32, 11)]]),
+    });
     const bootstrap = createBootstrapService({
       database,
       auth,
@@ -81,6 +86,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       auth,
       authSecret: secret,
       trustedOrigins: [baseURL],
+      secretStore,
       onManagedRevision: apply,
     });
 
@@ -101,6 +107,51 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     assert.equal(session.status, 200);
     const sessionBody = (await session.json()) as { data: { csrfToken: string } };
     assert.ok(sessionBody.data.csrfToken);
+
+    const storedSecret = await app.request('/api/v1/admin/secrets/source-token', {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        Origin: baseURL,
+        'Sec-Fetch-Site': 'same-origin',
+        'Content-Type': 'application/json',
+        'X-Kuma-CSRF': sessionBody.data.csrfToken,
+      },
+      body: JSON.stringify({ resourceId: 'robot', value: 'read-only-uptimerobot-token' }),
+    });
+    const storedSecretBody = (await storedSecret.json()) as {
+      data: { secretRef: string; resourceId: string; keyId: string };
+      error?: { code: string; message: string };
+    };
+    assert.equal(storedSecret.status, 201, JSON.stringify(storedSecretBody));
+    assert.match(storedSecretBody.data.secretRef, /^sec_/u);
+    assert.equal(storedSecretBody.data.resourceId, 'robot');
+    assert.equal(JSON.stringify(storedSecretBody).includes('read-only-uptimerobot-token'), false);
+    assert.equal(
+      secretStore.resolve(storedSecretBody.data.secretRef, {
+        resourceId: 'robot',
+        fieldName: 'apiToken',
+        purpose: 'source-token',
+      }),
+      'read-only-uptimerobot-token'
+    );
+
+    const existingSourceSecret = await app.request('/api/v1/admin/secrets/source-token', {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        Origin: baseURL,
+        'Sec-Fetch-Site': 'same-origin',
+        'Content-Type': 'application/json',
+        'X-Kuma-CSRF': sessionBody.data.csrfToken,
+      },
+      body: JSON.stringify({ resourceId: 'primary', value: 'must-not-be-written' }),
+    });
+    assert.equal(existingSourceSecret.status, 409);
+    assert.equal(
+      secretStore.list().some(item => item.resourceId === 'primary'),
+      false
+    );
 
     const pageBody = JSON.stringify({
       expectedRevision: initial.revision,
@@ -323,6 +374,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       )
       .all() as Array<{ result: string; error_code: string }>;
     assert.deepEqual(attempts, [
+      { result: 'failed', error_code: 'SOURCE_ALREADY_EXISTS' },
       { result: 'denied', error_code: 'UNTRUSTED_ORIGIN' },
       { result: 'failed', error_code: 'CONFIG_REVISION_CONFLICT' },
       { result: 'failed', error_code: 'PUBLICATION_REVIEW_INVALID' },

@@ -3,7 +3,13 @@ import { ArrowRight, CheckCircle2, FlaskConical, RadioTower } from 'lucide-react
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { createSource, testSource, type AdminSession, type AdminSource } from './api';
+import {
+  createSource,
+  putSourceToken,
+  testSource,
+  type AdminSession,
+  type AdminSource,
+} from './api';
 import { sourceDraftSchema, type SourceDraftInput } from './schemas';
 
 interface SourceWizardProps {
@@ -19,15 +25,21 @@ interface VerifiedDraft {
   pages: Array<{ pageId: string; title: string; status: string; serviceCount: number }>;
 }
 
-const toSource = (input: SourceDraftInput): AdminSource => ({
-  id: input.id.trim(),
-  kind: input.kind,
-  baseUrl: input.baseUrl.trim(),
-  pageIds: input.pageIds
-    .split(',')
-    .map(value => value.trim())
-    .filter(Boolean),
-});
+const toSource = (input: SourceDraftInput, secretRef?: string): AdminSource => {
+  const common = {
+    id: input.id.trim(),
+    baseUrl: input.baseUrl.trim(),
+    pageIds: input.pageIds
+      .split(',')
+      .map(value => value.trim())
+      .filter(Boolean),
+  };
+  if (input.kind === 'uptime-robot') {
+    if (!secretRef) throw new Error('UptimeRobot secret storage did not return a reference.');
+    return { ...common, kind: input.kind, secretRef };
+  }
+  return { ...common, kind: input.kind };
+};
 
 export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardProps) => {
   const [verified, setVerified] = useState<VerifiedDraft | null>(null);
@@ -35,8 +47,9 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
   const [saving, setSaving] = useState(false);
   const form = useForm<SourceDraftInput>({
     resolver: zodResolver(sourceDraftSchema),
-    defaultValues: { id: '', kind: 'uptime-kuma', baseUrl: '', pageIds: 'default' },
+    defaultValues: { id: '', kind: 'uptime-kuma', baseUrl: '', pageIds: 'default', token: '' },
   });
+  const selectedKind = form.watch('kind');
 
   useEffect(() => {
     const subscription = form.watch(() => setVerified(null));
@@ -46,7 +59,11 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
   const verify = form.handleSubmit(async input => {
     setTesting(true);
     try {
-      const source = toSource(input);
+      const secretRef =
+        input.kind === 'uptime-robot'
+          ? (await putSourceToken(session, input.id.trim(), input.token.trim())).data.secretRef
+          : undefined;
+      const source = toSource(input, secretRef);
       const result = await testSource(session, source);
       setVerified({ source, ...result.data });
       toast.success('Source verified', { description: 'The draft is ready to commit.' });
@@ -69,7 +86,7 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
         testToken: verified.token,
       });
       toast.success(`Revision ${result.data.revision} is active`);
-      form.reset({ id: '', kind: 'uptime-kuma', baseUrl: '', pageIds: 'default' });
+      form.reset({ id: '', kind: 'uptime-kuma', baseUrl: '', pageIds: 'default', token: '' });
       setVerified(null);
       await onCommitted();
     } catch (error) {
@@ -109,14 +126,35 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
               {...form.register('kind', {
                 onChange: event => {
                   if (event.target.value === 'better-stack') form.setValue('pageIds', 'index');
+                  if (event.target.value === 'uptime-robot') {
+                    form.setValue('baseUrl', 'https://api.uptimerobot.com/v3');
+                    form.setValue('pageIds', 'all');
+                  }
                 },
               })}
             >
               <option value="uptime-kuma">Uptime Kuma public page</option>
               <option value="better-stack">Better Stack public JSON</option>
+              <option value="uptime-robot">UptimeRobot v3 API</option>
             </select>
           </label>
         </div>
+        {selectedKind === 'uptime-robot' ? (
+          <label className="admin-field">
+            <span>Read-only API token</span>
+            <input
+              autoComplete="off"
+              placeholder="Stored encrypted; never shown again"
+              type="password"
+              {...form.register('token')}
+            />
+            {form.formState.errors.token ? (
+              <small>{form.formState.errors.token.message}</small>
+            ) : (
+              <small>Use a scoped read-only v3 token. It is replaced by an opaque secretRef.</small>
+            )}
+          </label>
+        ) : null}
         <div className="admin-form-row">
           <label className="admin-field">
             <span>Base URL</span>
