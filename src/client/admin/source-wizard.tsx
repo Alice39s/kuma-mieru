@@ -1,0 +1,155 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { ArrowRight, CheckCircle2, FlaskConical, RadioTower } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { createSource, testSource, type AdminSession, type AdminSource } from './api';
+import { sourceDraftSchema, type SourceDraftInput } from './schemas';
+
+interface SourceWizardProps {
+  session: AdminSession;
+  revision: number;
+  onCommitted: () => Promise<void>;
+}
+
+interface VerifiedDraft {
+  source: AdminSource;
+  token: string;
+  expiresAt: string;
+  pages: Array<{ pageId: string; title: string; status: string; serviceCount: number }>;
+}
+
+const toSource = (input: SourceDraftInput): AdminSource => ({
+  id: input.id.trim(),
+  kind: 'uptime-kuma',
+  baseUrl: input.baseUrl.trim(),
+  pageIds: input.pageIds
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean),
+});
+
+export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardProps) => {
+  const [verified, setVerified] = useState<VerifiedDraft | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const form = useForm<SourceDraftInput>({
+    resolver: zodResolver(sourceDraftSchema),
+    defaultValues: { id: '', baseUrl: '', pageIds: 'default' },
+  });
+
+  useEffect(() => {
+    const subscription = form.watch(() => setVerified(null));
+    return () => subscription.unsubscribe();
+  }, [form]);
+
+  const verify = form.handleSubmit(async input => {
+    setTesting(true);
+    try {
+      const source = toSource(input);
+      const result = await testSource(session, source);
+      setVerified({ source, ...result.data });
+      toast.success('Source verified', { description: 'The draft is ready to commit.' });
+    } catch (error) {
+      toast.error('Connection test failed', {
+        description: error instanceof Error ? error.message : 'Review the source details.',
+      });
+    } finally {
+      setTesting(false);
+    }
+  });
+
+  const commit = async () => {
+    if (!verified) return;
+    setSaving(true);
+    try {
+      const result = await createSource(session, {
+        expectedRevision: revision,
+        source: verified.source,
+        testToken: verified.token,
+      });
+      toast.success(`Revision ${result.data.revision} is active`);
+      form.reset({ id: '', baseUrl: '', pageIds: 'default' });
+      setVerified(null);
+      await onCommitted();
+    } catch (error) {
+      toast.error('Source was not committed', {
+        description:
+          error instanceof Error ? error.message : 'The active revision may have changed.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="workbench-editor">
+      <header className="editor-heading">
+        <div>
+          <p className="admin-eyebrow">Source wizard</p>
+          <h2>Connect Uptime Kuma</h2>
+        </div>
+        <span className="revision-chip">Against r{revision}</span>
+      </header>
+      <div className="wizard-rail" aria-label="Source workflow">
+        <span className="is-current">1 · Describe</span>
+        <span className={verified ? 'is-complete' : ''}>2 · Verify</span>
+        <span>3 · Commit</span>
+      </div>
+      <form className="admin-form" onSubmit={verify}>
+        <div className="admin-form-row">
+          <label className="admin-field">
+            <span>Source ID</span>
+            <input placeholder="primary" {...form.register('id')} />
+            {form.formState.errors.id ? <small>{form.formState.errors.id.message}</small> : null}
+          </label>
+          <label className="admin-field">
+            <span>Status page slugs</span>
+            <input placeholder="default, api" {...form.register('pageIds')} />
+            {form.formState.errors.pageIds ? (
+              <small>{form.formState.errors.pageIds.message}</small>
+            ) : null}
+          </label>
+        </div>
+        <label className="admin-field">
+          <span>Uptime Kuma base URL</span>
+          <input placeholder="https://status.example.com" {...form.register('baseUrl')} />
+          {form.formState.errors.baseUrl ? (
+            <small>{form.formState.errors.baseUrl.message}</small>
+          ) : null}
+        </label>
+        <button className="admin-secondary-button" disabled={testing} type="submit">
+          <FlaskConical size={17} /> {testing ? 'Testing boundary…' : 'Test connection'}
+        </button>
+      </form>
+
+      {verified ? (
+        <div className="verification-result">
+          <div className="verification-title">
+            <CheckCircle2 size={18} />
+            <div>
+              <strong>Validated at the trust boundary</strong>
+              <span>Token expires {new Date(verified.expiresAt).toLocaleTimeString()}</span>
+            </div>
+          </div>
+          <div className="verification-pages">
+            {verified.pages.map(page => (
+              <div key={page.pageId}>
+                <RadioTower size={16} />
+                <span>
+                  <strong>{page.title}</strong>
+                  <small>
+                    {page.pageId} · {page.serviceCount} services · {page.status}
+                  </small>
+                </span>
+              </div>
+            ))}
+          </div>
+          <button className="admin-primary-button" disabled={saving} onClick={commit} type="button">
+            {saving ? 'Committing…' : 'Commit new revision'} <ArrowRight size={17} />
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+};

@@ -100,12 +100,26 @@ Source creation and modification require a successful `/api/v1/admin/sources/tes
 five-minute HMAC token is bound to the complete validated Source, so changing the base URL or page
 selection invalidates the save request. Test Connection never activates the draft configuration.
 
+## Admin workbench
+
+`/admin` is a separately lazy-loaded React Router surface and is not nested inside the public
+status-page shell. First-run setup, email/password recovery sign-in, session discovery, source
+verification, page composition, revision history, and owner rollback are available through one
+responsive workbench. Forms use React Hook Form and Zod at the client boundary; server validation
+remains authoritative.
+
+Write controls are rendered only for Owner or Editor sessions in managed mode. Publisher and Viewer
+sessions, as well as file and compatibility mode, receive an explicit read-only surface. Rollback is
+visible only to an Owner in managed mode. Expired sessions return to the sign-in boundary rather
+than leaving stale privileged controls on screen.
+
 ## Migration invariants
 
 Migration files use the form `000001_name.up.sql`. Startup rejects gaps, invalid names, missing
 historical files, changed checksums, failed integrity checks, and failed foreign-key checks. Each
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
-The current implementation does not yet provide authentication, native incident publishing,
-subscriptions, or configuration mutation APIs. Their control-plane capabilities must remain
-disabled until the corresponding contracts and security gates are implemented.
+The current implementation does not yet provide passkey enrollment UI, identity administration,
+native incident publishing, subscriptions, or delivery outbox workers. Their control-plane
+capabilities must remain disabled until the corresponding contracts and security gates are
+implemented.

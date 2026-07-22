@@ -5,6 +5,7 @@ import { PublicHome } from './routes/public-home';
 import { StatusPage } from './routes/status-page';
 
 export const router = createBrowserRouter([
+  { path: '/admin/*', lazy: () => import('./routes/admin') },
   {
     id: 'root',
     path: '/',
@@ -15,7 +16,6 @@ export const router = createBrowserRouter([
       { index: true, Component: PublicHome },
       { path: ':pageId', loader: loadStatusSnapshot, Component: StatusPage },
       { path: 'status/:pageSlug/*', loader: loadStatusSnapshot, Component: StatusPage },
-      { path: 'admin/*', lazy: () => import('./routes/admin') },
     ],
   },
 ]);

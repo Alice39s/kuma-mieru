@@ -1,0 +1,31 @@
+import { z } from 'zod';
+
+export const ownerSetupSchema = z.object({
+  token: z.string().min(32, 'Use the complete setup token from the server log.'),
+  name: z.string().min(1, 'Name is required.').max(100),
+  email: z.string().email('Enter a valid email address.'),
+  password: z.string().min(12, 'Use at least 12 characters.').max(200),
+});
+
+export const signInSchema = z.object({
+  email: z.string().email('Enter a valid email address.'),
+  password: z.string().min(1, 'Password is required.'),
+});
+
+export const sourceDraftSchema = z.object({
+  id: z.string().min(1, 'Source ID is required.'),
+  baseUrl: z.string().url('Enter the complete Uptime Kuma URL.'),
+  pageIds: z.string().min(1, 'Add at least one status page slug.'),
+});
+
+export const pageDraftSchema = z.object({
+  id: z.string().min(1, 'Page ID is required.'),
+  slug: z.string().min(1, 'Public slug is required.'),
+  title: z.string().min(1, 'Title is required.'),
+  sourceRef: z.string().min(1, 'Choose a source.'),
+});
+
+export type OwnerSetupInput = z.infer<typeof ownerSetupSchema>;
+export type SignInInput = z.infer<typeof signInSchema>;
+export type SourceDraftInput = z.infer<typeof sourceDraftSchema>;
+export type PageDraftInput = z.infer<typeof pageDraftSchema>;

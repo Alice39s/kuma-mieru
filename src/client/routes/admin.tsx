@@ -1,23 +1,68 @@
-import { LockKeyhole, Settings2 } from 'lucide-react';
+import '@fontsource-variable/manrope';
+import '@fontsource-variable/newsreader';
+import { Activity } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Toaster } from 'sonner';
+import { getAdminSession, getSetupStatus, type AdminSession } from '../admin/api';
+import { LoginGate, SetupGate } from '../admin/auth-gates';
+import { Workbench } from '../admin/workbench';
+import '../admin/workbench.css';
 
-export const Component = () => (
-  <section className="grid gap-6 lg:grid-cols-[0.65fr_1.35fr]">
-    <div>
-      <span className="inline-flex items-center gap-2 rounded-full bg-black/5 px-3 py-1.5 text-xs font-semibold text-black/55">
-        <LockKeyhole size={14} /> Protected surface
-      </span>
-      <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">Control plane</h1>
-      <p className="mt-4 max-w-md text-sm leading-6 text-black/50">
-        Authentication and revision editing are deliberately gated behind the next security slice.
-      </p>
+type Gate = 'loading' | 'setup' | 'login' | 'workbench';
+
+export const Component = () => {
+  const [gate, setGate] = useState<Gate>('loading');
+  const [session, setSession] = useState<AdminSession | null>(null);
+
+  const discover = useCallback(async () => {
+    setGate('loading');
+    try {
+      const setup = await getSetupStatus();
+      if (setup.data.required) {
+        setSession(null);
+        setGate('setup');
+        return;
+      }
+      try {
+        const activeSession = await getAdminSession();
+        setSession(activeSession);
+        setGate('workbench');
+      } catch {
+        setSession(null);
+        setGate('login');
+      }
+    } catch {
+      setSession(null);
+      setGate('login');
+    }
+  }, []);
+
+  useEffect(() => {
+    void discover();
+  }, [discover]);
+
+  return (
+    <div className="admin-root">
+      {gate === 'loading' ? (
+        <div className="admin-loading">
+          <span>
+            <Activity size={22} />
+          </span>
+          <p>Reading control-plane state</p>
+        </div>
+      ) : null}
+      {gate === 'setup' ? <SetupGate onComplete={() => setGate('login')} /> : null}
+      {gate === 'login' ? <LoginGate onComplete={() => void discover()} /> : null}
+      {gate === 'workbench' && session ? (
+        <Workbench
+          session={session}
+          onSignedOut={() => {
+            setSession(null);
+            setGate('login');
+          }}
+        />
+      ) : null}
+      <Toaster position="bottom-right" richColors closeButton />
     </div>
-    <div className="rounded-3xl border border-black/5 bg-white p-7 shadow-[0_20px_70px_rgba(23,33,26,0.05)]">
-      <Settings2 className="text-black/30" size={24} />
-      <h2 className="mt-6 text-lg font-semibold">Bootstrap complete</h2>
-      <p className="mt-2 text-sm leading-6 text-black/50">
-        The route is lazy-loaded and isolated from the public bundle. Better Auth, RBAC, and the
-        managed revision editor remain disabled until their contracts are implemented.
-      </p>
-    </div>
-  </section>
-);
+  );
+};

@@ -143,6 +143,17 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       body: pageBody,
     });
     assert.equal(conflict.status, 409);
+
+    const signedOut = await app.request('/api/auth/sign-out', {
+      method: 'POST',
+      headers: { Cookie: cookie, Origin: baseURL },
+    });
+    assert.equal(signedOut.status, 200);
+    const sessionAfterSignOut = await app.request('/api/v1/admin/session', {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(sessionAfterSignOut.status, 401);
+
     const attempts = database
       .prepare(
         `SELECT result, error_code FROM admin_audit
