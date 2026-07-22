@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2-dev]
   pull_request:
-    branches: [main]
+    branches: [main, v2-dev]
 
 jobs:
   test:
@@ -20,5 +20,17 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Check formatting
+        run: bun run format --check
+
+      - name: Run lint
+        run: bun run lint
+
       - name: Run tests
         run: bun test
+
+      - name: Build application
+        env:
+          CI_MODE: true
+          UPTIME_KUMA_URLS: https://example.kuma-mieru.invalid/status/default
+        run: bun run build

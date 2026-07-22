@@ -2,9 +2,9 @@ name: Dynamic Analysis (OWASP ZAP)
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2-dev]
   pull_request:
-    branches: [main]
+    branches: [main, v2-dev]
   schedule:
     - cron: '0 3 * * 1'
 
@@ -34,7 +34,7 @@ jobs:
       - name: Start application
         run: |
           bun run start &
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q "200\|307"; then
               echo "Application is ready"
               exit 0
@@ -46,7 +46,7 @@ jobs:
 
       - name: Run OWASP ZAP baseline scan
         run: |
-          docker run --network host -v $(pwd)/zap-reports:/zap/wrk:rw \
+          docker run --network host -v "$PWD/zap-reports:/zap/wrk:rw" \
             -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
             -t http://localhost:3000 \
             -r zap-report.html \

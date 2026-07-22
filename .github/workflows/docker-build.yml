@@ -9,7 +9,7 @@ on:
       - '.github/workflows/docker-build.yml'
       - 'docker-compose.yml'
   pull_request:
-    branches: ['main']
+    branches: ['main', 'v2-dev']
     paths:
       - 'package.json'
       - 'Dockerfile'
@@ -36,9 +36,11 @@ jobs:
           version=$(node -p "require('./package.json').version")
           major=$(echo "$version" | cut -d. -f1)
           minor=$(echo "$version" | cut -d. -f2)
-          echo "version=$version" >> $GITHUB_OUTPUT
-          echo "major=$major" >> $GITHUB_OUTPUT
-          echo "major_minor=$major.$minor" >> $GITHUB_OUTPUT
+          {
+            echo "version=$version"
+            echo "major=$major"
+            echo "major_minor=$major.$minor"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
