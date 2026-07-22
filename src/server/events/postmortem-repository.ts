@@ -261,12 +261,27 @@ export const appendPostmortemUpdate = (
   })();
 };
 
+const getPublishablePostmortem = (database: Database.Database, eventId: string) => {
+  const postmortem = getPostmortem(database, eventId);
+  if (postmortem && postmortem.state !== 'published') {
+    throw eventError(
+      'event_not_publishable',
+      'Postmortem must complete review before it can be published'
+    );
+  }
+  return postmortem;
+};
+
 export const getPostmortemPublicationReview = (
   database: Database.Database,
   eventId: string,
   expectedVersion: number
 ): NativePublicationReview<PostmortemRecord> =>
-  getNativePublicationReview(database, getPostmortem(database, eventId), expectedVersion);
+  getNativePublicationReview(
+    database,
+    getPublishablePostmortem(database, eventId),
+    expectedVersion
+  );
 
 export const publishPostmortem = (
   database: Database.Database,
@@ -280,7 +295,12 @@ export const publishPostmortem = (
   audit: AuditContext
 ): PostmortemPublicationSnapshot =>
   postmortemPublicationSnapshotSchema.parse(
-    publishNativeEvent(database, () => getPostmortem(database, input.eventId), input, audit)
+    publishNativeEvent(
+      database,
+      () => getPublishablePostmortem(database, input.eventId),
+      input,
+      audit
+    )
   );
 
 export const listPublishedPostmortems = (

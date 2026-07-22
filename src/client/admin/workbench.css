@@ -730,6 +730,9 @@
   gap: 2rem;
 }
 .incident-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border: 1px solid var(--admin-line);
   border-radius: 999px;
   padding: 0.35rem 0.65rem;
@@ -762,6 +765,17 @@
   display: grid;
   gap: 1rem;
   border-bottom: 0;
+}
+.publication-gate {
+  color: var(--admin-muted);
+}
+.publication-gate strong,
+.publication-gate small {
+  display: block;
+}
+.publication-gate small {
+  font-size: 0.68rem;
+  line-height: 1.6;
 }
 .notification-choice {
   display: flex;

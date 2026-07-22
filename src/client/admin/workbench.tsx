@@ -458,6 +458,7 @@ export const Workbench = ({
                 session={session}
                 pages={data.pages}
                 incidents={data.incidents}
+                events={data.events}
                 onCommitted={reload}
               />
             ) : null}

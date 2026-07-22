@@ -380,12 +380,25 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       }
     );
     assert.equal(postmortemReviewed.status, 200);
+    const postmortemReady = await app.request(
+      `/api/v1/admin/postmortems/${postmortem.data.id}/updates`,
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          expectedVersion: 2,
+          state: 'published',
+          body: 'Corrective actions are approved for publication.',
+        }),
+      }
+    );
+    assert.equal(postmortemReady.status, 200);
     const postmortemReviewResponse = await app.request(
       `/api/v1/admin/postmortems/${postmortem.data.id}/review`,
       {
         method: 'POST',
         headers: mutationHeaders,
-        body: JSON.stringify({ expectedVersion: 2, notifySubscribers: false }),
+        body: JSON.stringify({ expectedVersion: 3, notifySubscribers: false }),
       }
     );
     const postmortemReview = (await postmortemReviewResponse.json()) as {
@@ -398,7 +411,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
         method: 'POST',
         headers: mutationHeaders,
         body: JSON.stringify({
-          expectedVersion: 2,
+          expectedVersion: 3,
           notifySubscribers: false,
           reviewNonce: postmortemReview.data.reviewNonce,
         }),

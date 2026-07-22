@@ -39,6 +39,13 @@ test('publishes a notice without changing incident or component status semantics
       'notice-create-0001',
       audit
     );
+    assert.throws(
+      () => getNoticePublicationReview(database, created.id, created.version),
+      error => {
+        assert.equal((error as { code: string }).code, 'event_not_publishable');
+        return true;
+      }
+    );
     const ready = appendNoticeUpdate(
       database,
       created.id,

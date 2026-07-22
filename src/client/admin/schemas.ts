@@ -50,9 +50,123 @@ export const incidentUpdateDraftSchema = z.object({
   affectedComponentIds: z.string(),
 });
 
+export const secondaryEventDraftSchema = z
+  .object({
+    type: z.enum(['maintenance', 'notice', 'postmortem']),
+    pageId: z.string(),
+    incidentId: z.string(),
+    title: z.string().min(1, 'Public title is required.').max(200),
+    body: z.string().min(1, 'Public copy is required.').max(50_000),
+    affectedComponentIds: z.string(),
+    scheduledStartAt: z.string(),
+    scheduledEndAt: z.string(),
+    noticeKind: z.enum(['information', 'warning']),
+    startsAt: z.string(),
+    endsAt: z.string(),
+  })
+  .superRefine((input, context) => {
+    if (input.type === 'postmortem' && input.incidentId.length === 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['incidentId'],
+        message: 'Choose a resolved incident.',
+      });
+    }
+    if (input.type !== 'postmortem' && input.pageId.length === 0) {
+      context.addIssue({ code: 'custom', path: ['pageId'], message: 'Choose a status page.' });
+    }
+    if (input.type === 'maintenance') {
+      if (!input.scheduledStartAt) {
+        context.addIssue({
+          code: 'custom',
+          path: ['scheduledStartAt'],
+          message: 'Start is required.',
+        });
+      }
+      if (!input.scheduledEndAt) {
+        context.addIssue({ code: 'custom', path: ['scheduledEndAt'], message: 'End is required.' });
+      }
+      if (
+        input.scheduledStartAt &&
+        input.scheduledEndAt &&
+        Date.parse(input.scheduledEndAt) <= Date.parse(input.scheduledStartAt)
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['scheduledEndAt'],
+          message: 'End must be after start.',
+        });
+      }
+    }
+    if (
+      input.type === 'notice' &&
+      input.startsAt &&
+      input.endsAt &&
+      Date.parse(input.endsAt) <= Date.parse(input.startsAt)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['endsAt'],
+        message: 'Visible until must be after visible from.',
+      });
+    }
+  });
+
+export const secondaryEventUpdateDraftSchema = z
+  .object({
+    type: z.enum(['maintenance', 'notice', 'postmortem']),
+    state: z.string().min(1),
+    body: z.string().min(1, 'Public update is required.').max(50_000),
+    affectedComponentIds: z.string(),
+    scheduledStartAt: z.string(),
+    scheduledEndAt: z.string(),
+    noticeKind: z.enum(['information', 'warning']),
+    startsAt: z.string(),
+    endsAt: z.string(),
+  })
+  .superRefine((input, context) => {
+    if (input.type === 'maintenance') {
+      if (!input.scheduledStartAt) {
+        context.addIssue({
+          code: 'custom',
+          path: ['scheduledStartAt'],
+          message: 'Start is required.',
+        });
+      }
+      if (!input.scheduledEndAt) {
+        context.addIssue({ code: 'custom', path: ['scheduledEndAt'], message: 'End is required.' });
+      }
+      if (
+        input.scheduledStartAt &&
+        input.scheduledEndAt &&
+        Date.parse(input.scheduledEndAt) <= Date.parse(input.scheduledStartAt)
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['scheduledEndAt'],
+          message: 'End must be after start.',
+        });
+      }
+    }
+    if (
+      input.type === 'notice' &&
+      input.startsAt &&
+      input.endsAt &&
+      Date.parse(input.endsAt) <= Date.parse(input.startsAt)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['endsAt'],
+        message: 'Visible until must be after visible from.',
+      });
+    }
+  });
+
 export type OwnerSetupInput = z.infer<typeof ownerSetupSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SourceDraftInput = z.infer<typeof sourceDraftSchema>;
 export type PageDraftInput = z.infer<typeof pageDraftSchema>;
 export type IncidentDraftInput = z.infer<typeof incidentDraftSchema>;
 export type IncidentUpdateDraftInput = z.infer<typeof incidentUpdateDraftSchema>;
+export type SecondaryEventDraftInput = z.infer<typeof secondaryEventDraftSchema>;
+export type SecondaryEventUpdateDraftInput = z.infer<typeof secondaryEventUpdateDraftSchema>;

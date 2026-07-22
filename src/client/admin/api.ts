@@ -56,6 +56,50 @@ export interface AdminIncident {
   };
 }
 
+type SharedEventEntry<State extends string> = {
+  sequence: number;
+  state: State;
+  title: string;
+  body: string;
+  affectedComponentIds: string[];
+  occurredAt: string;
+  recordedAt: string;
+  actorId: string;
+};
+
+interface SharedAdminEvent<Type extends string, State extends string> {
+  id: string;
+  type: Type;
+  pageId: string;
+  title: string;
+  state: State;
+  version: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  latestEntry: SharedEventEntry<State>;
+}
+
+export type MaintenanceState = 'draft' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+export interface AdminMaintenance extends SharedAdminEvent<'maintenance', MaintenanceState> {
+  scheduledStartAt: string;
+  scheduledEndAt: string;
+}
+
+export type NoticeState = 'draft' | 'published' | 'expired' | 'withdrawn';
+export interface AdminNotice extends SharedAdminEvent<'notice', NoticeState> {
+  kind: 'information' | 'warning';
+  startsAt: string | null;
+  endsAt: string | null;
+}
+
+export type PostmortemState = 'draft' | 'reviewed' | 'published';
+export interface AdminPostmortem extends SharedAdminEvent<'postmortem', PostmortemState> {
+  incidentId: string;
+}
+
+export type AdminNativeEvent = AdminIncident | AdminMaintenance | AdminNotice | AdminPostmortem;
+
 interface ReloadStatus {
   state: 'ready' | 'checking' | 'failed';
   lastAttemptAt: string | null;
@@ -147,20 +191,40 @@ export const getAdminSession = async () =>
   (await request<{ data: AdminSession }>('/api/v1/admin/session')).data;
 
 export const getWorkbenchData = async () => {
-  const [meta, configStatus, sources, pages, revisions, incidents] = await Promise.all([
+  const [
+    meta,
+    configStatus,
+    sources,
+    pages,
+    revisions,
+    incidents,
+    maintenances,
+    notices,
+    postmortems,
+  ] = await Promise.all([
     request<PublicMeta>('/api/v1/meta'),
     request<{ data: AdminMeta['config'] }>('/api/v1/admin/config/status'),
     request<{ data: AdminSource[] }>('/api/v1/admin/sources'),
     request<{ data: AdminPage[] }>('/api/v1/admin/pages'),
     request<{ data: AdminRevision[] }>('/api/v1/admin/config/revisions'),
     request<{ data: AdminIncident[] }>('/api/v1/admin/events'),
+    request<{ data: AdminMaintenance[] }>('/api/v1/admin/maintenances'),
+    request<{ data: AdminNotice[] }>('/api/v1/admin/notices'),
+    request<{ data: AdminPostmortem[] }>('/api/v1/admin/postmortems'),
   ]);
+  const events: AdminNativeEvent[] = [
+    ...incidents.data,
+    ...maintenances.data,
+    ...notices.data,
+    ...postmortems.data,
+  ].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
   return {
     meta: { ...meta, config: configStatus.data },
     sources: sources.data,
     pages: pages.data,
     revisions: revisions.data,
     incidents: incidents.data,
+    events,
   };
 };
 
@@ -221,6 +285,71 @@ export const publishIncident = (
 ) =>
   request<{ data: { publicationId: string; publishedAt: string } }>(
     `/api/v1/admin/incidents/${eventId}/publish`,
+    {
+      method: 'POST',
+      headers: mutationHeaders(session),
+      body: JSON.stringify(input),
+    }
+  );
+
+type SecondaryEventType = 'maintenance' | 'notice' | 'postmortem';
+export type SecondaryEvent = AdminMaintenance | AdminNotice | AdminPostmortem;
+
+export const createSecondaryEvent = (
+  session: AdminSession,
+  type: SecondaryEventType,
+  input: Record<string, unknown>
+) =>
+  request<{ data: SecondaryEvent }>(
+    `/api/v1/admin/${type === 'maintenance' ? 'maintenances' : `${type}s`}`,
+    {
+      method: 'POST',
+      headers: { ...mutationHeaders(session), 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify(input),
+    }
+  );
+
+const secondaryEventPath = (type: SecondaryEventType) =>
+  type === 'maintenance' ? 'maintenances' : `${type}s`;
+
+export const appendSecondaryEventUpdate = (
+  session: AdminSession,
+  event: SecondaryEvent,
+  input: Record<string, unknown>
+) =>
+  request<{ data: SecondaryEvent }>(
+    `/api/v1/admin/${secondaryEventPath(event.type)}/${event.id}/updates`,
+    {
+      method: 'POST',
+      headers: mutationHeaders(session),
+      body: JSON.stringify(input),
+    }
+  );
+
+export const reviewSecondaryEventPublication = (
+  session: AdminSession,
+  event: SecondaryEvent,
+  input: { expectedVersion: number; notifySubscribers: boolean }
+) =>
+  request<{
+    data: {
+      estimatedRecipients: number;
+      reviewNonce: string;
+      expiresAt: string;
+    };
+  }>(`/api/v1/admin/${secondaryEventPath(event.type)}/${event.id}/review`, {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
+
+export const publishSecondaryEvent = (
+  session: AdminSession,
+  event: SecondaryEvent,
+  input: { expectedVersion: number; notifySubscribers: boolean; reviewNonce: string }
+) =>
+  request<{ data: { publicationId: string; publishedAt: string } }>(
+    `/api/v1/admin/${secondaryEventPath(event.type)}/${event.id}/publish`,
     {
       method: 'POST',
       headers: mutationHeaders(session),

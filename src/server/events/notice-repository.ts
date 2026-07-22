@@ -288,12 +288,20 @@ export const appendNoticeUpdate = (
   })();
 };
 
+const getPublishableNotice = (database: Database.Database, eventId: string) => {
+  const notice = getNotice(database, eventId);
+  if (notice?.state === 'draft') {
+    throw eventError('event_not_publishable', 'Notice must leave draft before it can be published');
+  }
+  return notice;
+};
+
 export const getNoticePublicationReview = (
   database: Database.Database,
   eventId: string,
   expectedVersion: number
 ): NativePublicationReview<NoticeRecord> =>
-  getNativePublicationReview(database, getNotice(database, eventId), expectedVersion);
+  getNativePublicationReview(database, getPublishableNotice(database, eventId), expectedVersion);
 
 export const publishNotice = (
   database: Database.Database,
@@ -307,7 +315,7 @@ export const publishNotice = (
   audit: AuditContext
 ): NoticePublicationSnapshot =>
   noticePublicationSnapshotSchema.parse(
-    publishNativeEvent(database, () => getNotice(database, input.eventId), input, audit)
+    publishNativeEvent(database, () => getPublishableNotice(database, input.eventId), input, audit)
   );
 
 export const listPublishedNotices = (

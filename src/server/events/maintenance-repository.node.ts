@@ -39,6 +39,13 @@ test('keeps maintenance schedule updates append-only and publishes through the s
       audit
     );
     assert.equal(created.state, 'draft');
+    assert.throws(
+      () => getMaintenancePublicationReview(database, created.id, created.version),
+      error => {
+        assert.equal((error as { code: string }).code, 'event_not_publishable');
+        return true;
+      }
+    );
     const scheduled = appendMaintenanceUpdate(
       database,
       created.id,

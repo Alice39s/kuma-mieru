@@ -63,6 +63,19 @@ test('requires a resolved incident and inherits its subscriber scope', async () 
       { expectedVersion: 1, state: 'reviewed', body: 'Reviewed corrective actions.' },
       audit
     );
+    assert.throws(
+      () => getPostmortemPublicationReview(database, reviewed.id, reviewed.version),
+      error => {
+        assert.equal((error as { code: string }).code, 'event_not_publishable');
+        return true;
+      }
+    );
+    const published = appendPostmortemUpdate(
+      database,
+      reviewed.id,
+      { expectedVersion: 2, state: 'published', body: 'Approved for publication.' },
+      audit
+    );
     database
       .prepare(
         `INSERT INTO email_subscriptions
@@ -77,13 +90,13 @@ test('requires a resolved incident and inherits its subscriber scope', async () 
         new Date().toISOString(),
         new Date().toISOString()
       );
-    const review = getPostmortemPublicationReview(database, reviewed.id, reviewed.version);
+    const review = getPostmortemPublicationReview(database, published.id, published.version);
     assert.equal(review.estimatedRecipients, 1);
     const publication = publishPostmortem(
       database,
       {
-        eventId: reviewed.id,
-        expectedVersion: reviewed.version,
+        eventId: published.id,
+        expectedVersion: published.version,
         notifySubscribers: true,
         expectedRecipients: 1,
         piiProtector: createPiiProtector('postmortem-test-secret-with-enough-entropy'),

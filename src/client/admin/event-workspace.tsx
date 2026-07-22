@@ -1,26 +1,47 @@
-import { Clock3, Siren } from 'lucide-react';
+import {
+  CalendarClock,
+  Clock3,
+  FileCheck2,
+  MessageSquareText,
+  Siren,
+  type LucideIcon,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { AdminIncident, AdminPage, AdminSession } from './api';
+import type { AdminIncident, AdminNativeEvent, AdminPage, AdminSession } from './api';
 import { IncidentComposer, IncidentReview } from './incident-desk';
+import { SecondaryEventComposer, SecondaryEventReview } from './secondary-event-desk';
+
+const eventKey = (event: AdminNativeEvent) => `${event.type}:${event.id}`;
+
+const eventIcons: Record<AdminNativeEvent['type'], LucideIcon> = {
+  incident: Siren,
+  maintenance: CalendarClock,
+  notice: MessageSquareText,
+  postmortem: FileCheck2,
+};
 
 export const EventWorkspace = ({
   session,
   pages,
   incidents,
+  events,
   onCommitted,
 }: {
   session: AdminSession;
   pages: AdminPage[];
   incidents: AdminIncident[];
+  events: AdminNativeEvent[];
   onCommitted: () => Promise<void>;
 }) => {
-  const [selectedId, setSelectedId] = useState<string | null>(incidents[0]?.id ?? null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(
+    events[0] ? eventKey(events[0]) : null
+  );
   useEffect(() => {
-    if (!selectedId || !incidents.some(incident => incident.id === selectedId)) {
-      setSelectedId(incidents[0]?.id ?? null);
+    if (!selectedKey || !events.some(event => eventKey(event) === selectedKey)) {
+      setSelectedKey(events[0] ? eventKey(events[0]) : null);
     }
-  }, [incidents, selectedId]);
-  const selected = incidents.find(incident => incident.id === selectedId) ?? null;
+  }, [events, selectedKey]);
+  const selected = events.find(event => eventKey(event) === selectedKey) ?? null;
   const canDraft = session.role !== 'viewer';
   const canPublish = session.role === 'owner' || session.role === 'publisher';
 
@@ -30,50 +51,88 @@ export const EventWorkspace = ({
         <header>
           <div>
             <p className="admin-eyebrow">Public activity</p>
-            <h2>Native incidents</h2>
+            <h2>Native events</h2>
           </div>
-          <span>{incidents.length}</span>
+          <span>{events.length}</span>
         </header>
-        {incidents.length > 0 ? (
+        {events.length > 0 ? (
           <div className="event-list">
-            {incidents.map(incident => (
-              <button
-                className={incident.id === selectedId ? 'is-selected' : ''}
-                key={incident.id}
-                onClick={() => setSelectedId(incident.id)}
-                type="button"
-              >
-                <Siren size={17} />
-                <span>
-                  <strong>{incident.title}</strong>
-                  <small>
-                    {incident.state} · v{incident.version} · {incident.pageId}
-                  </small>
-                </span>
-                <time>
-                  <Clock3 size={13} /> {new Date(incident.updatedAt).toLocaleDateString()}
-                </time>
-              </button>
-            ))}
+            {events.map(event => {
+              const Icon = eventIcons[event.type];
+              const key = eventKey(event);
+              return (
+                <button
+                  className={key === selectedKey ? 'is-selected' : ''}
+                  key={key}
+                  onClick={() => setSelectedKey(key)}
+                  type="button"
+                >
+                  <Icon size={17} />
+                  <span>
+                    <strong>{event.title}</strong>
+                    <small>
+                      {event.type} · {event.state} · v{event.version} · {event.pageId}
+                    </small>
+                  </span>
+                  <time>
+                    <Clock3 size={13} /> {new Date(event.updatedAt).toLocaleDateString()}
+                  </time>
+                </button>
+              );
+            })}
           </div>
         ) : (
           <div className="editor-empty">
             <strong>No native event yet.</strong>
-            <p>Signals stay separate until an operator creates an incident draft.</p>
+            <p>Signals stay separate until an operator creates a public event draft.</p>
           </div>
         )}
       </section>
       <div className="event-action-column">
         {selected && canDraft ? (
-          <IncidentReview
-            session={session}
-            incident={selected}
-            canPublish={canPublish}
-            onCommitted={onCommitted}
-          />
+          selected.type === 'incident' ? (
+            <IncidentReview
+              session={session}
+              incident={selected}
+              canPublish={canPublish}
+              onCommitted={onCommitted}
+            />
+          ) : (
+            <SecondaryEventReview
+              session={session}
+              event={selected}
+              canPublish={canPublish}
+              onCommitted={onCommitted}
+            />
+          )
+        ) : null}
+        {selected && !canDraft ? (
+          <section className="incident-review">
+            <header>
+              <div>
+                <p className="admin-eyebrow">
+                  Selected {selected.type} · v{selected.version}
+                </p>
+                <h2>{selected.title}</h2>
+              </div>
+              <span className={`incident-state state-${selected.state}`}>{selected.state}</span>
+            </header>
+            <div className="incident-current-copy">
+              <strong>Latest append-only entry</strong>
+              <p>{selected.latestEntry.body}</p>
+            </div>
+          </section>
         ) : null}
         {canDraft ? (
-          <IncidentComposer session={session} pages={pages} onCommitted={onCommitted} />
+          <>
+            <IncidentComposer session={session} pages={pages} onCommitted={onCommitted} />
+            <SecondaryEventComposer
+              session={session}
+              pages={pages}
+              incidents={incidents}
+              onCommitted={onCommitted}
+            />
+          </>
         ) : (
           <section className="workbench-editor read-only-panel">
             <p className="admin-eyebrow">Viewer boundary</p>

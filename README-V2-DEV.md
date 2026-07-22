@@ -235,7 +235,8 @@ Each version retains its scheduled start/end, affected components, occurrence ti
 and actor. Published maintenance appears in the page RSS/Atom feed and the dedicated public
 maintenance API. Email remains an explicit Boolean on every reviewed publication; no state change
 inherits a previous notification choice. The backend Admin API is available in this slice, while
-the dedicated Maintenance editor UI and automatic start/end scheduler remain disabled.
+the unified Event Workbench now provides the dedicated Maintenance editor. Automatic start/end
+scheduling remains disabled.
 
 ## Native notices
 
@@ -245,8 +246,8 @@ window that is validated whenever it changes. Publishing a Notice does not mutat
 Overall Status and cannot masquerade as Incident history.
 
 Notice creation, update, review, explicit notification choice, public read API, and RSS/Atom
-projection use the shared native-event transaction core. The dedicated Notice editor and automatic
-expiry scheduler remain disabled until their UI and scheduler gates are implemented.
+projection use the shared native-event transaction core. The unified Event Workbench now provides
+the dedicated Notice editor. Automatic expiry scheduling remains disabled.
 
 ## Postmortem core
 
@@ -255,7 +256,8 @@ Incident is `resolved`; Page, affected components, and incident-scoped subscribe
 inherited from that parent. Its `draft → reviewed → published` transitions, Expected Version,
 Publication Review, explicit notification choice, Outbox transaction, and Feed link use the shared
 native-event core. Admin creation/update/review/publication and the Incident-scoped Public API are
-available; the dedicated editor remains disabled until the next UI integration slice.
+available through the unified Event Workbench. Publication is rejected until the aggregate reaches
+its final `published` state.
 
 ## Migration invariants
 
@@ -264,6 +266,6 @@ historical files, changed checksums, failed integrity checks, and failed foreign
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
 The current implementation does not yet provide passkey enrollment UI, identity administration,
-the Maintenance/Notice/Postmortem editors and automatic schedulers, SMTP Secret Store configuration,
-or Subscriber/Delivery administration UI. Their control-plane capabilities must remain disabled
-until the corresponding contracts and security gates are implemented.
+automatic Maintenance/Notice schedulers, SMTP Secret Store configuration, or Subscriber/Delivery
+administration UI. Their control-plane capabilities must remain disabled until the corresponding
+contracts and security gates are implemented.

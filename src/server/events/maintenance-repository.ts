@@ -297,12 +297,27 @@ export const appendMaintenanceUpdate = (
   })();
 };
 
+const getPublishableMaintenance = (database: Database.Database, eventId: string) => {
+  const maintenance = getMaintenance(database, eventId);
+  if (maintenance?.state === 'draft') {
+    throw eventError(
+      'event_not_publishable',
+      'Maintenance must leave draft before it can be published'
+    );
+  }
+  return maintenance;
+};
+
 export const getMaintenancePublicationReview = (
   database: Database.Database,
   eventId: string,
   expectedVersion: number
 ): NativePublicationReview<MaintenanceRecord> =>
-  getNativePublicationReview(database, getMaintenance(database, eventId), expectedVersion);
+  getNativePublicationReview(
+    database,
+    getPublishableMaintenance(database, eventId),
+    expectedVersion
+  );
 
 export const publishMaintenance = (
   database: Database.Database,
@@ -316,7 +331,12 @@ export const publishMaintenance = (
   audit: AuditContext
 ): MaintenancePublicationSnapshot =>
   maintenancePublicationSnapshotSchema.parse(
-    publishNativeEvent(database, () => getMaintenance(database, input.eventId), input, audit)
+    publishNativeEvent(
+      database,
+      () => getPublishableMaintenance(database, input.eventId),
+      input,
+      audit
+    )
   );
 
 export const listPublishedMaintenances = (
