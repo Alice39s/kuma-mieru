@@ -42,6 +42,8 @@ import {
   maintenanceUpdateSchema,
   noticeCreateSchema,
   noticeUpdateSchema,
+  postmortemCreateSchema,
+  postmortemUpdateSchema,
 } from '../events/schemas.js';
 import {
   appendMaintenanceUpdate,
@@ -57,6 +59,13 @@ import {
   listNotices,
   publishNotice,
 } from '../events/notice-repository.js';
+import {
+  appendPostmortemUpdate,
+  createPostmortem,
+  getPostmortemPublicationReview,
+  listPostmortems,
+  publishPostmortem,
+} from '../events/postmortem-repository.js';
 import { createPiiProtector } from '../subscriptions/crypto.js';
 
 const pageCreateSchema = z.object({
@@ -764,6 +773,136 @@ export const registerAdminRoutes = (
         );
       }
       const publication = publishNotice(
+        database,
+        {
+          eventId,
+          expectedVersion: input.expectedVersion,
+          notifySubscribers: input.notifySubscribers,
+          expectedRecipients: review.estimatedRecipients,
+          piiProtector: piiProtector ?? undefined,
+        },
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: publication }, 201);
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.get('/api/v1/admin/postmortems', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    return context.json({ data: listPostmortems(database) });
+  });
+
+  app.post('/api/v1/admin/postmortems', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const idempotencyKey = idempotencyKeySchema.parse(context.req.header('idempotency-key'));
+      const postmortem = createPostmortem(
+        database,
+        postmortemCreateSchema.parse(await context.req.json()),
+        idempotencyKey,
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: postmortem }, 201);
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/postmortems/:id/updates', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const postmortem = appendPostmortemUpdate(
+        database,
+        context.req.param('id'),
+        postmortemUpdateSchema.parse(await context.req.json()),
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: postmortem });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/postmortems/:id/review', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database || !publicationReview) {
+      return errorResponse(context, 503, 'EVENT_REVIEW_NOT_READY', 'Event review is unavailable');
+    }
+    try {
+      const input = incidentReviewSchema.parse(await context.req.json());
+      const review = getPostmortemPublicationReview(
+        database,
+        context.req.param('id'),
+        input.expectedVersion
+      );
+      const token = publicationReview.create({
+        eventId: review.event.id,
+        eventVersion: review.event.version,
+        notifySubscribers: input.notifySubscribers,
+        estimatedRecipients: review.estimatedRecipients,
+        principal: authorization.principal,
+      });
+      return context.json({
+        data: {
+          postmortem: review.event,
+          notifySubscribers: input.notifySubscribers,
+          estimatedRecipients: review.estimatedRecipients,
+          reviewNonce: token.nonce,
+          expiresAt: token.expiresAt,
+        },
+      });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/postmortems/:id/publish', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database || !publicationReview) {
+      return errorResponse(context, 503, 'EVENT_REVIEW_NOT_READY', 'Event review is unavailable');
+    }
+    try {
+      const eventId = context.req.param('id');
+      const input = incidentPublishSchema.parse(await context.req.json());
+      const review = getPostmortemPublicationReview(database, eventId, input.expectedVersion);
+      const reviewInput = {
+        eventId,
+        eventVersion: input.expectedVersion,
+        notifySubscribers: input.notifySubscribers,
+        estimatedRecipients: review.estimatedRecipients,
+        principal: authorization.principal,
+      };
+      if (!publicationReview.verify(reviewInput, input.reviewNonce)) {
+        writeRouteAudit(
+          context,
+          authorization.principal.userId,
+          'failed',
+          'PUBLICATION_REVIEW_INVALID'
+        );
+        return errorResponse(
+          context,
+          409,
+          'PUBLICATION_REVIEW_INVALID',
+          'Publication review is invalid, expired, or stale'
+        );
+      }
+      const publication = publishPostmortem(
         database,
         {
           eventId,

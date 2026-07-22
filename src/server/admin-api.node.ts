@@ -340,6 +340,78 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     const publicIncidentBody = (await publicIncidents.json()) as { data: unknown[] };
     assert.equal(publicIncidentBody.data.length, 1);
 
+    const incidentResolved = await app.request(
+      `/api/v1/admin/incidents/${incident.data.id}/updates`,
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          expectedVersion: 1,
+          state: 'resolved',
+          body: 'Service has been restored.',
+          affectedComponentIds: ['primary'],
+        }),
+      }
+    );
+    assert.equal(incidentResolved.status, 200);
+    const postmortemCreated = await app.request('/api/v1/admin/postmortems', {
+      method: 'POST',
+      headers: { ...mutationHeaders, 'Idempotency-Key': 'postmortem-create-admin-api-0001' },
+      body: JSON.stringify({
+        incidentId: incident.data.id,
+        title: 'API latency review',
+        body: 'Root cause and corrective actions.',
+      }),
+    });
+    const postmortem = (await postmortemCreated.json()) as {
+      data: { id: string; version: number };
+    };
+    assert.equal(postmortemCreated.status, 201);
+    const postmortemReviewed = await app.request(
+      `/api/v1/admin/postmortems/${postmortem.data.id}/updates`,
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          expectedVersion: 1,
+          state: 'reviewed',
+          body: 'Corrective actions have been reviewed.',
+        }),
+      }
+    );
+    assert.equal(postmortemReviewed.status, 200);
+    const postmortemReviewResponse = await app.request(
+      `/api/v1/admin/postmortems/${postmortem.data.id}/review`,
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({ expectedVersion: 2, notifySubscribers: false }),
+      }
+    );
+    const postmortemReview = (await postmortemReviewResponse.json()) as {
+      data: { reviewNonce: string };
+    };
+    assert.equal(postmortemReviewResponse.status, 200);
+    const postmortemPublished = await app.request(
+      `/api/v1/admin/postmortems/${postmortem.data.id}/publish`,
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          expectedVersion: 2,
+          notifySubscribers: false,
+          reviewNonce: postmortemReview.data.reviewNonce,
+        }),
+      }
+    );
+    assert.equal(postmortemPublished.status, 201);
+    const publicPostmortems = await app.request(
+      `/api/v1/public/pages/main/incidents/${incident.data.id}/postmortems`
+    );
+    const publicPostmortemsBody = (await publicPostmortems.json()) as { data: unknown[] };
+    assert.equal(publicPostmortems.status, 200);
+    assert.equal(publicPostmortemsBody.data.length, 1);
+
     const maintenanceCreated = await app.request('/api/v1/admin/maintenances', {
       method: 'POST',
       headers: { ...mutationHeaders, 'Idempotency-Key': 'maintenance-create-admin-api-0001' },
@@ -456,6 +528,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     assert.equal(rssBody.includes('API latency elevated'), true);
     assert.equal(rssBody.includes('Database maintenance'), true);
     assert.equal(rssBody.includes('Support hours update'), true);
+    assert.equal(rssBody.includes('API latency review'), true);
     const etag = rss.headers.get('etag');
     assert.ok(etag);
     const unchangedRss = await app.request('/status/main/rss.xml', {

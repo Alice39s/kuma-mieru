@@ -29,6 +29,7 @@ import {
   listPublishedMaintenances,
 } from './events/maintenance-repository.js';
 import { listPublishedNotices } from './events/notice-repository.js';
+import { listPublishedPostmortems } from './events/postmortem-repository.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
 import { createSubscriptionNonceService } from './subscriptions/nonce.js';
 import {
@@ -258,6 +259,15 @@ export const createApp = ({
     if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
     context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
     return context.json({ data: database ? listPublishedNotices(database, page.id) : [] });
+  });
+
+  app.get('/api/v1/public/pages/:slug/incidents/:id/postmortems', context => {
+    const page = findPage(context.req.param('slug'));
+    if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+    context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+    return context.json({
+      data: database ? listPublishedPostmortems(database, page.id, context.req.param('id')) : [],
+    });
   });
 
   const renderFeed = (context: Context<AppEnvironment>, format: 'rss' | 'atom') => {
