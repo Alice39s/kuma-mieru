@@ -100,6 +100,43 @@ export interface AdminPostmortem extends SharedAdminEvent<'postmortem', Postmort
 
 export type AdminNativeEvent = AdminIncident | AdminMaintenance | AdminNotice | AdminPostmortem;
 
+export type SubscriberState =
+  | 'pending_confirmation'
+  | 'active'
+  | 'unsubscribed'
+  | 'suppressed'
+  | 'expired';
+export interface AdminSubscriber {
+  id: string;
+  pageId: string;
+  incidentId: string | null;
+  scope: string;
+  componentIds: string[];
+  recipient: string;
+  state: SubscriberState;
+  createdAt: string;
+  confirmedAt: string | null;
+  updatedAt: string;
+}
+
+export type DeliveryState = 'queued' | 'processing' | 'sent' | 'failed' | 'dead_letter';
+export interface AdminDelivery {
+  id: string;
+  publicationId: string | null;
+  subscriptionId: string;
+  pageId: string;
+  recipient: string;
+  channel: string;
+  kind: string;
+  state: DeliveryState;
+  subscriberState: SubscriberState;
+  attempts: number;
+  nextAttemptAt: string;
+  lastErrorCode: string | null;
+  createdAt: string;
+  sentAt: string | null;
+}
+
 interface ReloadStatus {
   state: 'ready' | 'checking' | 'failed';
   lastAttemptAt: string | null;
@@ -356,6 +393,36 @@ export const publishSecondaryEvent = (
       body: JSON.stringify(input),
     }
   );
+
+export const getSubscriberDeliveryData = async () => {
+  const [subscribers, deliveries] = await Promise.all([
+    request<{ data: AdminSubscriber[] }>('/api/v1/admin/subscribers'),
+    request<{ data: AdminDelivery[] }>('/api/v1/admin/deliveries'),
+  ]);
+  return { subscribers: subscribers.data, deliveries: deliveries.data };
+};
+
+export const retryDelivery = (
+  session: AdminSession,
+  deliveryId: string,
+  expectedState: 'failed' | 'dead_letter'
+) =>
+  request<{ data: AdminDelivery }>(`/api/v1/admin/deliveries/${deliveryId}/retry`, {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify({ expectedState }),
+  });
+
+export const suppressSubscriber = (
+  session: AdminSession,
+  subscriberId: string,
+  expectedState: 'active'
+) =>
+  request<{ data: AdminSubscriber }>(`/api/v1/admin/subscribers/${subscriberId}/suppress`, {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify({ expectedState }),
+  });
 
 export const testSource = (session: AdminSession, source: AdminSource) =>
   request<{

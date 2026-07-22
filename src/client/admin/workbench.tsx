@@ -12,6 +12,7 @@ import {
   RotateCcw,
   ShieldCheck,
   Siren,
+  UsersRound,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
@@ -26,8 +27,9 @@ import {
 import { PageForm } from './page-form';
 import { SourceWizard } from './source-wizard';
 import { EventWorkspace } from './event-workspace';
+import { SubscriberDelivery } from './subscriber-delivery';
 
-type Panel = 'overview' | 'sources' | 'pages' | 'events' | 'revisions';
+type Panel = 'overview' | 'sources' | 'pages' | 'events' | 'subscribers' | 'revisions';
 type WorkbenchData = Awaited<ReturnType<typeof getWorkbenchData>>;
 
 const navigation: Array<{ id: Panel; label: string; icon: typeof Activity }> = [
@@ -35,6 +37,7 @@ const navigation: Array<{ id: Panel; label: string; icon: typeof Activity }> = [
   { id: 'sources', label: 'Sources', icon: RadioTower },
   { id: 'pages', label: 'Pages', icon: LayoutTemplate },
   { id: 'events', label: 'Events', icon: Siren },
+  { id: 'subscribers', label: 'Subscribers', icon: UsersRound },
   { id: 'revisions', label: 'Revisions', icon: FileClock },
 ];
 
@@ -380,20 +383,27 @@ export const Workbench = ({
           </div>
         </Link>
         <nav>
-          {navigation.map(item => {
-            const Icon = item.icon;
-            return (
-              <button
-                className={panel === item.id ? 'is-active' : ''}
-                key={item.id}
-                onClick={() => setPanel(item.id)}
-                type="button"
-              >
-                <Icon size={17} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+          {navigation
+            .filter(
+              item =>
+                item.id !== 'subscribers' ||
+                session.role === 'owner' ||
+                session.role === 'publisher'
+            )
+            .map(item => {
+              const Icon = item.icon;
+              return (
+                <button
+                  className={panel === item.id ? 'is-active' : ''}
+                  key={item.id}
+                  onClick={() => setPanel(item.id)}
+                  type="button"
+                >
+                  <Icon size={17} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
         </nav>
         <div className="workbench-identity">
           <span>{session.role}</span>
@@ -462,6 +472,7 @@ export const Workbench = ({
                 onCommitted={reload}
               />
             ) : null}
+            {panel === 'subscribers' ? <SubscriberDelivery session={session} /> : null}
             {panel === 'revisions' ? (
               <RevisionLedger data={data} session={session} onCommitted={reload} />
             ) : null}

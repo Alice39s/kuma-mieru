@@ -223,6 +223,13 @@ functional transport interface; SMTP connection verification and TLS 1.2 minimum
 The worker is not started until a future structured Mail Transport plus Secret Reference is
 validated, so adding the transport does not reintroduce flat credential environment variables.
 
+The Subscriber dashboard is available only to Owner and Publisher. Its API returns a one-way
+private recipient fingerprint instead of an address, hash, ciphertext, token, or message payload.
+Failed and Dead-letter delivery can return to the queue only while the subscriber lifecycle still
+permits that message kind; retry resets the bounded attempt counter and writes an Admin Audit entry.
+Owner suppression uses an Expected State precondition, atomically suppresses the subscriber, stops
+pending event-publication mail, and cannot reactivate an address without a new consent workflow.
+
 ## Native maintenance windows
 
 Maintenance uses the same append-only Domain Event, Publication Review, subscriber scope snapshot,
@@ -266,6 +273,6 @@ historical files, changed checksums, failed integrity checks, and failed foreign
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
 The current implementation does not yet provide passkey enrollment UI, identity administration,
-automatic Maintenance/Notice schedulers, SMTP Secret Store configuration, or Subscriber/Delivery
-administration UI. Their control-plane capabilities must remain disabled until the corresponding
-contracts and security gates are implemented.
+automatic Maintenance/Notice schedulers, or SMTP Secret Store configuration and activation. Their
+control-plane capabilities must remain disabled until the corresponding contracts and security
+gates are implemented.

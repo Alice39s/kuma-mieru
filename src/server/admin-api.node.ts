@@ -577,6 +577,70 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       1
     );
 
+    const deliveryAdminNow = new Date().toISOString();
+    database
+      .prepare(
+        `INSERT INTO email_subscriptions
+          (id, page_id, incident_id, scope_key, component_ids_json, email_hash,
+           email_ciphertext, state, created_at, confirmed_at, updated_at)
+         VALUES ('admin-subscriber', 'public', NULL, 'components:primary', '["primary"]',
+                 ?, 'admin-encrypted-address', 'active', ?, ?, ?)`
+      )
+      .run('b'.repeat(64), deliveryAdminNow, deliveryAdminNow, deliveryAdminNow);
+    database
+      .prepare(
+        `INSERT INTO notification_outbox
+          (id, publication_id, subscription_id, channel, kind, idempotency_key, state,
+           attempts, next_attempt_at, payload_ciphertext, last_error_code, created_at)
+         VALUES ('admin-delivery', NULL, 'admin-subscriber', 'email', 'event_publication',
+                 'admin-delivery-idempotency', 'dead_letter', 8, ?,
+                 'admin-encrypted-payload', 'SMTP_550', ?)`
+      )
+      .run(deliveryAdminNow, deliveryAdminNow);
+    const subscribersResponse = await app.request('/api/v1/admin/subscribers', {
+      headers: { Cookie: cookie },
+    });
+    const subscribersBody = (await subscribersResponse.json()) as { data: unknown[] };
+    assert.equal(subscribersResponse.status, 200);
+    assert.equal(subscribersBody.data.length >= 2, true);
+    assert.equal(JSON.stringify(subscribersBody).includes('admin-encrypted-address'), false);
+    const deliveriesResponse = await app.request('/api/v1/admin/deliveries', {
+      headers: { Cookie: cookie },
+    });
+    const deliveriesBody = (await deliveriesResponse.json()) as { data: unknown[] };
+    assert.equal(deliveriesResponse.status, 200);
+    assert.equal(JSON.stringify(deliveriesBody).includes('admin-encrypted-payload'), false);
+    const retriedDelivery = await app.request('/api/v1/admin/deliveries/admin-delivery/retry', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({ expectedState: 'dead_letter' }),
+    });
+    assert.equal(retriedDelivery.status, 200);
+    const suppressedSubscriber = await app.request(
+      '/api/v1/admin/subscribers/admin-subscriber/suppress',
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({ expectedState: 'active' }),
+      }
+    );
+    assert.equal(suppressedSubscriber.status, 200);
+    assert.deepEqual(
+      database
+        .prepare(
+          `SELECT o.state AS delivery_state, o.last_error_code, s.state AS subscriber_state
+           FROM notification_outbox o
+           JOIN email_subscriptions s ON s.id = o.subscription_id
+           WHERE o.id = 'admin-delivery'`
+        )
+        .get(),
+      {
+        delivery_state: 'dead_letter',
+        last_error_code: 'ADMIN_SUPPRESSED',
+        subscriber_state: 'suppressed',
+      }
+    );
+
     const reloadOutsideFileMode = await app.request('/api/v1/admin/config/reload', {
       method: 'POST',
       headers: mutationHeaders,

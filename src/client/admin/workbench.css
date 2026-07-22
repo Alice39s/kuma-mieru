@@ -818,6 +818,76 @@
   color: var(--admin-green);
 }
 
+.subscriber-delivery-workspace {
+  padding-top: 3rem;
+}
+.subscriber-delivery-workspace .workbench-page-heading {
+  padding-top: 0;
+}
+.delivery-metrics {
+  grid-template-columns: repeat(4, 1fr);
+}
+.delivery-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+.delivery-ledger article,
+.subscriber-ledger article {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.delivery-error-code {
+  color: var(--admin-red, #9d302d) !important;
+  font-family: ui-monospace, monospace;
+}
+.delivery-actions {
+  display: grid;
+  justify-items: end;
+  gap: 0.45rem;
+}
+.delivery-state {
+  color: var(--admin-muted);
+  font-size: 0.59rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.delivery-state.is-sent,
+.delivery-state.is-active {
+  color: var(--admin-green);
+}
+.delivery-state.is-failed,
+.delivery-state.is-dead_letter,
+.delivery-state.is-suppressed {
+  color: var(--admin-red, #9d302d);
+}
+.delivery-actions button,
+.inline-confirmation button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 0;
+  background: transparent;
+  color: var(--admin-amber);
+  font: 700 0.63rem 'Manrope Variable';
+  cursor: pointer;
+}
+.delivery-actions button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+.inline-confirmation {
+  display: flex;
+  gap: 0.35rem;
+}
+.inline-confirmation button {
+  padding: 0.35rem;
+}
+.inline-confirmation button.is-danger {
+  color: var(--admin-red, #9d302d);
+}
+
 .revision-ledger {
   margin-top: 3rem;
 }
@@ -919,6 +989,7 @@
   }
   .workbench-split,
   .event-workspace,
+  .delivery-columns,
   .attention-queue {
     grid-template-columns: 1fr;
   }

@@ -19,6 +19,12 @@ import { mutateManagedConfig, rollbackManagedConfig } from '../config/managed-co
 import type { FileReloadResult, FileReloadStatus } from '../config/file-reloader.js';
 import { listManagedRevisions, type ConfigRevision } from '../config/repository.js';
 import {
+  listAdminDeliveries,
+  listAdminSubscribers,
+  retryAdminDelivery,
+  suppressAdminSubscriber,
+} from '../delivery/admin-repository.js';
+import {
   sourcePatchSchema as sourcePatchValueSchema,
   sourceSchema,
   statusPageSchema,
@@ -96,6 +102,9 @@ const sourceTokenSecretSchema = z.object({
   value: z.string().min(1).max(16_384),
 });
 const idempotencyKeySchema = z.string().min(8).max(200);
+const adminListLimitSchema = z.coerce.number().int().min(1).max(500).default(200);
+const deliveryRetrySchema = z.object({ expectedState: z.enum(['failed', 'dead_letter']) });
+const subscriberSuppressSchema = z.object({ expectedState: z.literal('active') });
 
 export interface AdminRouteOptions {
   database?: Database.Database;
@@ -369,15 +378,14 @@ export const registerAdminRoutes = (
       typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
         ? error.code
         : 'event_mutation_failed';
-    const status =
-      code === 'event_not_found'
-        ? 404
-        : code.includes('conflict') ||
-            code.includes('already') ||
-            code.includes('stale') ||
-            code.includes('reused')
-          ? 409
-          : 400;
+    const status = code.endsWith('_not_found')
+      ? 404
+      : code.includes('conflict') ||
+          code.includes('already') ||
+          code.includes('stale') ||
+          code.includes('reused')
+        ? 409
+        : 400;
     writeRouteAudit(context, principal.userId, 'failed', code.toUpperCase());
     return errorResponse(
       context,
@@ -914,6 +922,84 @@ export const registerAdminRoutes = (
         auditContext(context, authorization.principal)
       );
       return context.json({ data: publication }, 201);
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.get('/api/v1/admin/subscribers', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(
+        context,
+        503,
+        'DATABASE_NOT_READY',
+        'Subscriber database is unavailable'
+      );
+    }
+    try {
+      const limit = adminListLimitSchema.parse(context.req.query('limit'));
+      return context.json({ data: listAdminSubscribers(database, limit) });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.get('/api/v1/admin/deliveries', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Delivery database is unavailable');
+    }
+    try {
+      const limit = adminListLimitSchema.parse(context.req.query('limit'));
+      return context.json({ data: listAdminDeliveries(database, limit) });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/deliveries/:id/retry', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Delivery database is unavailable');
+    }
+    try {
+      const input = deliveryRetrySchema.parse(await context.req.json());
+      const delivery = retryAdminDelivery(
+        database,
+        context.req.param('id'),
+        input.expectedState,
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: delivery });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/subscribers/:id/suppress', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(
+        context,
+        503,
+        'DATABASE_NOT_READY',
+        'Subscriber database is unavailable'
+      );
+    }
+    try {
+      const input = subscriberSuppressSchema.parse(await context.req.json());
+      const subscriber = suppressAdminSubscriber(
+        database,
+        context.req.param('id'),
+        input.expectedState,
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: subscriber });
     } catch (error) {
       return handleEventError(context, error, authorization.principal);
     }
