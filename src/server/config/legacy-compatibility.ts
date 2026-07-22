@@ -230,7 +230,7 @@ export const buildLegacyMigrationPlan = ({
   });
   const config = canonicalConfigSchema.parse({ schemaVersion: 1, server: {}, sources, pages });
 
-  const endpointStatus = rawUrls ? 'mapped' : 'ignored_by_precedence';
+  const endpointStatus = rawUrls ? 'ignored_by_precedence' : 'mapped';
   if (environment.UPTIME_KUMA_URLS !== undefined) {
     decisions.push(
       decision(

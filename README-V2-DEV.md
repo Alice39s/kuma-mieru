@@ -33,6 +33,8 @@ bun run typecheck:v2
 bun run lint
 bun run test
 bun run build
+bun run verify:v2:bundle
+bun run release:v2:manifest
 bun run start
 ```
 
@@ -41,6 +43,15 @@ health requests to Hono. The production command serves both API and SPA from the
 
 The old application remains available through `dev:v1`, `build:v1`, `start:v1`, and `test:v1`
 during the compatibility period.
+
+The v2 test runner discovers every compiled `*.node.js` test recursively, so adding a test file
+cannot silently omit it from CI. The checked-in `fixtures/v1-compatibility/environment-matrix.json`
+is the reviewable Golden Matrix for legacy environment precedence and generated JSON projection.
+After a production build, `verify:v2:bundle` enforces the 220 KiB gzip public-initial-JavaScript
+budget and proves that the Admin chunk is not eagerly referenced. `release:v2:manifest` then emits
+`dist/v2/release-manifest.json` with the source state, runtime contract, compatibility inventory,
+Migration checksums, artifact hashes, and the explicit non-stable release channel. CI uses strict
+mode, which refuses to create release evidence from a dirty checkout.
 
 ## Configuration modes
 

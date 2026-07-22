@@ -2,17 +2,38 @@ name: Docker Build and Push to GHCR
 
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'v2-dev']
     paths:
+      - '.dockerignore'
+      - 'bun.lock'
       - 'package.json'
+      - 'runtime/v2/**'
+      - 'src/**'
+      - 'scripts/**'
+      - 'migrations/**'
+      - 'public/**'
+      - 'vite.config.ts'
+      - 'tsconfig.server.json'
+      - 'tsconfig.v2.json'
       - 'Dockerfile'
       - '.github/workflows/docker-build.yml'
       - 'docker-compose.yml'
   pull_request:
     branches: ['main', 'v2-dev']
     paths:
+      - '.dockerignore'
+      - 'bun.lock'
       - 'package.json'
+      - 'runtime/v2/**'
+      - 'src/**'
+      - 'scripts/**'
+      - 'migrations/**'
+      - 'public/**'
+      - 'vite.config.ts'
+      - 'tsconfig.server.json'
+      - 'tsconfig.v2.json'
       - 'Dockerfile'
+      - 'docker-compose.yml'
   workflow_dispatch:
 
 env:
@@ -25,6 +46,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      attestations: write
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -71,7 +94,7 @@ jobs:
             type=sha,format=short,prefix=sha-
           labels: |
             org.opencontainers.image.title=Kuma Mieru
-            org.opencontainers.image.description=A 3rd-party Uptime Kuma monitoring dashboard built on Next.js 15, TypeScript and Recharts.
+            org.opencontainers.image.description=An Uptime-first status page and public communication control plane.
             org.opencontainers.image.version=${{ steps.package_version.outputs.version }}
             org.opencontainers.image.licenses=MPL-2.0
 
@@ -80,13 +103,12 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
           build-args: |
-            VERSION=${{ steps.package_version.outputs.version }}
-            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-            VCS_REF=${{ github.sha }}
-            CI_MODE=true
+            KUMA_MIERU_BUILD_VERSION=${{ steps.package_version.outputs.version }}

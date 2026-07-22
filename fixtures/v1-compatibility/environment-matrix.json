@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "preferred URL list and secure no-effect switches",
+      "environment": {
+        "UPTIME_KUMA_URLS": "https://status.example.com/status/main|https://cn.example.com/prefix/status/cn",
+        "UPTIME_KUMA_BASE_URL": "https://ignored.example.com",
+        "PAGE_ID": "ignored",
+        "KUMA_MIERU_TITLE": "Preferred title",
+        "FEATURE_TITLE": "Fallback title",
+        "FEATURE_DESCRIPTION": "Legacy description",
+        "KUMA_MIERU_EDIT_THIS_PAGE": "true",
+        "REQUEST_TIMEOUT_MS": "7500",
+        "ALLOW_INSECURE_TLS": "true",
+        "SSR_STRICT_MODE": "true"
+      },
+      "expected": {
+        "source": "environment_urls",
+        "sources": [
+          {
+            "baseUrl": "https://status.example.com",
+            "pageIds": ["main"],
+            "timeoutMs": 7500
+          },
+          {
+            "baseUrl": "https://cn.example.com/prefix",
+            "pageIds": ["cn"],
+            "timeoutMs": 7500
+          }
+        ],
+        "pages": [
+          {
+            "slug": "main",
+            "title": "Preferred title",
+            "description": "Legacy description",
+            "icon": null,
+            "editThisPage": true,
+            "showStarButton": true
+          },
+          {
+            "slug": "cn",
+            "title": "Preferred title",
+            "description": "Legacy description",
+            "icon": null,
+            "editThisPage": true,
+            "showStarButton": true
+          }
+        ],
+        "decisionStatuses": {
+          "UPTIME_KUMA_URLS": "mapped",
+          "UPTIME_KUMA_BASE_URL": "ignored_by_precedence",
+          "PAGE_ID": "ignored_by_precedence",
+          "KUMA_MIERU_EDIT_THIS_PAGE": "mapped",
+          "KUMA_MIERU_TITLE": "mapped",
+          "FEATURE_TITLE": "ignored_by_precedence",
+          "FEATURE_DESCRIPTION": "mapped",
+          "REQUEST_TIMEOUT_MS": "mapped",
+          "ALLOW_INSECURE_TLS": "accepted_no_effect",
+          "SSR_STRICT_MODE": "accepted_no_effect"
+        },
+        "conflicts": [
+          "UPTIME_KUMA_URLS takes precedence; UPTIME_KUMA_BASE_URL and PAGE_ID are ignored."
+        ],
+        "ignoredFields": ["ALLOW_INSECURE_TLS", "SSR_STRICT_MODE"]
+      }
+    },
+    {
+      "name": "base URL with stable page de-duplication and feature fallback",
+      "environment": {
+        "UPTIME_KUMA_BASE_URL": "https://status.example.com/root/",
+        "PAGE_ID": "main, api main",
+        "FEATURE_TITLE": "Fallback title",
+        "FEATURE_ICON": "/legacy.svg",
+        "FEATURE_SHOW_STAR_BUTTON": "false"
+      },
+      "expected": {
+        "source": "environment_base",
+        "sources": [
+          {
+            "baseUrl": "https://status.example.com/root",
+            "pageIds": ["main"],
+            "timeoutMs": null
+          },
+          {
+            "baseUrl": "https://status.example.com/root",
+            "pageIds": ["api"],
+            "timeoutMs": null
+          }
+        ],
+        "pages": [
+          {
+            "slug": "main",
+            "title": "Fallback title",
+            "description": null,
+            "icon": "/legacy.svg",
+            "editThisPage": false,
+            "showStarButton": false
+          },
+          {
+            "slug": "api",
+            "title": "Fallback title",
+            "description": null,
+            "icon": "/legacy.svg",
+            "editThisPage": false,
+            "showStarButton": false
+          }
+        ],
+        "decisionStatuses": {
+          "UPTIME_KUMA_BASE_URL": "mapped",
+          "PAGE_ID": "mapped",
+          "FEATURE_SHOW_STAR_BUTTON": "mapped",
+          "FEATURE_TITLE": "mapped",
+          "FEATURE_ICON": "mapped"
+        },
+        "conflicts": [],
+        "ignoredFields": []
+      }
+    },
+    {
+      "name": "generated JSON preserves per-page metadata",
+      "environment": {},
+      "generatedConfig": {
+        "baseUrl": "https://status.example.com",
+        "pageId": "main",
+        "pageIds": ["main", "cn"],
+        "pages": [
+          {
+            "id": "main",
+            "baseUrl": "https://status.example.com",
+            "siteMeta": {
+              "title": "Global status",
+              "description": "Primary region",
+              "icon": "/main.svg"
+            }
+          },
+          {
+            "id": "cn",
+            "baseUrl": "https://cn.example.com",
+            "siteMeta": {
+              "title": "China status",
+              "description": "China region",
+              "icon": "/cn.svg"
+            }
+          }
+        ],
+        "siteMeta": {
+          "title": "Global fallback",
+          "description": "Fallback description",
+          "icon": "/fallback.svg"
+        },
+        "isEditThisPage": false,
+        "isShowStarButton": true
+      },
+      "expected": {
+        "source": "generated_json",
+        "sources": [
+          {
+            "baseUrl": "https://status.example.com",
+            "pageIds": ["main"],
+            "timeoutMs": null
+          },
+          {
+            "baseUrl": "https://cn.example.com",
+            "pageIds": ["cn"],
+            "timeoutMs": null
+          }
+        ],
+        "pages": [
+          {
+            "slug": "main",
+            "title": "Global status",
+            "description": "Primary region",
+            "icon": "/main.svg",
+            "editThisPage": false,
+            "showStarButton": true
+          },
+          {
+            "slug": "cn",
+            "title": "China status",
+            "description": "China region",
+            "icon": "/cn.svg",
+            "editThisPage": false,
+            "showStarButton": true
+          }
+        ],
+        "decisionStatuses": {},
+        "conflicts": [],
+        "ignoredFields": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "product": "kuma-mieru",
+  "version": "2.0.0-dev",
+  "channel": "development",
+  "stable": false,
+  "runtime": {
+    "node": ">=24 <27",
+    "uid": 10001,
+    "gid": 10001,
+    "dataDirectory": "/data"
+  },
+  "database": {
+    "minimumSchemaVersion": 0,
+    "maximumSchemaVersion": 7
+  },
+  "compatibility": {
+    "supportedMajor": 2,
+    "legacyRoutes": [
+      "/",
+      "/:pageId",
+      "/monitor/:monitorId?pageId=:pageId",
+      "/about",
+      "/api/config",
+      "/api/monitor",
+      "/api/icon",
+      "/api/manage-status-page",
+      "/api/health"
+    ],
+    "legacyEnvironment": [
+      "UPTIME_KUMA_URLS",
+      "UPTIME_KUMA_BASE_URL",
+      "PAGE_ID",
+      "KUMA_MIERU_EDIT_THIS_PAGE",
+      "KUMA_MIERU_SHOW_STAR_BUTTON",
+      "KUMA_MIERU_TITLE",
+      "KUMA_MIERU_DESCRIPTION",
+      "KUMA_MIERU_ICON",
+      "FEATURE_EDIT_THIS_PAGE",
+      "FEATURE_SHOW_STAR_BUTTON",
+      "FEATURE_TITLE",
+      "FEATURE_DESCRIPTION",
+      "FEATURE_ICON",
+      "ALLOW_INSECURE_TLS",
+      "REQUEST_TIMEOUT_MS",
+      "REQUEST_RETRY_MAX",
+      "REQUEST_RETRY_DELAY_MS",
+      "SSR_STRICT_MODE",
+      "NEXT_PUBLIC_ERROR_PAGE_DEV_MODE",
+      "ALLOW_EMBEDDING",
+      "STRICT_IMAGE_REMOTE_PATTERNS"
+    ]
+  }
+}
