@@ -38,7 +38,7 @@
     "format": "oxfmt .",
     "test": "bun run test:v1 && bun run test:v2",
     "test:v1": "bun test components",
-    "test:v2": "bun run build:v2:server && node --test dist/v2/server/app.node.js dist/v2/server/config/runtime-config.node.js dist/v2/server/db/migrator.node.js",
+    "test:v2": "bun run build:v2:server && node --test dist/v2/server/app.node.js dist/v2/server/adapters/http-client.node.js dist/v2/server/adapters/source-store.node.js dist/v2/server/adapters/uptime-kuma/adapter.node.js dist/v2/server/config/runtime-config.node.js dist/v2/server/db/migrator.node.js",
     "typecheck:v2": "tsc -p tsconfig.v2.json && tsc -p tsconfig.server.json --noEmit",
     "generate": "bun scripts/generate-config.ts && bun scripts/generate-image-domains.ts && bun scripts/banner.ts",
     "generate:config": "bun scripts/generate-config.ts",

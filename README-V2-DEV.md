@@ -54,12 +54,32 @@ The startup loader produces one immutable runtime snapshot from one of three mod
 `UPTIME_KUMA_URLS` takes precedence over `UPTIME_KUMA_BASE_URL` plus `PAGE_ID`. Compatibility mode
 does not write converted legacy configuration into the managed revision store.
 
+Private, loopback, link-local, and reserved source addresses are blocked by default. Self-hosted
+Uptime Kuma instances on a trusted private network require
+`KUMA_MIERU_ALLOW_PRIVATE_SOURCES=true`. Redirect targets are validated again and URLs containing
+credentials are always rejected.
+
+## Uptime Kuma public adapter
+
+The v1/v2 adapter only reads the public status-page and heartbeat endpoints. It never connects to
+the management Socket.IO API or an upstream database. A background poller validates responses with
+Zod, normalizes groups, monitors, tags, heartbeat state, latency, uptime, and active incidents, then
+writes an immutable last-known-good snapshot to SQLite.
+
+Public requests read `/api/v1/public/pages/:slug/snapshot` from local SQLite. They return `503` with
+`Retry-After` until the first snapshot exists and never fall back to a visitor-triggered upstream
+request. Failed refreshes retain the previous snapshot with explicit stale health metadata.
+
+The HTTP boundary enforces protocol and credential rules, DNS-based private-address blocking,
+redirect revalidation, a 10-second timeout, a three-redirect limit, a 2 MiB decompressed-body limit,
+JSON content type, and conditional `ETag`/`Last-Modified` requests.
+
 ## Migration invariants
 
 Migration files use the form `000001_name.up.sql`. Startup rejects gaps, invalid names, missing
 historical files, changed checksums, failed integrity checks, and failed foreign-key checks. Each
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
-The current foundation slice does not yet implement authentication, source polling, incidents,
-subscriptions, or configuration mutation APIs. Their public routes and control-plane capabilities
-must remain disabled until the corresponding contracts and security gates are implemented.
+The current implementation does not yet provide authentication, native incident publishing,
+subscriptions, or configuration mutation APIs. Their control-plane capabilities must remain
+disabled until the corresponding contracts and security gates are implemented.

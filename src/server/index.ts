@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
+import { startSourcePoller } from './adapters/source-poller.js';
+import { getSourceSnapshotState } from './adapters/source-store.js';
 import { loadRuntimeConfig } from './config/runtime-config.js';
 import { openDatabase } from './db/database.js';
 import { migrateDatabase } from './db/migrator.js';
@@ -28,11 +30,25 @@ const migration = await migrateDatabase(database, {
   appBuild: buildVersion,
 });
 const snapshot = await loadRuntimeConfig({ database });
+const stopSourcePoller = startSourcePoller({
+  database,
+  config: snapshot.config,
+  allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
+});
 const app = createApp({
   snapshot,
   schemaVersion: migration.currentVersion,
   buildVersion,
   publicDirectory: process.env.NODE_ENV === 'development' ? undefined : clientDirectory,
+  loadPageSnapshots: page =>
+    page.sourceRefs.flatMap(sourceId => {
+      const source = snapshot.config.sources.find(candidate => candidate.id === sourceId);
+      if (!source) return [];
+      return source.pageIds.flatMap(pageId => {
+        const state = getSourceSnapshotState(database, sourceId, pageId);
+        return state ? [state] : [];
+      });
+    }),
 });
 
 const server = serve({ fetch: app.fetch, port, hostname });
@@ -41,6 +57,7 @@ console.info(`Kuma Mieru v2 listening on http://${hostname}:${port}`);
 const shutdown = (signal: NodeJS.Signals) => {
   console.info(`Received ${signal}; shutting down`);
   server.close(() => {
+    stopSourcePoller();
     database.close();
     process.exit(0);
   });

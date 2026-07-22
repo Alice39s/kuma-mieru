@@ -55,3 +55,16 @@ test('returns a stable JSON error for unknown API routes', async () => {
     error: { code: 'NOT_FOUND', message: 'API route not found' },
   });
 });
+
+test('returns 503 instead of fetching upstream when no local snapshot exists', async () => {
+  const app = createApp({ snapshot, schemaVersion: 2, buildVersion: '2.0.0-test' });
+  const response = await app.request('/api/v1/public/pages/main/snapshot');
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get('retry-after'), '30');
+  assert.deepEqual(await response.json(), {
+    error: {
+      code: 'SOURCE_SNAPSHOT_UNAVAILABLE',
+      message: 'No normalized source snapshot is available yet',
+    },
+  });
+});

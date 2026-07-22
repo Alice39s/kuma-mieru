@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
+import type { SourceSnapshotState } from './adapters/source-store.js';
+import type { CanonicalConfig } from './config/schema.js';
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 
 export interface AppOptions {
@@ -11,6 +13,7 @@ export interface AppOptions {
   buildVersion: string;
   publicDirectory?: string;
   startedAt?: number;
+  loadPageSnapshots?: (page: CanonicalConfig['pages'][number]) => SourceSnapshotState[];
 }
 
 export const createApp = ({
@@ -19,6 +22,7 @@ export const createApp = ({
   buildVersion,
   publicDirectory,
   startedAt = Date.now(),
+  loadPageSnapshots,
 }: AppOptions) => {
   const app = new Hono();
   app.use('*', secureHeaders());
@@ -62,6 +66,36 @@ export const createApp = ({
       })),
     })
   );
+
+  app.get('/api/v1/public/pages/:slug/snapshot', context => {
+    const slug = context.req.param('slug');
+    const page = snapshot.config.pages.find(
+      candidate => candidate.slug === slug || candidate.id === slug
+    );
+    if (!page) {
+      return context.json(
+        { error: { code: 'PAGE_NOT_FOUND', message: 'Status page not found' } },
+        404
+      );
+    }
+    const data = loadPageSnapshots?.(page) ?? [];
+    if (data.length === 0) {
+      context.header('Cache-Control', 'no-store');
+      context.header('Retry-After', '30');
+      return context.json(
+        {
+          error: {
+            code: 'SOURCE_SNAPSHOT_UNAVAILABLE',
+            message: 'No normalized source snapshot is available yet',
+          },
+        },
+        503
+      );
+    }
+    const partial = data.some(item => item.health.stale) || data.length < page.sourceRefs.length;
+    context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+    return context.json({ data, meta: { status: partial ? 'partial' : 'ok' } });
+  });
 
   app.notFound(context => {
     if (context.req.path.startsWith('/api/')) {
