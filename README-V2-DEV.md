@@ -105,13 +105,41 @@ selection invalidates the save request. Test Connection never activates the draf
 `/admin` is a separately lazy-loaded React Router surface and is not nested inside the public
 status-page shell. First-run setup, email/password recovery sign-in, session discovery, source
 verification, page composition, revision history, and owner rollback are available through one
-responsive workbench. Forms use React Hook Form and Zod at the client boundary; server validation
-remains authoritative.
+responsive workbench. Its Event desk creates append-only Incident drafts and updates, then gives
+Owner/Publisher sessions a separate review-and-publish step with an explicit notification choice.
+Forms use React Hook Form and Zod at the client boundary; server validation remains authoritative.
 
 Write controls are rendered only for Owner or Editor sessions in managed mode. Publisher and Viewer
 sessions, as well as file and compatibility mode, receive an explicit read-only surface. Rollback is
 visible only to an Owner in managed mode. Expired sessions return to the sign-in boundary rather
 than leaving stale privileged controls on screen.
+
+## Native incidents and public delivery
+
+Native Incident commands use an append-only aggregate ledger. Creation requires an Idempotency Key;
+updates require an Expected Version and reject stale writers or invalid backwards state transitions.
+Publishing never exposes a mutable draft. It creates an immutable Publication content snapshot,
+Admin Audit entry, subscriber scope snapshot, and notification Outbox work in one SQLite
+transaction.
+
+Publishers must first obtain a five-minute Review Nonce bound to the actor, session, event version,
+explicit `notifySubscribers` choice, and estimated recipient count. A changed version, notification
+choice, session, or recipient count invalidates the publish request. Public Incident JSON, RSS 2.0,
+and Atom 1.0 are projected only from Publications; RSS and Atom support ETag revalidation.
+
+Email subscription requests use a page-bound short-lived nonce, honeypot, page/email rate limits,
+and a response that does not reveal whether an address exists. Normalized email addresses are
+encrypted with AES-256-GCM and deduplicated with a keyed HMAC. Confirmation, management, and
+unsubscribe tokens contain at least 256 random bits; SQLite stores only keyed token hashes. GET on a
+confirmation token is read-only, while POST performs activation. Token routes are `no-store`, use a
+no-referrer policy, and have a restrictive CSP.
+
+The transactional delivery worker claims bounded batches, recovers stale locks, uses stable Message
+IDs, adds one-click unsubscribe headers, retries transient SMTP failures with bounded exponential
+backoff, and moves permanent or exhausted work to Dead-letter. Nodemailer is isolated behind a
+functional transport interface; SMTP connection verification and TLS 1.2 minimums are implemented.
+The worker is not started until a future structured Mail Transport plus Secret Reference is
+validated, so adding the transport does not reintroduce flat credential environment variables.
 
 ## Migration invariants
 
@@ -120,6 +148,6 @@ historical files, changed checksums, failed integrity checks, and failed foreign
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
 The current implementation does not yet provide passkey enrollment UI, identity administration,
-native incident publishing, subscriptions, or delivery outbox workers. Their control-plane
-capabilities must remain disabled until the corresponding contracts and security gates are
-implemented.
+Maintenance/Notice/Postmortem aggregates, SMTP Secret Store configuration, or Subscriber/Delivery
+administration UI. Their control-plane capabilities must remain disabled until the corresponding
+contracts and security gates are implemented.

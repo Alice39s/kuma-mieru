@@ -26,6 +26,30 @@ export interface AdminRevision {
   createdAt: string;
 }
 
+export type IncidentState = 'investigating' | 'identified' | 'monitoring' | 'resolved';
+
+export interface AdminIncident {
+  id: string;
+  type: 'incident';
+  pageId: string;
+  title: string;
+  state: IncidentState;
+  version: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  latestEntry: {
+    sequence: number;
+    state: IncidentState;
+    title: string;
+    body: string;
+    affectedComponentIds: string[];
+    occurredAt: string;
+    recordedAt: string;
+    actorId: string;
+  };
+}
+
 export interface AdminMeta {
   version: string;
   schemaVersion: number;
@@ -105,14 +129,85 @@ export const getAdminSession = async () =>
   (await request<{ data: AdminSession }>('/api/v1/admin/session')).data;
 
 export const getWorkbenchData = async () => {
-  const [meta, sources, pages, revisions] = await Promise.all([
+  const [meta, sources, pages, revisions, incidents] = await Promise.all([
     request<AdminMeta>('/api/v1/meta'),
     request<{ data: AdminSource[] }>('/api/v1/admin/sources'),
     request<{ data: AdminPage[] }>('/api/v1/admin/pages'),
     request<{ data: AdminRevision[] }>('/api/v1/admin/config/revisions'),
+    request<{ data: AdminIncident[] }>('/api/v1/admin/events'),
   ]);
-  return { meta, sources: sources.data, pages: pages.data, revisions: revisions.data };
+  return {
+    meta,
+    sources: sources.data,
+    pages: pages.data,
+    revisions: revisions.data,
+    incidents: incidents.data,
+  };
 };
+
+export const createIncident = (
+  session: AdminSession,
+  input: {
+    pageId: string;
+    title: string;
+    body: string;
+    affectedComponentIds: string[];
+  }
+) =>
+  request<{ data: AdminIncident }>('/api/v1/admin/incidents', {
+    method: 'POST',
+    headers: { ...mutationHeaders(session), 'Idempotency-Key': crypto.randomUUID() },
+    body: JSON.stringify(input),
+  });
+
+export const appendIncidentUpdate = (
+  session: AdminSession,
+  eventId: string,
+  input: {
+    expectedVersion: number;
+    state: IncidentState;
+    body: string;
+    affectedComponentIds: string[];
+  }
+) =>
+  request<{ data: AdminIncident }>(`/api/v1/admin/incidents/${eventId}/updates`, {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
+
+export const reviewIncidentPublication = (
+  session: AdminSession,
+  eventId: string,
+  input: { expectedVersion: number; notifySubscribers: boolean }
+) =>
+  request<{
+    data: {
+      incident: AdminIncident;
+      notifySubscribers: boolean;
+      estimatedRecipients: number;
+      reviewNonce: string;
+      expiresAt: string;
+    };
+  }>(`/api/v1/admin/incidents/${eventId}/review`, {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
+
+export const publishIncident = (
+  session: AdminSession,
+  eventId: string,
+  input: { expectedVersion: number; notifySubscribers: boolean; reviewNonce: string }
+) =>
+  request<{ data: { publicationId: string; publishedAt: string } }>(
+    `/api/v1/admin/incidents/${eventId}/publish`,
+    {
+      method: 'POST',
+      headers: mutationHeaders(session),
+      body: JSON.stringify(input),
+    }
+  );
 
 export const testSource = (session: AdminSession, source: AdminSource) =>
   request<{

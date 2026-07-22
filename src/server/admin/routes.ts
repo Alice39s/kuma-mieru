@@ -19,6 +19,21 @@ import { mutateManagedConfig, rollbackManagedConfig } from '../config/managed-co
 import { listManagedRevisions, type ConfigRevision } from '../config/repository.js';
 import { sourceSchema, statusPageSchema } from '../config/schema.js';
 import type { RuntimeConfigSnapshot } from '../config/runtime-config.js';
+import {
+  appendIncidentUpdate,
+  createIncident,
+  getPublicationReview,
+  listIncidents,
+  publishIncident,
+} from '../events/repository.js';
+import { createPublicationReviewService } from '../events/review.js';
+import {
+  incidentCreateSchema,
+  incidentPublishSchema,
+  incidentReviewSchema,
+  incidentUpdateSchema,
+} from '../events/schemas.js';
+import { createPiiProtector } from '../subscriptions/crypto.js';
 
 const pageCreateSchema = z.object({
   expectedRevision: z.number().int().positive(),
@@ -43,6 +58,7 @@ const sourcePatchSchema = z.object({
   patch: sourceSchema.partial().omit({ id: true }),
   testToken: z.string().min(1),
 });
+const idempotencyKeySchema = z.string().min(8).max(200);
 
 export interface AdminRouteOptions {
   database?: Database.Database;
@@ -66,6 +82,8 @@ export const registerAdminRoutes = (
     onManagedRevision,
   }: AdminRouteOptions
 ) => {
+  const publicationReview = authSecret ? createPublicationReviewService(authSecret) : null;
+  const piiProtector = authSecret ? createPiiProtector(authSecret) : null;
   const writeAttemptAudit = (
     context: Context<AppEnvironment>,
     actorId: string,
@@ -235,6 +253,175 @@ export const registerAdminRoutes = (
     const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
     if (!authorization.ok) return authorization.response;
     return context.json({ data: currentSnapshot().config.sources });
+  });
+
+  const handleEventError = (
+    context: Context<AppEnvironment>,
+    error: unknown,
+    principal: AdminPrincipal
+  ) => {
+    if (error instanceof z.ZodError) {
+      writeAttemptAudit(context, principal.userId, 'failed', 'VALIDATION_FAILED');
+      return errorResponse(
+        context,
+        400,
+        'VALIDATION_FAILED',
+        'Event input is invalid',
+        error.issues
+      );
+    }
+    const code =
+      typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
+        ? error.code
+        : 'event_mutation_failed';
+    const status =
+      code === 'event_not_found'
+        ? 404
+        : code.includes('conflict') ||
+            code.includes('already') ||
+            code.includes('stale') ||
+            code.includes('reused')
+          ? 409
+          : 400;
+    writeAttemptAudit(context, principal.userId, 'failed', code.toUpperCase());
+    return errorResponse(
+      context,
+      status,
+      code.toUpperCase(),
+      error instanceof Error ? error.message : 'Event mutation failed'
+    );
+  };
+
+  app.get('/api/v1/admin/events', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    return context.json({ data: listIncidents(database) });
+  });
+
+  app.post('/api/v1/admin/incidents', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const idempotencyKey = idempotencyKeySchema.parse(context.req.header('idempotency-key'));
+      const input = incidentCreateSchema.parse(await context.req.json());
+      const page = currentSnapshot().config.pages.find(
+        candidate => candidate.id === input.pageId || candidate.slug === input.pageId
+      );
+      if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+      const incident = createIncident(
+        database,
+        { ...input, pageId: page.id },
+        idempotencyKey,
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: incident }, 201);
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/incidents/:id/updates', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const input = incidentUpdateSchema.parse(await context.req.json());
+      const incident = appendIncidentUpdate(
+        database,
+        context.req.param('id'),
+        input,
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: incident });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/incidents/:id/review', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database || !publicationReview) {
+      return errorResponse(context, 503, 'EVENT_REVIEW_NOT_READY', 'Event review is unavailable');
+    }
+    try {
+      const input = incidentReviewSchema.parse(await context.req.json());
+      const review = getPublicationReview(database, context.req.param('id'), input.expectedVersion);
+      const token = publicationReview.create({
+        eventId: review.incident.id,
+        eventVersion: review.incident.version,
+        notifySubscribers: input.notifySubscribers,
+        estimatedRecipients: review.estimatedRecipients,
+        principal: authorization.principal,
+      });
+      return context.json({
+        data: {
+          incident: review.incident,
+          notifySubscribers: input.notifySubscribers,
+          estimatedRecipients: review.estimatedRecipients,
+          reviewNonce: token.nonce,
+          expiresAt: token.expiresAt,
+        },
+      });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/incidents/:id/publish', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database || !publicationReview) {
+      return errorResponse(context, 503, 'EVENT_REVIEW_NOT_READY', 'Event review is unavailable');
+    }
+    try {
+      const eventId = context.req.param('id');
+      const input = incidentPublishSchema.parse(await context.req.json());
+      const review = getPublicationReview(database, eventId, input.expectedVersion);
+      const reviewInput = {
+        eventId,
+        eventVersion: input.expectedVersion,
+        notifySubscribers: input.notifySubscribers,
+        estimatedRecipients: review.estimatedRecipients,
+        principal: authorization.principal,
+      };
+      if (!publicationReview.verify(reviewInput, input.reviewNonce)) {
+        writeAttemptAudit(
+          context,
+          authorization.principal.userId,
+          'failed',
+          'PUBLICATION_REVIEW_INVALID'
+        );
+        return errorResponse(
+          context,
+          409,
+          'PUBLICATION_REVIEW_INVALID',
+          'Publication review is invalid, expired, or stale'
+        );
+      }
+      const publication = publishIncident(
+        database,
+        {
+          eventId,
+          expectedVersion: input.expectedVersion,
+          notifySubscribers: input.notifySubscribers,
+          expectedRecipients: review.estimatedRecipients,
+          piiProtector: piiProtector ?? undefined,
+        },
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: publication }, 201);
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
   });
 
   app.post('/api/v1/admin/sources/test', async context => {

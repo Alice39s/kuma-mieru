@@ -10,6 +10,7 @@ import { createManagedRevision, type ConfigRevision } from './config/repository.
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 import { openDatabase } from './db/database.js';
 import { migrateDatabase } from './db/migrator.js';
+import { createPiiProtector } from './subscriptions/crypto.js';
 
 test('requires a Better Auth session, trusted origin and bound CSRF token for config writes', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-admin-api-'));
@@ -144,6 +145,167 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     });
     assert.equal(conflict.status, 409);
 
+    const mutationHeaders = {
+      Cookie: cookie,
+      'Content-Type': 'application/json',
+      Origin: baseURL,
+      'Sec-Fetch-Site': 'same-origin',
+      'X-Kuma-CSRF': sessionBody.data.csrfToken,
+    };
+    const nonceResponse = await app.request('/api/v1/public/pages/main/subscriptions/email/nonce');
+    assert.equal(nonceResponse.status, 200);
+    const nonce = (await nonceResponse.json()) as { data: { nonce: string } };
+    const subscribe = await app.request('/api/v1/public/pages/main/subscriptions/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'subscriber@example.com',
+        componentIds: [],
+        nonce: nonce.data.nonce,
+      }),
+    });
+    assert.equal(subscribe.status, 202);
+    const subscribeBody = await subscribe.json();
+    const invalidSubscribe = await app.request('/api/v1/public/pages/main/subscriptions/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'another@example.com',
+        componentIds: [],
+        nonce: 'invalid-subscription-nonce',
+      }),
+    });
+    assert.equal(invalidSubscribe.status, 202);
+    assert.deepEqual(await invalidSubscribe.json(), subscribeBody);
+    const honeypotSubscribe = await app.request('/api/v1/public/pages/main/subscriptions/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'bot@example.com',
+        componentIds: [],
+        nonce: nonce.data.nonce,
+        website: 'https://spam.example.com',
+      }),
+    });
+    assert.equal(honeypotSubscribe.status, 202);
+    assert.deepEqual(await honeypotSubscribe.json(), subscribeBody);
+    assert.equal(
+      (
+        database.prepare('SELECT COUNT(*) AS count FROM email_subscriptions').get() as {
+          count: number;
+        }
+      ).count,
+      1
+    );
+    const protector = createPiiProtector(secret);
+    const confirmation = database
+      .prepare(
+        `SELECT payload_ciphertext FROM notification_outbox
+         WHERE kind = 'subscription_confirmation'`
+      )
+      .get() as { payload_ciphertext: string };
+    const confirmationPayload = JSON.parse(protector.decrypt(confirmation.payload_ciphertext)) as {
+      confirmToken: string;
+      unsubscribeToken: string;
+    };
+    const confirmationPreview = await app.request(
+      `/api/v1/public/subscriptions/confirm/${confirmationPayload.confirmToken}`
+    );
+    assert.equal(confirmationPreview.status, 200);
+    assert.equal(confirmationPreview.headers.get('cache-control'), 'no-store');
+    const confirmed = await app.request(
+      `/api/v1/public/subscriptions/confirm/${confirmationPayload.confirmToken}`,
+      { method: 'POST' }
+    );
+    assert.equal(confirmed.status, 200);
+
+    const incidentCreated = await app.request('/api/v1/admin/incidents', {
+      method: 'POST',
+      headers: { ...mutationHeaders, 'Idempotency-Key': 'incident-create-admin-api-0001' },
+      body: JSON.stringify({
+        pageId: 'public',
+        title: 'API latency elevated',
+        body: 'We are investigating elevated latency.',
+        affectedComponentIds: ['primary'],
+      }),
+    });
+    assert.equal(incidentCreated.status, 201);
+    const incident = (await incidentCreated.json()) as { data: { id: string; version: number } };
+    assert.equal(incident.data.version, 1);
+
+    const reviewResponse = await app.request(`/api/v1/admin/incidents/${incident.data.id}/review`, {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({ expectedVersion: 1, notifySubscribers: true }),
+    });
+    assert.equal(reviewResponse.status, 200);
+    const review = (await reviewResponse.json()) as { data: { reviewNonce: string } };
+    const invalidPublish = await app.request(
+      `/api/v1/admin/incidents/${incident.data.id}/publish`,
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          expectedVersion: 1,
+          notifySubscribers: false,
+          reviewNonce: review.data.reviewNonce,
+        }),
+      }
+    );
+    assert.equal(invalidPublish.status, 409);
+    const published = await app.request(`/api/v1/admin/incidents/${incident.data.id}/publish`, {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({
+        expectedVersion: 1,
+        notifySubscribers: true,
+        reviewNonce: review.data.reviewNonce,
+      }),
+    });
+    assert.equal(published.status, 201);
+    const publicIncidents = await app.request('/api/v1/public/pages/main/incidents');
+    assert.equal(publicIncidents.status, 200);
+    const publicIncidentBody = (await publicIncidents.json()) as { data: unknown[] };
+    assert.equal(publicIncidentBody.data.length, 1);
+    const rss = await app.request('/status/main/rss.xml');
+    assert.equal(rss.status, 200);
+    assert.equal(rss.headers.get('content-type'), 'application/rss+xml; charset=utf-8');
+    assert.equal((await rss.text()).includes('API latency elevated'), true);
+    const etag = rss.headers.get('etag');
+    assert.ok(etag);
+    const unchangedRss = await app.request('/status/main/rss.xml', {
+      headers: { 'If-None-Match': etag },
+    });
+    assert.equal(unchangedRss.status, 304);
+    assert.equal(
+      (
+        database
+          .prepare(
+            `SELECT COUNT(*) AS count FROM notification_outbox
+             WHERE kind = 'event_publication' AND state = 'queued'`
+          )
+          .get() as { count: number }
+      ).count,
+      1
+    );
+    const unsubscribed = await app.request(
+      `/api/v1/public/subscriptions/unsubscribe/${confirmationPayload.unsubscribeToken}`,
+      { method: 'POST' }
+    );
+    assert.equal(unsubscribed.status, 200);
+    assert.equal(
+      (
+        database
+          .prepare(
+            `SELECT COUNT(*) AS count FROM notification_outbox
+             WHERE kind = 'event_publication' AND state = 'failed'
+               AND last_error_code = 'SUBSCRIPTION_UNSUBSCRIBED'`
+          )
+          .get() as { count: number }
+      ).count,
+      1
+    );
+
     const signedOut = await app.request('/api/auth/sign-out', {
       method: 'POST',
       headers: { Cookie: cookie, Origin: baseURL },
@@ -163,6 +325,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     assert.deepEqual(attempts, [
       { result: 'denied', error_code: 'UNTRUSTED_ORIGIN' },
       { result: 'failed', error_code: 'CONFIG_REVISION_CONFLICT' },
+      { result: 'failed', error_code: 'PUBLICATION_REVIEW_INVALID' },
     ]);
   } finally {
     database.close();

@@ -25,7 +25,22 @@ export const pageDraftSchema = z.object({
   sourceRef: z.string().min(1, 'Choose a source.'),
 });
 
+export const incidentDraftSchema = z.object({
+  pageId: z.string().min(1, 'Choose a status page.'),
+  title: z.string().min(1, 'Title is required.').max(200),
+  body: z.string().min(1, 'Public update is required.').max(50_000),
+  affectedComponentIds: z.string(),
+});
+
+export const incidentUpdateDraftSchema = z.object({
+  state: z.enum(['investigating', 'identified', 'monitoring', 'resolved']),
+  body: z.string().min(1, 'Public update is required.').max(50_000),
+  affectedComponentIds: z.string(),
+});
+
 export type OwnerSetupInput = z.infer<typeof ownerSetupSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SourceDraftInput = z.infer<typeof sourceDraftSchema>;
 export type PageDraftInput = z.infer<typeof pageDraftSchema>;
+export type IncidentDraftInput = z.infer<typeof incidentDraftSchema>;
+export type IncidentUpdateDraftInput = z.infer<typeof incidentUpdateDraftSchema>;

@@ -11,6 +11,7 @@ import {
   RefreshCw,
   RotateCcw,
   ShieldCheck,
+  Siren,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
@@ -18,14 +19,16 @@ import { toast } from 'sonner';
 import { getWorkbenchData, rollbackRevision, signOut, type AdminSession } from './api';
 import { PageForm } from './page-form';
 import { SourceWizard } from './source-wizard';
+import { EventWorkspace } from './event-workspace';
 
-type Panel = 'overview' | 'sources' | 'pages' | 'revisions';
+type Panel = 'overview' | 'sources' | 'pages' | 'events' | 'revisions';
 type WorkbenchData = Awaited<ReturnType<typeof getWorkbenchData>>;
 
 const navigation: Array<{ id: Panel; label: string; icon: typeof Activity }> = [
   { id: 'overview', label: 'Overview', icon: CircleGauge },
   { id: 'sources', label: 'Sources', icon: RadioTower },
   { id: 'pages', label: 'Pages', icon: LayoutTemplate },
+  { id: 'events', label: 'Events', icon: Siren },
   { id: 'revisions', label: 'Revisions', icon: FileClock },
 ];
 
@@ -370,6 +373,14 @@ export const Workbench = ({
                   <ReadOnlyPanel mode={data.meta.config.mode} role={session.role} />
                 )}
               </div>
+            ) : null}
+            {panel === 'events' ? (
+              <EventWorkspace
+                session={session}
+                pages={data.pages}
+                incidents={data.incidents}
+                onCommitted={reload}
+              />
             ) : null}
             {panel === 'revisions' ? (
               <RevisionLedger data={data} session={session} onCommitted={reload} />
