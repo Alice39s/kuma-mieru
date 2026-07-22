@@ -74,6 +74,32 @@ The HTTP boundary enforces protocol and credential rules, DNS-based private-addr
 redirect revalidation, a 10-second timeout, a three-redirect limit, a 2 MiB decompressed-body limit,
 JSON content type, and conditional `ETag`/`Last-Modified` requests.
 
+## Authentication and managed revisions
+
+Better Auth is mounted at `/api/auth/*` with public sign-up disabled. The first startup with no users
+creates a 15-minute, single-use Owner setup token. Only its SHA-256 hash is stored in SQLite; the
+plaintext token is printed once at startup. Set `KUMA_MIERU_SETUP_TOKEN` to provide it through the
+deployment secret store instead. Completing bootstrap creates one Owner credential account and
+permanently closes the endpoint.
+
+When `KUMA_MIERU_AUTH_SECRET` is absent, Kuma Mieru creates a rootless `0600` secret file inside the
+data directory. Production deployments should set `KUMA_MIERU_BASE_URL` and, when needed, the
+comma-separated `KUMA_MIERU_TRUSTED_ORIGINS` explicitly.
+
+Admin JSON mutations require all of the following: a Better Auth session, an allowed role, an exact
+trusted Origin, `Sec-Fetch-Site: same-origin`, a session-bound `X-Kuma-CSRF` token, JSON content type,
+and a 256 KiB body limit. High-risk rollback additionally requires a session created in the last
+five minutes.
+
+Managed configuration writes use an Expected Revision. The new immutable Revision, Active Pointer,
+and redacted Admin Audit summary are committed in one SQLite transaction. A stale Expected Revision
+returns a conflict without changing configuration. Rollback creates a new Revision and never
+reactivates or deletes historical rows.
+
+Source creation and modification require a successful `/api/v1/admin/sources/test` result. Its
+five-minute HMAC token is bound to the complete validated Source, so changing the base URL or page
+selection invalidates the save request. Test Connection never activates the draft configuration.
+
 ## Migration invariants
 
 Migration files use the form `000001_name.up.sql`. Startup rejects gaps, invalid names, missing

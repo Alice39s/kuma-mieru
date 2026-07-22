@@ -38,7 +38,7 @@
     "format": "oxfmt .",
     "test": "bun run test:v1 && bun run test:v2",
     "test:v1": "bun test components",
-    "test:v2": "bun run build:v2:server && node --test dist/v2/server/app.node.js dist/v2/server/adapters/http-client.node.js dist/v2/server/adapters/source-store.node.js dist/v2/server/adapters/uptime-kuma/adapter.node.js dist/v2/server/config/runtime-config.node.js dist/v2/server/db/migrator.node.js",
+    "test:v2": "bun run build:v2:server && node --test dist/v2/server/admin-api.node.js dist/v2/server/app.node.js dist/v2/server/adapters/http-client.node.js dist/v2/server/adapters/source-store.node.js dist/v2/server/adapters/source-test.node.js dist/v2/server/adapters/uptime-kuma/adapter.node.js dist/v2/server/auth/bootstrap.node.js dist/v2/server/config/managed-config.node.js dist/v2/server/config/runtime-config.node.js dist/v2/server/db/migrator.node.js",
     "typecheck:v2": "tsc -p tsconfig.v2.json && tsc -p tsconfig.server.json --noEmit",
     "generate": "bun scripts/generate-config.ts && bun scripts/generate-image-domains.ts && bun scripts/banner.ts",
     "generate:config": "bun scripts/generate-config.ts",
@@ -46,6 +46,7 @@
     "generate:banner": "bun scripts/banner.ts"
   },
   "dependencies": {
+    "@better-auth/passkey": "1.6.23",
     "@expressive-code/plugin-shiki": "^0.44.0",
     "@heroui/react": "^2.8.10",
     "@heroui/theme": "2.4.26",
@@ -58,6 +59,7 @@
     "@react-aria/visually-hidden": "3.9.1",
     "@sankyu/react-circle-flags": "^1.6.7",
     "@tailwindcss/postcss": "^4.3.2",
+    "better-auth": "1.6.23",
     "better-sqlite3": "^13.0.1",
     "chalk": "5.6.2",
     "cheerio": "^1.2.0",

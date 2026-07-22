@@ -51,9 +51,10 @@ test('returns a stable JSON error for unknown API routes', async () => {
   const app = createApp({ snapshot, schemaVersion: 1, buildVersion: '2.0.0-test' });
   const response = await app.request('/api/v1/missing');
   assert.equal(response.status, 404);
-  assert.deepEqual(await response.json(), {
-    error: { code: 'NOT_FOUND', message: 'API route not found' },
-  });
+  const body = (await response.json()) as { error: Record<string, unknown> };
+  assert.equal(body.error.code, 'NOT_FOUND');
+  assert.equal(body.error.message, 'API route not found');
+  assert.equal(typeof body.error.requestId, 'string');
 });
 
 test('returns 503 instead of fetching upstream when no local snapshot exists', async () => {
@@ -61,10 +62,8 @@ test('returns 503 instead of fetching upstream when no local snapshot exists', a
   const response = await app.request('/api/v1/public/pages/main/snapshot');
   assert.equal(response.status, 503);
   assert.equal(response.headers.get('retry-after'), '30');
-  assert.deepEqual(await response.json(), {
-    error: {
-      code: 'SOURCE_SNAPSHOT_UNAVAILABLE',
-      message: 'No normalized source snapshot is available yet',
-    },
-  });
+  const body = (await response.json()) as { error: Record<string, unknown> };
+  assert.equal(body.error.code, 'SOURCE_SNAPSHOT_UNAVAILABLE');
+  assert.equal(body.error.message, 'No normalized source snapshot is available yet');
+  assert.equal(typeof body.error.requestId, 'string');
 });
