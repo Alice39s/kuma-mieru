@@ -113,6 +113,18 @@ Monitor states, groups, tags, and the provider-defined 24-hour uptime histogram 
 Unknown future states become `unknown`, response time remains empty rather than being mislabeled,
 and no create, update, pause, or delete endpoint is called.
 
+## incident.io public Widget adapter
+
+The default incident.io adapter reads the unauthenticated, cacheable `GET /api/v1/summary` Widget
+endpoint through the same SSRF boundary. It normalizes ongoing incidents, in-progress maintenance,
+scheduled maintenance, and affected components. A scheduled maintenance does not degrade current
+status before it begins, and unknown future impact values become `unknown`.
+
+Widget mode deliberately advertises current events and maintenance only: it does not claim component
+uptime or incident history, and it does not call any write endpoint. Internal incident.io Status
+Pages and pages without Widget API access fail connection testing instead of falling back to HTML
+scraping.
+
 ## Authentication and managed revisions
 
 Better Auth is mounted at `/api/auth/*` with public sign-up disabled. The first startup with no users

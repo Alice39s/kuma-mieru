@@ -11,7 +11,10 @@ interface AdminSourceBase {
 }
 
 export type AdminSource = AdminSourceBase &
-  ({ kind: 'uptime-kuma' | 'better-stack' } | { kind: 'uptime-robot'; secretRef: string });
+  (
+    | { kind: 'uptime-kuma' | 'better-stack' | 'incident-io' }
+    | { kind: 'uptime-robot'; secretRef: string }
+  );
 
 export interface AdminPage {
   id: string;

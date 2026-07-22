@@ -126,6 +126,7 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
               {...form.register('kind', {
                 onChange: event => {
                   if (event.target.value === 'better-stack') form.setValue('pageIds', 'index');
+                  if (event.target.value === 'incident-io') form.setValue('pageIds', 'summary');
                   if (event.target.value === 'uptime-robot') {
                     form.setValue('baseUrl', 'https://api.uptimerobot.com/v3');
                     form.setValue('pageIds', 'all');
@@ -136,6 +137,7 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
               <option value="uptime-kuma">Uptime Kuma public page</option>
               <option value="better-stack">Better Stack public JSON</option>
               <option value="uptime-robot">UptimeRobot v3 API</option>
+              <option value="incident-io">incident.io public Widget</option>
             </select>
           </label>
         </div>

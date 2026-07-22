@@ -1,6 +1,7 @@
 import type { CanonicalConfig } from '../config/schema.js';
 import type { SecretStore } from '../secrets/store.js';
 import { fetchBetterStackSnapshot } from './better-stack/adapter.js';
+import { fetchIncidentIoSnapshot } from './incident-io/adapter.js';
 import type { NormalizedSnapshot, SourceJsonRequester } from './types.js';
 import { fetchUptimeKumaSnapshot } from './uptime-kuma/adapter.js';
 import { fetchUptimeRobotSnapshot } from './uptime-robot/adapter.js';
@@ -17,6 +18,8 @@ export const fetchSourceSnapshot = (
       return fetchUptimeKumaSnapshot(input, requester);
     case 'better-stack':
       return fetchBetterStackSnapshot(input, requester);
+    case 'incident-io':
+      return fetchIncidentIoSnapshot(input, requester);
     case 'uptime-robot': {
       if (!secretStore) {
         throw Object.assign(new Error('UptimeRobot requires the encrypted secret store'), {

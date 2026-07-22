@@ -504,6 +504,18 @@ export const registerAdminRoutes = (
       if (error instanceof z.ZodError) {
         return errorResponse(context, 400, 'VALIDATION_FAILED', 'Source configuration is invalid');
       }
+      const code =
+        typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : null;
+      if (code === 'unsupported_page_type') {
+        return errorResponse(
+          context,
+          400,
+          'UNSUPPORTED_PAGE_TYPE',
+          'This source does not expose a supported public status-page API'
+        );
+      }
       return errorResponse(
         context,
         400,

@@ -22,10 +22,16 @@ export const uptimeRobotSourceSchema = sourceBaseSchema.extend({
   secretRef: z.string().startsWith('sec_'),
 });
 
+export const incidentIoSourceSchema = sourceBaseSchema.extend({
+  kind: z.literal('incident-io'),
+  pageIds: z.tuple([z.literal('summary')]),
+});
+
 export const sourceSchema = z.discriminatedUnion('kind', [
   uptimeKumaSourceSchema,
   betterStackSourceSchema,
   uptimeRobotSourceSchema,
+  incidentIoSourceSchema,
 ]);
 
 export const sourcePatchSchema = z.object({
