@@ -18,8 +18,16 @@ import type { FileReloadResult, FileReloadStatus } from './config/file-reloader.
 import type { CanonicalConfig } from './config/schema.js';
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 import type { SecretStore } from './secrets/store.js';
-import { getPublishedIncident, listPublishedIncidents } from './events/repository.js';
+import {
+  getPublishedIncident,
+  listPublishedEvents,
+  listPublishedIncidents,
+} from './events/repository.js';
 import { feedEtag, renderAtom, renderRss } from './events/feeds.js';
+import {
+  getPublishedMaintenance,
+  listPublishedMaintenances,
+} from './events/maintenance-repository.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
 import { createSubscriptionNonceService } from './subscriptions/nonce.js';
 import {
@@ -219,12 +227,37 @@ export const createApp = ({
     return context.json({ data });
   });
 
+  app.get('/api/v1/public/pages/:slug/maintenance', context => {
+    const page = findPage(context.req.param('slug'));
+    if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+    context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+    return context.json({ data: database ? listPublishedMaintenances(database, page.id) : [] });
+  });
+
+  app.get('/api/v1/public/pages/:slug/maintenance/:id', context => {
+    const page = findPage(context.req.param('slug'));
+    if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+    const data = database
+      ? getPublishedMaintenance(database, page.id, context.req.param('id'))
+      : [];
+    if (data.length === 0) {
+      return errorResponse(
+        context,
+        404,
+        'MAINTENANCE_NOT_FOUND',
+        'Published maintenance not found'
+      );
+    }
+    context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+    return context.json({ data });
+  });
+
   const renderFeed = (context: Context<AppEnvironment>, format: 'rss' | 'atom') => {
     const slug = context.req.param('slug');
     if (!slug) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
     const page = findPage(slug);
     if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
-    const items = database ? listPublishedIncidents(database, page.id) : [];
+    const items = database ? listPublishedEvents(database, page.id) : [];
     const etag = feedEtag(items);
     if (context.req.header('if-none-match') === etag) return context.body(null, 304);
     const baseUrl =

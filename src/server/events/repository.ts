@@ -4,11 +4,13 @@ import type { AuditContext } from '../config/managed-config.js';
 import type { PiiProtector } from '../subscriptions/crypto.js';
 import {
   incidentCreateSchema,
+  incidentPublicationSnapshotSchema,
   incidentUpdateSchema,
   publicationSnapshotSchema,
   type IncidentCreateInput,
   type IncidentState,
   type IncidentUpdateInput,
+  type IncidentPublicationSnapshot,
   type PublicationSnapshot,
 } from './schemas.js';
 
@@ -51,6 +53,7 @@ export interface IncidentRecord {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  publicationDetails: Record<string, never>;
   latestEntry: {
     sequence: number;
     state: IncidentState;
@@ -63,14 +66,37 @@ export interface IncidentRecord {
   };
 }
 
+export interface PublishableEventRecord {
+  id: string;
+  type: 'incident' | 'maintenance';
+  pageId: string;
+  title: string;
+  state: string;
+  version: number;
+  publicationDetails: Record<string, unknown>;
+  latestEntry: {
+    sequence: number;
+    body: string;
+    affectedComponentIds: string[];
+    occurredAt: string;
+    recordedAt: string;
+  };
+}
+
+export interface NativePublicationReview<T extends PublishableEventRecord> {
+  event: T;
+  estimatedRecipients: number;
+}
+
 export interface PublicationReview {
   incident: IncidentRecord;
   estimatedRecipients: number;
 }
 
-const eventError = (code: string, message: string) => Object.assign(new Error(message), { code });
+export const eventError = (code: string, message: string) =>
+  Object.assign(new Error(message), { code });
 
-const hashInput = (input: unknown) =>
+export const hashInput = (input: unknown) =>
   createHash('sha256').update(JSON.stringify(input), 'utf8').digest('hex');
 
 const parseEntry = (row: EntryRow): IncidentRecord['latestEntry'] => ({
@@ -107,6 +133,7 @@ const parseIncident = (database: Database.Database, row: EventRow): IncidentReco
   createdBy: row.created_by,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+  publicationDetails: {},
   latestEntry: getEntry(database, row.id, row.version),
 });
 
@@ -134,7 +161,7 @@ export const listIncidents = (database: Database.Database, limit = 100): Inciden
   return rows.map(row => parseIncident(database, row));
 };
 
-const writeEventAudit = (
+export const writeEventAudit = (
   database: Database.Database,
   audit: AuditContext,
   action: string,
@@ -298,7 +325,7 @@ export const appendIncidentUpdate = (
 
 const matchingSubscriptions = (
   database: Database.Database,
-  incident: IncidentRecord
+  event: PublishableEventRecord
 ): SubscriptionRow[] => {
   const rows = database
     .prepare(
@@ -306,10 +333,10 @@ const matchingSubscriptions = (
        FROM email_subscriptions
        WHERE page_id = ? AND state = 'active' AND (incident_id IS NULL OR incident_id = ?)`
     )
-    .all(incident.pageId, incident.id) as SubscriptionRow[];
-  const affected = new Set(incident.latestEntry.affectedComponentIds);
+    .all(event.pageId, event.id) as SubscriptionRow[];
+  const affected = new Set(event.latestEntry.affectedComponentIds);
   return rows.filter(row => {
-    if (row.incident_id === incident.id) return true;
+    if (row.incident_id === event.id) return true;
     const components = JSON.parse(row.component_ids_json) as string[];
     return components.length === 0 || components.some(component => affected.has(component));
   });
@@ -331,8 +358,24 @@ export const getPublicationReview = (
   return { incident, estimatedRecipients: matchingSubscriptions(database, incident).length };
 };
 
-export const publishIncident = (
+export const getNativePublicationReview = <T extends PublishableEventRecord>(
   database: Database.Database,
+  event: T | null,
+  expectedVersion: number
+): NativePublicationReview<T> => {
+  if (!event) throw eventError('event_not_found', 'Native event does not exist');
+  if (event.version !== expectedVersion) {
+    throw eventError(
+      'event_version_conflict',
+      `Expected version ${expectedVersion}, active version is ${event.version}`
+    );
+  }
+  return { event, estimatedRecipients: matchingSubscriptions(database, event).length };
+};
+
+export const publishNativeEvent = <T extends PublishableEventRecord>(
+  database: Database.Database,
+  loadEvent: () => T | null,
   input: {
     eventId: string;
     expectedVersion: number;
@@ -343,7 +386,7 @@ export const publishIncident = (
   audit: AuditContext
 ): PublicationSnapshot =>
   database.transaction(() => {
-    const review = getPublicationReview(database, input.eventId, input.expectedVersion);
+    const review = getNativePublicationReview(database, loadEvent(), input.expectedVersion);
     if (review.estimatedRecipients !== input.expectedRecipients) {
       throw eventError(
         'publication_review_stale',
@@ -354,26 +397,30 @@ export const publishIncident = (
       .prepare(`SELECT 1 FROM event_publications WHERE event_id = ? AND event_sequence = ?`)
       .get(input.eventId, input.expectedVersion);
     if (duplicate) {
-      throw eventError('event_sequence_already_published', 'Incident version is already published');
+      throw eventError(
+        'event_sequence_already_published',
+        'Native event version is already published'
+      );
     }
 
     const publicationId = randomUUID();
     const publishedAt = new Date().toISOString();
     const snapshot = publicationSnapshotSchema.parse({
       publicationId,
-      eventId: review.incident.id,
-      eventSequence: review.incident.version,
-      type: 'incident',
-      pageId: review.incident.pageId,
-      title: review.incident.title,
-      state: review.incident.state,
-      body: review.incident.latestEntry.body,
-      affectedComponentIds: review.incident.latestEntry.affectedComponentIds,
-      occurredAt: review.incident.latestEntry.occurredAt,
-      recordedAt: review.incident.latestEntry.recordedAt,
+      eventId: review.event.id,
+      eventSequence: review.event.version,
+      type: review.event.type,
+      pageId: review.event.pageId,
+      title: review.event.title,
+      state: review.event.state,
+      body: review.event.latestEntry.body,
+      affectedComponentIds: review.event.latestEntry.affectedComponentIds,
+      occurredAt: review.event.latestEntry.occurredAt,
+      recordedAt: review.event.latestEntry.recordedAt,
       publishedAt,
+      ...review.event.publicationDetails,
     });
-    const subscriptions = matchingSubscriptions(database, review.incident);
+    const subscriptions = matchingSubscriptions(database, review.event);
     database
       .prepare(
         `INSERT INTO event_publications
@@ -385,7 +432,7 @@ export const publishIncident = (
         publicationId,
         input.eventId,
         input.expectedVersion,
-        review.incident.pageId,
+        review.event.pageId,
         JSON.stringify(snapshot),
         input.notifySubscribers ? 1 : 0,
         JSON.stringify({ subscriptionIds: subscriptions.map(item => item.id) }),
@@ -445,7 +492,7 @@ export const publishIncident = (
         );
       }
     }
-    writeEventAudit(database, audit, 'incident.publish', input.eventId, {
+    writeEventAudit(database, audit, `${review.event.type}.publish`, input.eventId, {
       publicationId,
       eventSequence: input.expectedVersion,
       notifySubscribers: input.notifySubscribers,
@@ -454,7 +501,54 @@ export const publishIncident = (
     return snapshot;
   })();
 
+export const publishIncident = (
+  database: Database.Database,
+  input: {
+    eventId: string;
+    expectedVersion: number;
+    notifySubscribers: boolean;
+    expectedRecipients: number;
+    piiProtector?: PiiProtector;
+  },
+  audit: AuditContext
+): IncidentPublicationSnapshot =>
+  incidentPublicationSnapshotSchema.parse(
+    publishNativeEvent(database, () => getIncident(database, input.eventId), input, audit)
+  );
+
 export const listPublishedIncidents = (
+  database: Database.Database,
+  pageId: string,
+  limit = 100
+): IncidentPublicationSnapshot[] => {
+  const rows = database
+    .prepare(
+      `SELECT content_json FROM event_publications
+       WHERE page_id = ? ORDER BY published_at DESC LIMIT ?`
+    )
+    .all(pageId, Math.min(Math.max(limit, 1), 100)) as Array<{ content_json: string }>;
+  return rows
+    .map(row => publicationSnapshotSchema.parse(JSON.parse(row.content_json)))
+    .filter((item): item is IncidentPublicationSnapshot => item.type === 'incident');
+};
+
+export const getPublishedIncident = (
+  database: Database.Database,
+  pageId: string,
+  eventId: string
+): IncidentPublicationSnapshot[] => {
+  const rows = database
+    .prepare(
+      `SELECT content_json FROM event_publications
+       WHERE page_id = ? AND event_id = ? ORDER BY event_sequence ASC`
+    )
+    .all(pageId, eventId) as Array<{ content_json: string }>;
+  return rows
+    .map(row => publicationSnapshotSchema.parse(JSON.parse(row.content_json)))
+    .filter((item): item is IncidentPublicationSnapshot => item.type === 'incident');
+};
+
+export const listPublishedEvents = (
   database: Database.Database,
   pageId: string,
   limit = 100
@@ -465,19 +559,5 @@ export const listPublishedIncidents = (
        WHERE page_id = ? ORDER BY published_at DESC LIMIT ?`
     )
     .all(pageId, Math.min(Math.max(limit, 1), 100)) as Array<{ content_json: string }>;
-  return rows.map(row => publicationSnapshotSchema.parse(JSON.parse(row.content_json)));
-};
-
-export const getPublishedIncident = (
-  database: Database.Database,
-  pageId: string,
-  eventId: string
-): PublicationSnapshot[] => {
-  const rows = database
-    .prepare(
-      `SELECT content_json FROM event_publications
-       WHERE page_id = ? AND event_id = ? ORDER BY event_sequence ASC`
-    )
-    .all(pageId, eventId) as Array<{ content_json: string }>;
   return rows.map(row => publicationSnapshotSchema.parse(JSON.parse(row.content_json)));
 };

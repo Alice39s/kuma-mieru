@@ -223,6 +223,20 @@ functional transport interface; SMTP connection verification and TLS 1.2 minimum
 The worker is not started until a future structured Mail Transport plus Secret Reference is
 validated, so adding the transport does not reintroduce flat credential environment variables.
 
+## Native maintenance windows
+
+Maintenance uses the same append-only Domain Event, Publication Review, subscriber scope snapshot,
+transactional Outbox, and Admin Audit core as Incident without pretending to be an Incident. Its
+state machine is `draft → scheduled → in_progress → completed/cancelled`; backwards transitions,
+stale Expected Versions, invalid time windows, and duplicate publication of one sequence are
+rejected.
+
+Each version retains its scheduled start/end, affected components, occurrence time, record time,
+and actor. Published maintenance appears in the page RSS/Atom feed and the dedicated public
+maintenance API. Email remains an explicit Boolean on every reviewed publication; no state change
+inherits a previous notification choice. The backend Admin API is available in this slice, while
+the dedicated Maintenance editor UI and automatic start/end scheduler remain disabled.
+
 ## Migration invariants
 
 Migration files use the form `000001_name.up.sql`. Startup rejects gaps, invalid names, missing
@@ -230,6 +244,6 @@ historical files, changed checksums, failed integrity checks, and failed foreign
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
 The current implementation does not yet provide passkey enrollment UI, identity administration,
-Maintenance/Notice/Postmortem aggregates, SMTP Secret Store configuration, or Subscriber/Delivery
-administration UI. Their control-plane capabilities must remain disabled until the corresponding
-contracts and security gates are implemented.
+the Maintenance editor and automatic scheduler, Notice/Postmortem aggregates, SMTP Secret Store
+configuration, or Subscriber/Delivery administration UI. Their control-plane capabilities must
+remain disabled until the corresponding contracts and security gates are implemented.

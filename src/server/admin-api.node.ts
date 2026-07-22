@@ -339,10 +339,72 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     assert.equal(publicIncidents.status, 200);
     const publicIncidentBody = (await publicIncidents.json()) as { data: unknown[] };
     assert.equal(publicIncidentBody.data.length, 1);
+
+    const maintenanceCreated = await app.request('/api/v1/admin/maintenances', {
+      method: 'POST',
+      headers: { ...mutationHeaders, 'Idempotency-Key': 'maintenance-create-admin-api-0001' },
+      body: JSON.stringify({
+        pageId: 'public',
+        title: 'Database maintenance',
+        body: 'We will apply a database upgrade.',
+        affectedComponentIds: ['primary'],
+        scheduledStartAt: '2026-07-24T01:00:00.000Z',
+        scheduledEndAt: '2026-07-24T02:00:00.000Z',
+      }),
+    });
+    assert.equal(maintenanceCreated.status, 201);
+    const maintenance = (await maintenanceCreated.json()) as {
+      data: { id: string; version: number };
+    };
+    const maintenanceUpdated = await app.request(
+      `/api/v1/admin/maintenances/${maintenance.data.id}/updates`,
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          expectedVersion: maintenance.data.version,
+          state: 'scheduled',
+          body: 'The maintenance window is confirmed.',
+        }),
+      }
+    );
+    assert.equal(maintenanceUpdated.status, 200);
+    const maintenanceReviewResponse = await app.request(
+      `/api/v1/admin/maintenances/${maintenance.data.id}/review`,
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({ expectedVersion: 2, notifySubscribers: false }),
+      }
+    );
+    assert.equal(maintenanceReviewResponse.status, 200);
+    const maintenanceReview = (await maintenanceReviewResponse.json()) as {
+      data: { reviewNonce: string };
+    };
+    const maintenancePublished = await app.request(
+      `/api/v1/admin/maintenances/${maintenance.data.id}/publish`,
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          expectedVersion: 2,
+          notifySubscribers: false,
+          reviewNonce: maintenanceReview.data.reviewNonce,
+        }),
+      }
+    );
+    assert.equal(maintenancePublished.status, 201);
+    const publicMaintenance = await app.request('/api/v1/public/pages/main/maintenance');
+    const publicMaintenanceBody = (await publicMaintenance.json()) as { data: unknown[] };
+    assert.equal(publicMaintenance.status, 200);
+    assert.equal(publicMaintenanceBody.data.length, 1);
+
     const rss = await app.request('/status/main/rss.xml');
     assert.equal(rss.status, 200);
     assert.equal(rss.headers.get('content-type'), 'application/rss+xml; charset=utf-8');
-    assert.equal((await rss.text()).includes('API latency elevated'), true);
+    const rssBody = await rss.text();
+    assert.equal(rssBody.includes('API latency elevated'), true);
+    assert.equal(rssBody.includes('Database maintenance'), true);
     const etag = rss.headers.get('etag');
     assert.ok(etag);
     const unchangedRss = await app.request('/status/main/rss.xml', {
