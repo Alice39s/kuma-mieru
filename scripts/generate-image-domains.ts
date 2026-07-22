@@ -87,10 +87,6 @@ const generateImageDomains = (): void => {
     })
   );
 
-  if (patterns.length === 0) {
-    patterns.push({ hostname: '*', protocols: [...supportedProtocols] });
-  }
-
   const legacyDomains = patterns.map(pattern => pattern.hostname);
 
   const domainsConfig: ImageDomainsConfig = {

@@ -1,9 +1,11 @@
 import type { CheerioAPI } from 'cheerio';
 import * as cheerio from 'cheerio';
 import type { PreloadData } from '../types/config';
-import { ConfigError } from './errors';
+import { ConfigError, getErrorMessage } from './errors';
 import { extractPreloadData } from './json-processor';
 import { sanitizeJsonString, validatePreloadData } from './json-sanitizer';
+import { normalizeRequestHeaders } from './headers';
+import { decodeHtmlEntities } from './html-entities';
 import { normalizeBaseUrl } from './url';
 
 type PreloadSource = 'script' | 'data-json';
@@ -56,61 +58,11 @@ const PRELOAD_SCRIPT_WITH_ID_REGEX =
 const DATA_JSON_ATTR_REGEX = /\bdata-json\s*=\s*("([^"]*)"|'([^']*)')/i;
 const LEGACY_PRELOAD_REGEX = /window\.preloadData\s*=\s*({[\s\S]*?});/;
 
-function normalizeHeaders(headers?: HeadersInit): Record<string, string> {
-  if (!headers) {
-    return {};
-  }
-
-  if (headers instanceof Headers) {
-    return Object.fromEntries(headers.entries());
-  }
-
-  if (Array.isArray(headers)) {
-    return Object.fromEntries(headers);
-  }
-
-  return { ...headers };
-}
-
 function ensureAcceptHeader(headers: Record<string, string>) {
   const hasAcceptHeader = Object.keys(headers).some(key => key.toLowerCase() === 'accept');
   if (!hasAcceptHeader) {
-    headers.Accept = 'application/json';
+    headers.accept = 'application/json';
   }
-}
-
-function decodeHtmlEntities(value: string): string {
-  return value.replace(/&(?:quot|apos|amp|lt|gt|#39|#x27|#(\d+)|#x([0-9a-fA-F]+));/g, match => {
-    switch (match) {
-      case '&quot;':
-        return '"';
-      case '&apos;':
-      case '&#39;':
-      case '&#x27;':
-        return "'";
-      case '&amp;':
-        return '&';
-      case '&lt;':
-        return '<';
-      case '&gt;':
-        return '>';
-      default: {
-        const decimalMatch = match.match(/^&#(\d+);$/);
-        if (decimalMatch?.[1]) {
-          const codePoint = Number.parseInt(decimalMatch[1], 10);
-          return Number.isNaN(codePoint) ? match : String.fromCodePoint(codePoint);
-        }
-
-        const hexMatch = match.match(/^&#x([0-9a-fA-F]+);$/);
-        if (hexMatch?.[1]) {
-          const codePoint = Number.parseInt(hexMatch[1], 16);
-          return Number.isNaN(codePoint) ? match : String.fromCodePoint(codePoint);
-        }
-
-        return match;
-      }
-    }
-  });
 }
 
 function getPreloadPayloadFromHtmlFast(html: string): PreloadExtractionResult {
@@ -177,10 +129,7 @@ function parsePreloadPayload(payload: string): PreloadData {
       throw error;
     }
 
-    throw new ConfigError(
-      `Failed to parse preload data: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      error
-    );
+    throw new ConfigError(`Failed to parse preload data: ${getErrorMessage(error)}`, error);
   }
 }
 
@@ -344,7 +293,7 @@ export async function fetchPreloadDataFromApi({
   const normalizedBase = normalizeBaseUrl(baseUrl);
   const url = `${normalizedBase}/api/status-page/${pageId}`;
 
-  const normalizedHeaders = normalizeHeaders(requestInit?.headers as HeadersInit | undefined);
+  const normalizedHeaders = normalizeRequestHeaders(requestInit?.headers);
   ensureAcceptHeader(normalizedHeaders);
 
   const finalInit: Record<string, unknown> = {

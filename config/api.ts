@@ -1,3 +1,5 @@
+import 'server-only';
+
 import type { Config, PublicConfig } from '@/types/config';
 import { env } from './env';
 

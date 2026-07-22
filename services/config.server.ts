@@ -1,11 +1,18 @@
+import 'server-only';
+
 import { getConfig } from '@/config/api';
 import type { Config, GlobalConfig, Maintenance } from '@/types/config';
 import type { PageTabMeta, PageTabsStatusMatrix } from '@/types/page';
-import { ConfigError } from '@/utils/errors';
+import { ConfigError, getErrorLogDetails, getErrorMessage } from '@/utils/errors';
 import { buildIconProxyUrl } from '@/utils/icon-proxy';
 import { resolvePreloadDataFromHtml } from '@/utils/preload-data';
+import {
+  parseGlobalConfigData,
+  parseMaintenanceList,
+  parseSiteConfig,
+} from '@/utils/preload-data-schema';
 import { cache } from 'react';
-import { ApiDataError, logApiError } from './utils/api-service';
+import { logApiError } from './utils/api-service';
 import { customFetchOptions, ensureUTCTimezone } from './utils/common';
 import { customFetch } from './utils/fetch';
 import { classifyRequestError, extractHttpStatusDetails } from './utils/request-error';
@@ -95,12 +102,7 @@ export async function getMaintenanceData(pageId?: string) {
 
   try {
     const preloadData = await getPreloadData(config);
-
-    if (!Array.isArray(preloadData.maintenanceList)) {
-      throw new ApiDataError('Maintenance list data must be an array');
-    }
-
-    const maintenanceList = preloadData.maintenanceList;
+    const maintenanceList = parseMaintenanceList(preloadData.maintenanceList);
     const processedList = processMaintenanceData(maintenanceList);
 
     return {
@@ -116,7 +118,7 @@ export async function getMaintenanceData(pageId?: string) {
       success: false,
       maintenanceList: [],
       failureType: classifyRequestError(error),
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: getErrorMessage(error, 'Unknown error occurred'),
     };
   }
 }
@@ -146,17 +148,11 @@ export const getPageTabsMetadataResult = cache(async (): Promise<PageTabsMetadat
 
       try {
         const preloadData = await getPreloadData(pageConfig);
-        const meta = preloadData.config ?? {};
+        const meta = parseSiteConfig(preloadData.config);
 
-        const title =
-          typeof meta.title === 'string' && meta.title.trim().length > 0
-            ? meta.title.trim()
-            : pageConfig.siteMeta.title?.trim() || pageId;
+        const title = meta.title.trim() || pageConfig.siteMeta.title?.trim() || pageId;
 
-        const description =
-          typeof meta.description === 'string' && meta.description.trim().length > 0
-            ? meta.description.trim()
-            : pageConfig.siteMeta.description?.trim();
+        const description = meta.description.trim() || pageConfig.siteMeta.description?.trim();
 
         return {
           id: pageId,
@@ -184,7 +180,7 @@ export const getPageTabsMetadataResult = cache(async (): Promise<PageTabsMetadat
           icon: buildIconProxyUrl(pageId),
           health: 'unavailable',
           failureType: classifyRequestError(error),
-          failureMessage: error instanceof Error ? error.message : 'Unknown error',
+          failureMessage: getErrorMessage(error),
           failureStatusCode: statusDetails.statusCode,
           failureStatusMessage: statusDetails.statusMessage,
         } satisfies PageTabMeta;
@@ -227,62 +223,15 @@ export const getGlobalConfigResult = cache(async (pageId?: string): Promise<Glob
 
   try {
     const preloadData = await getPreloadData(config);
-
-    if (!preloadData.config) {
-      throw new ConfigError('Configuration data is missing');
-    }
-
-    const requiredFields = ['slug', 'title', 'description', 'icon', 'theme'];
-
-    for (const field of requiredFields) {
-      if (!(field in preloadData.config)) {
-        throw new ConfigError(`Configuration is missing required field: ${field}`);
-      }
-    }
-
-    if (typeof preloadData.config.theme !== 'string') {
-      throw new ConfigError('Theme must be a string');
-    }
-
-    const theme =
-      preloadData.config.theme === 'dark'
-        ? 'dark'
-        : preloadData.config.theme === 'light'
-          ? 'light'
-          : 'system';
-
-    const maintenanceList = Array.isArray(preloadData.maintenanceList)
-      ? processMaintenanceData(preloadData.maintenanceList)
-      : [];
-
-    const rawIncidents = Array.isArray(preloadData.incidents)
-      ? preloadData.incidents
-      : preloadData.incident
-        ? [preloadData.incident]
-        : [];
-
-    // `active` is omitted by legacy Kuma (single-incident shape) — treat missing as active
-    // so back-compat consumers keep seeing the incident. Newer Kuma sends an explicit boolean.
-    // `createdDate` is required: without it the UI would render the Unix epoch (1970) rather
-    // than a meaningful timestamp, so drop malformed entries at the boundary.
-    const incidents = rawIncidents
-      .filter(incident => incident && incident.active !== false && incident.createdDate)
-      .map(incident => ({
-        ...incident,
-        pin: Boolean(incident.pin),
-        createdDate: ensureUTCTimezone(incident.createdDate),
-        lastUpdatedDate: incident.lastUpdatedDate
-          ? ensureUTCTimezone(incident.lastUpdatedDate)
-          : null,
-      }));
+    const parsed = parseGlobalConfigData(preloadData);
+    const maintenanceList = processMaintenanceData(parsed.maintenanceList);
 
     const result: GlobalConfig = {
       config: {
-        ...preloadData.config,
+        ...parsed.config,
         icon: buildIconProxyUrl(config.pageId),
-        theme,
       },
-      incidents: incidents.length > 0 ? incidents : undefined,
+      incidents: parsed.incidents,
       maintenanceList,
     };
 
@@ -306,7 +255,7 @@ export const getGlobalConfigResult = cache(async (pageId?: string): Promise<Glob
       status: 'all_failed',
       data: buildFallbackGlobalConfig(config),
       failureType: classifyRequestError(error),
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error),
     };
   }
 });
@@ -319,9 +268,9 @@ export const getGlobalConfig = cache(async (pageId?: string): Promise<GlobalConf
 export const getUpstreamIconUrl = cache(async (config: Config): Promise<string | null> => {
   try {
     const preloadData = await getPreloadData(config);
-    const icon = preloadData.config?.icon;
+    const { icon } = parseSiteConfig(preloadData.config);
 
-    return typeof icon === 'string' && icon.trim().length > 0 ? icon.trim() : null;
+    return icon.trim() || null;
   } catch {
     return null;
   }
@@ -359,15 +308,7 @@ export async function getPreloadData(config: Config) {
     }
     console.error('Failed to get preload data:', {
       endpoint: config.htmlEndpoint,
-      error:
-        error instanceof Error
-          ? {
-              name: error.name,
-              message: error.message,
-              stack: error.stack,
-              cause: error.cause,
-            }
-          : error,
+      error: getErrorLogDetails(error),
     });
     throw new ConfigError(
       'Failed to get preload data, please check network connection and server status',

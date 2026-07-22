@@ -1,10 +1,14 @@
+import 'server-only';
+
 import { getConfig } from '@/config/api';
 import { getPreloadData } from '@/services/config.server';
-import type { HeartbeatData, MonitorGroup, MonitoringData, UptimeData } from '@/types/monitor';
+import type { HeartbeatData, MonitorGroup, MonitoringData } from '@/types/monitor';
 import type { PageFailureType } from '@/types/page';
+import { getErrorLogDetails, getErrorMessage } from '@/utils/errors';
 import { customFetchOptions, ensureUTCTimezone } from './utils/common';
 import { customFetch } from './utils/fetch';
 import { classifyRequestError } from './utils/request-error';
+import { parseMonitorGroups, parseMonitoringPayload } from './uptime-kuma-schemas';
 
 /**
  * Process heartbeat data to ensure UTC timezone
@@ -78,10 +82,7 @@ export async function getMonitoringDataResult(pageId?: string): Promise<Monitori
     // 使用共享的预加载数据获取函数
     const preloadData = await getPreloadData(config);
 
-    // 验证监控组数据
-    if (!Array.isArray(preloadData.publicGroupList)) {
-      throw new MonitorDataError('Monitor group data must be an array');
-    }
+    const monitorGroups = parseMonitorGroups(preloadData.publicGroupList);
 
     // 获取监控数据
     const apiResponse = await customFetch(config.apiEndpoint, customFetchOptions);
@@ -94,24 +95,7 @@ export async function getMonitoringDataResult(pageId?: string): Promise<Monitori
 
     let monitoringData: MonitoringData;
     try {
-      const rawData = (await apiResponse.json()) as {
-        heartbeatList: HeartbeatData;
-        uptimeList: UptimeData;
-      };
-
-      // 验证监控数据结构
-      if (!rawData || typeof rawData !== 'object') {
-        throw new MonitorDataError('Monitor data must be an object');
-      }
-
-      if (!('heartbeatList' in rawData) || !('uptimeList' in rawData)) {
-        throw new MonitorDataError('Monitor data is missing required fields');
-      }
-
-      // 验证心跳列表和正常运行时间列表的数据类型
-      if (typeof rawData.heartbeatList !== 'object' || typeof rawData.uptimeList !== 'object') {
-        throw new MonitorDataError('Heartbeat list and uptime list must be objects');
-      }
+      const rawData = parseMonitoringPayload(await apiResponse.json());
 
       monitoringData = {
         ...rawData,
@@ -128,7 +112,7 @@ export async function getMonitoringDataResult(pageId?: string): Promise<Monitori
       success: true,
       status: 'ok',
       data: {
-        monitorGroups: preloadData.publicGroupList,
+        monitorGroups,
         data: monitoringData,
       },
     };
@@ -137,15 +121,7 @@ export async function getMonitoringDataResult(pageId?: string): Promise<Monitori
       'Failed to get monitoring data:',
       error instanceof MonitorDataError ? error.message : 'Unknown error',
       {
-        error:
-          error instanceof Error
-            ? {
-                name: error.name,
-                message: error.message,
-                stack: error.stack,
-                cause: error.cause,
-              }
-            : error,
+        error: getErrorLogDetails(error),
         endpoint: config.apiEndpoint,
       }
     );
@@ -155,7 +131,7 @@ export async function getMonitoringDataResult(pageId?: string): Promise<Monitori
       status: 'all_failed',
       data: createFallbackMonitoringData(),
       failureType: classifyRequestError(error),
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error),
     };
   }
 }
