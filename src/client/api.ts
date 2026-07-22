@@ -13,6 +13,12 @@ export interface RuntimeMeta {
     revision: number | null;
     contentHash: string;
     loadedAt: string;
+    reload: {
+      state: 'ready' | 'checking' | 'failed';
+      lastAttemptAt: string | null;
+      lastSuccessAt: string;
+      lastErrorCode: string | null;
+    } | null;
   };
   capabilities: {
     managedConfig: boolean;

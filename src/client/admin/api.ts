@@ -56,6 +56,13 @@ export interface AdminIncident {
   };
 }
 
+interface ReloadStatus {
+  state: 'ready' | 'checking' | 'failed';
+  lastAttemptAt: string | null;
+  lastSuccessAt: string;
+  lastErrorCode: string | null;
+}
+
 export interface AdminMeta {
   version: string;
   schemaVersion: number;
@@ -64,8 +71,13 @@ export interface AdminMeta {
     revision: number | null;
     contentHash: string;
     loadedAt: string;
+    reload: (ReloadStatus & { failedHash: string | null }) | null;
   };
 }
+
+type PublicMeta = Omit<AdminMeta, 'config'> & {
+  config: Omit<AdminMeta['config'], 'reload'> & { reload: ReloadStatus | null };
+};
 
 interface ErrorEnvelope {
   error?: { code?: string; message?: string; requestId?: string };
@@ -135,15 +147,16 @@ export const getAdminSession = async () =>
   (await request<{ data: AdminSession }>('/api/v1/admin/session')).data;
 
 export const getWorkbenchData = async () => {
-  const [meta, sources, pages, revisions, incidents] = await Promise.all([
-    request<AdminMeta>('/api/v1/meta'),
+  const [meta, configStatus, sources, pages, revisions, incidents] = await Promise.all([
+    request<PublicMeta>('/api/v1/meta'),
+    request<{ data: AdminMeta['config'] }>('/api/v1/admin/config/status'),
     request<{ data: AdminSource[] }>('/api/v1/admin/sources'),
     request<{ data: AdminPage[] }>('/api/v1/admin/pages'),
     request<{ data: AdminRevision[] }>('/api/v1/admin/config/revisions'),
     request<{ data: AdminIncident[] }>('/api/v1/admin/events'),
   ]);
   return {
-    meta,
+    meta: { ...meta, config: configStatus.data },
     sources: sources.data,
     pages: pages.data,
     revisions: revisions.data,
@@ -276,3 +289,15 @@ export const rollbackRevision = (
       body: JSON.stringify(input),
     }
   );
+
+export const reloadFileConfig = (session: AdminSession) =>
+  request<{
+    data: {
+      outcome: 'unchanged' | 'applied';
+      status: NonNullable<AdminMeta['config']['reload']>;
+    };
+  }>('/api/v1/admin/config/reload', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: '{}',
+  });

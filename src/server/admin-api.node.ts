@@ -77,6 +77,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
         config: revision.config,
       };
     };
+    let fileReloads = 0;
     const app = createApp({
       snapshot: runtime,
       getRuntimeSnapshot: () => runtime,
@@ -88,6 +89,26 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       trustedOrigins: [baseURL],
       secretStore,
       onManagedRevision: apply,
+      getFileReloadStatus: () => ({
+        state: 'failed',
+        lastAttemptAt: '2026-07-23T00:01:00.000Z',
+        lastSuccessAt: '2026-07-23T00:00:00.000Z',
+        lastErrorCode: 'config_invalid',
+        failedHash: 'a'.repeat(64),
+      }),
+      reloadFileConfig: async () => {
+        fileReloads += 1;
+        return {
+          outcome: 'unchanged',
+          status: {
+            state: 'ready',
+            lastAttemptAt: new Date().toISOString(),
+            lastSuccessAt: runtime.loadedAt,
+            lastErrorCode: null,
+            failedHash: null,
+          },
+        };
+      },
     });
 
     const unauthenticated = await app.request('/api/v1/admin/pages');
@@ -356,6 +377,33 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       ).count,
       1
     );
+
+    const reloadOutsideFileMode = await app.request('/api/v1/admin/config/reload', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: '{}',
+    });
+    assert.equal(reloadOutsideFileMode.status, 409);
+    const managedRuntime = runtime;
+    runtime = { ...runtime, mode: 'file', revision: null };
+    const publicMeta = await app.request('/api/v1/meta');
+    const publicMetaBody = (await publicMeta.json()) as { config: { reload: unknown } };
+    assert.equal(JSON.stringify(publicMetaBody.config.reload).includes('failedHash'), false);
+    const adminConfigStatus = await app.request('/api/v1/admin/config/status', {
+      headers: { Cookie: cookie },
+    });
+    const adminConfigStatusBody = (await adminConfigStatus.json()) as {
+      data: { reload: { failedHash: string } };
+    };
+    assert.equal(adminConfigStatusBody.data.reload.failedHash, 'a'.repeat(64));
+    const fileReload = await app.request('/api/v1/admin/config/reload', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: '{}',
+    });
+    assert.equal(fileReload.status, 200);
+    assert.equal(fileReloads, 1);
+    runtime = managedRuntime;
 
     const signedOut = await app.request('/api/auth/sign-out', {
       method: 'POST',

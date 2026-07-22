@@ -14,6 +14,7 @@ import { errorResponse, type AppEnvironment } from './api/errors.js';
 import type { KumaAuth } from './auth/auth.js';
 import type { BootstrapService } from './auth/bootstrap.js';
 import type { ConfigRevision } from './config/repository.js';
+import type { FileReloadResult, FileReloadStatus } from './config/file-reloader.js';
 import type { CanonicalConfig } from './config/schema.js';
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 import type { SecretStore } from './secrets/store.js';
@@ -43,6 +44,8 @@ export interface AppOptions {
   authSecret?: string;
   trustedOrigins?: string[];
   onManagedRevision?: (revision: ConfigRevision) => void | Promise<void>;
+  getFileReloadStatus?: () => FileReloadStatus;
+  reloadFileConfig?: () => Promise<FileReloadResult>;
   bootstrap?: BootstrapService;
   sourceTest?: SourceTestService;
   secretStore?: SecretStore;
@@ -61,6 +64,8 @@ export const createApp = ({
   authSecret,
   trustedOrigins = [],
   onManagedRevision,
+  getFileReloadStatus,
+  reloadFileConfig,
   bootstrap,
   sourceTest,
   secretStore,
@@ -150,6 +155,7 @@ export const createApp = ({
 
   app.get('/api/v1/meta', context => {
     const runtime = currentSnapshot();
+    const reload = getFileReloadStatus?.();
     context.header('Cache-Control', 'no-store');
     return context.json({
       version: buildVersion,
@@ -159,6 +165,14 @@ export const createApp = ({
         revision: runtime.revision,
         contentHash: runtime.contentHash,
         loadedAt: runtime.loadedAt,
+        reload: reload
+          ? {
+              state: reload.state,
+              lastAttemptAt: reload.lastAttemptAt,
+              lastSuccessAt: reload.lastSuccessAt,
+              lastErrorCode: reload.lastErrorCode,
+            }
+          : null,
       },
       capabilities: {
         managedConfig: runtime.mode === 'managed',
@@ -426,6 +440,8 @@ export const createApp = ({
     secretStore,
     currentSnapshot,
     onManagedRevision,
+    getFileReloadStatus,
+    reloadFileConfig,
   });
 
   app.notFound(context => {

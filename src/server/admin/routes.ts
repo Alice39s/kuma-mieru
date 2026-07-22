@@ -16,6 +16,7 @@ import {
   type AdminPrincipal,
 } from '../auth/security.js';
 import { mutateManagedConfig, rollbackManagedConfig } from '../config/managed-config.js';
+import type { FileReloadResult, FileReloadStatus } from '../config/file-reloader.js';
 import { listManagedRevisions, type ConfigRevision } from '../config/repository.js';
 import {
   sourcePatchSchema as sourcePatchValueSchema,
@@ -78,6 +79,8 @@ export interface AdminRouteOptions {
   secretStore?: SecretStore;
   currentSnapshot: () => RuntimeConfigSnapshot;
   onManagedRevision?: (revision: ConfigRevision) => void | Promise<void>;
+  getFileReloadStatus?: () => FileReloadStatus;
+  reloadFileConfig?: () => Promise<FileReloadResult>;
 }
 
 export const registerAdminRoutes = (
@@ -91,15 +94,17 @@ export const registerAdminRoutes = (
     secretStore,
     currentSnapshot,
     onManagedRevision,
+    getFileReloadStatus,
+    reloadFileConfig,
   }: AdminRouteOptions
 ) => {
   const publicationReview = authSecret ? createPublicationReviewService(authSecret) : null;
   const piiProtector = authSecret ? createPiiProtector(authSecret) : null;
-  const writeAttemptAudit = (
+  const writeRouteAudit = (
     context: Context<AppEnvironment>,
     actorId: string,
-    result: 'denied' | 'failed',
-    errorCode: string
+    result: 'success' | 'denied' | 'failed',
+    errorCode: string | null
   ) => {
     if (!database) return;
     database
@@ -136,14 +141,14 @@ export const registerAdminRoutes = (
       };
     }
     if (!hasRole(principal, roles)) {
-      writeAttemptAudit(context, principal.userId, 'denied', 'FORBIDDEN');
+      writeRouteAudit(context, principal.userId, 'denied', 'FORBIDDEN');
       return {
         ok: false as const,
         response: errorResponse(context, 403, 'FORBIDDEN', 'Role does not permit this action'),
       };
     }
     if (recentAuthentication && !isRecentlyAuthenticated(principal)) {
-      writeAttemptAudit(context, principal.userId, 'denied', 'REAUTH_REQUIRED');
+      writeRouteAudit(context, principal.userId, 'denied', 'REAUTH_REQUIRED');
       return {
         ok: false as const,
         response: errorResponse(
@@ -156,7 +161,7 @@ export const registerAdminRoutes = (
     }
     if (mutation) {
       if (!isTrustedBrowserMutation(context.req.raw, trustedOrigins)) {
-        writeAttemptAudit(context, principal.userId, 'denied', 'UNTRUSTED_ORIGIN');
+        writeRouteAudit(context, principal.userId, 'denied', 'UNTRUSTED_ORIGIN');
         return {
           ok: false as const,
           response: errorResponse(
@@ -171,14 +176,14 @@ export const registerAdminRoutes = (
         !authSecret ||
         !verifyCsrfToken(authSecret, principal.sessionId, context.req.header('x-kuma-csrf'))
       ) {
-        writeAttemptAudit(context, principal.userId, 'denied', 'CSRF_TOKEN_INVALID');
+        writeRouteAudit(context, principal.userId, 'denied', 'CSRF_TOKEN_INVALID');
         return {
           ok: false as const,
           response: errorResponse(context, 403, 'CSRF_TOKEN_INVALID', 'CSRF token is invalid'),
         };
       }
       if (!context.req.header('content-type')?.toLowerCase().startsWith('application/json')) {
-        writeAttemptAudit(context, principal.userId, 'denied', 'JSON_REQUIRED');
+        writeRouteAudit(context, principal.userId, 'denied', 'JSON_REQUIRED');
         return {
           ok: false as const,
           response: errorResponse(context, 415, 'JSON_REQUIRED', 'Admin mutations require JSON'),
@@ -200,7 +205,7 @@ export const registerAdminRoutes = (
     principal: AdminPrincipal
   ) => {
     if (error instanceof z.ZodError) {
-      writeAttemptAudit(context, principal.userId, 'failed', 'VALIDATION_FAILED');
+      writeRouteAudit(context, principal.userId, 'failed', 'VALIDATION_FAILED');
       return errorResponse(
         context,
         400,
@@ -215,7 +220,7 @@ export const registerAdminRoutes = (
         : 'CONFIG_MUTATION_FAILED';
     const status =
       code === 'config_revision_conflict' ? 409 : code === 'config_revision_not_found' ? 404 : 400;
-    writeAttemptAudit(context, principal.userId, 'failed', code.toUpperCase());
+    writeRouteAudit(context, principal.userId, 'failed', code.toUpperCase());
     return errorResponse(
       context,
       status,
@@ -275,12 +280,7 @@ export const registerAdminRoutes = (
     try {
       const input = sourceTokenSecretSchema.parse(await context.req.json());
       if (currentSnapshot().config.sources.some(source => source.id === input.resourceId)) {
-        writeAttemptAudit(
-          context,
-          authorization.principal.userId,
-          'failed',
-          'SOURCE_ALREADY_EXISTS'
-        );
+        writeRouteAudit(context, authorization.principal.userId, 'failed', 'SOURCE_ALREADY_EXISTS');
         return errorResponse(
           context,
           409,
@@ -313,7 +313,7 @@ export const registerAdminRoutes = (
       return context.json({ data: metadata }, 201);
     } catch (error) {
       const code = error instanceof z.ZodError ? 'VALIDATION_FAILED' : 'SECRET_WRITE_FAILED';
-      writeAttemptAudit(context, authorization.principal.userId, 'failed', code);
+      writeRouteAudit(context, authorization.principal.userId, 'failed', code);
       return errorResponse(
         context,
         400,
@@ -329,7 +329,7 @@ export const registerAdminRoutes = (
     principal: AdminPrincipal
   ) => {
     if (error instanceof z.ZodError) {
-      writeAttemptAudit(context, principal.userId, 'failed', 'VALIDATION_FAILED');
+      writeRouteAudit(context, principal.userId, 'failed', 'VALIDATION_FAILED');
       return errorResponse(
         context,
         400,
@@ -351,7 +351,7 @@ export const registerAdminRoutes = (
             code.includes('reused')
           ? 409
           : 400;
-    writeAttemptAudit(context, principal.userId, 'failed', code.toUpperCase());
+    writeRouteAudit(context, principal.userId, 'failed', code.toUpperCase());
     return errorResponse(
       context,
       status,
@@ -462,7 +462,7 @@ export const registerAdminRoutes = (
         principal: authorization.principal,
       };
       if (!publicationReview.verify(reviewInput, input.reviewNonce)) {
-        writeAttemptAudit(
+        writeRouteAudit(
           context,
           authorization.principal.userId,
           'failed',
@@ -531,6 +531,60 @@ export const registerAdminRoutes = (
         'The source connection test failed'
       );
     }
+  });
+
+  app.post('/api/v1/admin/config/reload', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (currentSnapshot().mode !== 'file') {
+      return errorResponse(
+        context,
+        409,
+        'CONFIG_MODE_NOT_FILE',
+        'Configuration reload is available only in file mode'
+      );
+    }
+    if (!reloadFileConfig) {
+      return errorResponse(
+        context,
+        503,
+        'CONFIG_RELOAD_NOT_READY',
+        'Configuration reload is unavailable'
+      );
+    }
+    const result = await reloadFileConfig();
+    if (result.outcome === 'failed') {
+      writeRouteAudit(
+        context,
+        authorization.principal.userId,
+        'failed',
+        result.status.lastErrorCode?.toUpperCase() ?? 'CONFIG_RELOAD_FAILED'
+      );
+      return errorResponse(
+        context,
+        409,
+        result.status.lastErrorCode?.toUpperCase() ?? 'CONFIG_RELOAD_FAILED',
+        'The candidate file did not pass reload validation'
+      );
+    }
+    writeRouteAudit(context, authorization.principal.userId, 'success', null);
+    return context.json({ data: result });
+  });
+
+  app.get('/api/v1/admin/config/status', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    const runtime = currentSnapshot();
+    context.header('Cache-Control', 'no-store');
+    return context.json({
+      data: {
+        mode: runtime.mode,
+        revision: runtime.revision,
+        contentHash: runtime.contentHash,
+        loadedAt: runtime.loadedAt,
+        reload: getFileReloadStatus?.() ?? null,
+      },
+    });
   });
 
   app.post('/api/v1/admin/sources', async context => {

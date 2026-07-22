@@ -16,7 +16,13 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
-import { getWorkbenchData, rollbackRevision, signOut, type AdminSession } from './api';
+import {
+  getWorkbenchData,
+  reloadFileConfig,
+  rollbackRevision,
+  signOut,
+  type AdminSession,
+} from './api';
 import { PageForm } from './page-form';
 import { SourceWizard } from './source-wizard';
 import { EventWorkspace } from './event-workspace';
@@ -32,22 +38,38 @@ const navigation: Array<{ id: Panel; label: string; icon: typeof Activity }> = [
   { id: 'revisions', label: 'Revisions', icon: FileClock },
 ];
 
-const Overview = ({ data }: { data: WorkbenchData }) => (
+const Overview = ({
+  data,
+  session,
+  reloadingFile,
+  onReloadFile,
+}: {
+  data: WorkbenchData;
+  session: AdminSession;
+  reloadingFile: boolean;
+  onReloadFile: () => Promise<void>;
+}) => (
   <div className="workbench-overview">
     <header className="workbench-page-heading">
       <div>
         <p className="admin-eyebrow">Operational summary</p>
         <h1>The system is quiet.</h1>
         <p>
-          Configuration is active, revisioned, and served without visitor-triggered upstream work.
+          {data.meta.config.mode === 'managed'
+            ? 'Configuration is active, revisioned, and served without visitor-triggered upstream work.'
+            : 'Configuration is active from a validated file snapshot; failed reloads retain the last-known-good state.'}
         </p>
       </div>
       <span className={`mode-stamp mode-${data.meta.config.mode}`}>{data.meta.config.mode}</span>
     </header>
     <div className="metric-ledger">
       <article>
-        <span>Active revision</span>
-        <strong>r{data.meta.config.revision ?? '—'}</strong>
+        <span>
+          {data.meta.config.mode === 'managed' ? 'Active revision' : 'Active file snapshot'}
+        </span>
+        <strong>
+          {data.meta.config.mode === 'managed' ? `r${data.meta.config.revision ?? '—'}` : 'GitOps'}
+        </strong>
         <small>{data.meta.config.contentHash.slice(0, 12)}</small>
       </article>
       <article>
@@ -79,6 +101,38 @@ const Overview = ({ data }: { data: WorkbenchData }) => (
         </p>
       )}
     </section>
+    {data.meta.config.mode === 'file' && data.meta.config.reload ? (
+      <section className={`file-reload-card is-${data.meta.config.reload.state}`}>
+        <div>
+          <p className="admin-eyebrow">File mode integrity</p>
+          <h2>
+            {data.meta.config.reload.state === 'failed'
+              ? 'Candidate rejected; serving last-known-good.'
+              : 'Validated file snapshot is active.'}
+          </h2>
+          <p>
+            Last successful load {new Date(data.meta.config.reload.lastSuccessAt).toLocaleString()}.
+            {data.meta.config.reload.lastErrorCode
+              ? ` Error: ${data.meta.config.reload.lastErrorCode}.`
+              : ' Periodic stat and hash checks are running.'}
+            {data.meta.config.reload.failedHash
+              ? ` Candidate ${data.meta.config.reload.failedHash.slice(0, 12)}.`
+              : ''}
+          </p>
+        </div>
+        {session.role === 'owner' ? (
+          <button
+            className="admin-secondary-button"
+            disabled={reloadingFile}
+            onClick={() => void onReloadFile()}
+            type="button"
+          >
+            <RefreshCw className={reloadingFile ? 'is-spinning' : ''} size={16} />
+            {reloadingFile ? 'Validating…' : 'Validate and reload'}
+          </button>
+        ) : null}
+      </section>
+    ) : null}
   </div>
 );
 
@@ -260,6 +314,7 @@ export const Workbench = ({
   const [panel, setPanel] = useState<Panel>('overview');
   const [data, setData] = useState<WorkbenchData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reloadingFile, setReloadingFile] = useState(false);
   const reload = useCallback(async () => {
     setLoading(true);
     try {
@@ -290,6 +345,23 @@ export const Workbench = ({
       await signOut();
     } finally {
       onSignedOut();
+    }
+  };
+  const triggerFileReload = async () => {
+    setReloadingFile(true);
+    try {
+      const result = await reloadFileConfig(session);
+      toast.success(
+        result.data.outcome === 'applied' ? 'File snapshot activated' : 'File snapshot unchanged'
+      );
+      await reload();
+    } catch (error) {
+      toast.error('File snapshot was rejected', {
+        description: error instanceof Error ? error.message : 'The last-known-good remains active.',
+      });
+      await reload();
+    } finally {
+      setReloadingFile(false);
     }
   };
   const canEdit =
@@ -344,7 +416,14 @@ export const Workbench = ({
           <div className="workbench-loading">Reading the active revision…</div>
         ) : (
           <>
-            {panel === 'overview' ? <Overview data={data} /> : null}
+            {panel === 'overview' ? (
+              <Overview
+                data={data}
+                session={session}
+                reloadingFile={reloadingFile}
+                onReloadFile={triggerFileReload}
+              />
+            ) : null}
             {panel === 'sources' ? (
               <div className="workbench-split">
                 <SourceList data={data} />

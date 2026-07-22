@@ -54,6 +54,18 @@ The startup loader produces one immutable runtime snapshot from one of three mod
 `UPTIME_KUMA_URLS` takes precedence over `UPTIME_KUMA_BASE_URL` plus `PAGE_ID`. Compatibility mode
 does not write converted legacy configuration into the managed revision store.
 
+File mode validates its initial sources before opening the public server. After startup, a
+single-flight reloader combines `fs.watch` as an acceleration signal with an authoritative
+10-second `stat` check. A changed file is read completely, hashed, parsed, validated with Zod, and
+source-tested before a new immutable runtime snapshot replaces the previous one. Formatting-only
+changes with the same canonical hash do not restart pollers.
+
+`SIGHUP` and the Owner-only, recent-authentication-protected
+`POST /api/v1/admin/config/reload` endpoint trigger the same validation path. The Admin overview
+exposes the last success, stable error code, and failed candidate hash; the public metadata omits
+the candidate hash. Partial writes, invalid schemas, unresolved Secret References, and failed
+source dry-runs retain the last-known-good snapshot and active pollers.
+
 Private, loopback, link-local, and reserved source addresses are blocked by default. Self-hosted
 Uptime Kuma instances on a trusted private network require
 `KUMA_MIERU_ALLOW_PRIVATE_SOURCES=true`. Redirect targets are validated again and URLs containing

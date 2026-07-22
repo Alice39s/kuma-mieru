@@ -10,6 +10,7 @@ import { createAuth } from './auth/auth.js';
 import { createBootstrapService } from './auth/bootstrap.js';
 import { loadOrCreateAuthSecret } from './auth/secret.js';
 import { loadRuntimeConfig } from './config/runtime-config.js';
+import { createFileConfigReloader } from './config/file-reloader.js';
 import { openDatabase } from './db/database.js';
 import { migrateDatabase } from './db/migrator.js';
 import { loadOrCreateSecretKeyring } from './secrets/keyring.js';
@@ -43,12 +44,6 @@ const migration = await migrateDatabase(database, {
 const secretKeyring = await loadOrCreateSecretKeyring(dataDirectory);
 const secretStore = createSecretStore(database, secretKeyring);
 let runtimeSnapshot = await loadRuntimeConfig({ database });
-let stopSourcePoller = startSourcePoller({
-  database,
-  config: runtimeSnapshot.config,
-  secretStore,
-  allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
-});
 const authSecret = await loadOrCreateAuthSecret(dataDirectory);
 const auth = createAuth({ database, baseURL, secret: authSecret, trustedOrigins });
 const sourceTest = createSourceTestService({
@@ -56,6 +51,52 @@ const sourceTest = createSourceTestService({
   allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
   secretStore,
 });
+if (runtimeSnapshot.mode === 'file') {
+  for (const source of runtimeSnapshot.config.sources) await sourceTest.test(source);
+}
+let stopSourcePoller = startSourcePoller({
+  database,
+  config: runtimeSnapshot.config,
+  secretStore,
+  allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
+});
+const applyRuntimeSnapshot = (nextSnapshot: typeof runtimeSnapshot) => {
+  const stopNextPoller = startSourcePoller({
+    database,
+    config: nextSnapshot.config,
+    secretStore,
+    allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
+  });
+  const stopPreviousPoller = stopSourcePoller;
+  runtimeSnapshot = nextSnapshot;
+  stopSourcePoller = stopNextPoller;
+  stopPreviousPoller();
+};
+const fileReloader =
+  runtimeSnapshot.mode === 'file'
+    ? createFileConfigReloader({
+        path: resolve(process.env.KUMA_MIERU_CONFIG as string),
+        initialSnapshot: runtimeSnapshot,
+        validateConfig: async config => {
+          for (const source of config.sources) await sourceTest.test(source);
+        },
+        applySnapshot: applyRuntimeSnapshot,
+      })
+    : null;
+const stopFileReloader = fileReloader?.start() ?? (() => undefined);
+const reloadOnSighup = () => {
+  if (!fileReloader) {
+    console.info('Ignoring SIGHUP because configuration is not in file mode');
+    return;
+  }
+  void fileReloader.check({ force: true }).then(result => {
+    console.info('File configuration reload completed', {
+      outcome: result.outcome,
+      errorCode: result.status.lastErrorCode,
+    });
+  });
+};
+process.on('SIGHUP', reloadOnSighup);
 const bootstrap = createBootstrapService({
   database,
   auth,
@@ -68,6 +109,8 @@ if (setup) {
 const app = createApp({
   snapshot: runtimeSnapshot,
   getRuntimeSnapshot: () => runtimeSnapshot,
+  getFileReloadStatus: fileReloader ? () => fileReloader.status() : undefined,
+  reloadFileConfig: fileReloader ? () => fileReloader.check({ force: true }) : undefined,
   schemaVersion: migration.currentVersion,
   buildVersion,
   database,
@@ -95,16 +138,7 @@ const app = createApp({
       loadedAt: new Date().toISOString(),
       config: revision.config,
     };
-    const stopNextPoller = startSourcePoller({
-      database,
-      config: nextSnapshot.config,
-      secretStore,
-      allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
-    });
-    const stopPreviousPoller = stopSourcePoller;
-    runtimeSnapshot = nextSnapshot;
-    stopSourcePoller = stopNextPoller;
-    stopPreviousPoller();
+    applyRuntimeSnapshot(nextSnapshot);
   },
 });
 
@@ -114,6 +148,8 @@ console.info(`Kuma Mieru v2 listening on http://${hostname}:${port}`);
 const shutdown = (signal: NodeJS.Signals) => {
   console.info(`Received ${signal}; shutting down`);
   server.close(() => {
+    process.removeListener('SIGHUP', reloadOnSighup);
+    stopFileReloader();
     stopSourcePoller();
     database.close();
     process.exit(0);
