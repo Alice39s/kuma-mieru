@@ -55,6 +55,7 @@ export const normalizedSnapshotSchema = z.object({
   status: normalizedStatusSchema,
   fetchedAt: z.string(),
   sourceUpdatedAt: z.string().nullable(),
+  extensions: z.record(z.string(), z.unknown()).default({}),
   capabilities: sourceCapabilitiesSchema,
   groups: z.array(
     z.object({

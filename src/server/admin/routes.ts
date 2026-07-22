@@ -516,6 +516,14 @@ export const registerAdminRoutes = (
           'This source does not expose a supported public status-page API'
         );
       }
+      if (code === 'unsupported_version') {
+        return errorResponse(
+          context,
+          400,
+          'UNSUPPORTED_VERSION',
+          'This LLM-Mieru API major version is not supported'
+        );
+      }
       return errorResponse(
         context,
         400,

@@ -71,6 +71,7 @@ export const normalizeBetterStackSnapshot = (input: {
     status: normalizeStatus(input.payload.data.attributes.aggregate_state),
     fetchedAt: input.fetchedAt ?? new Date().toISOString(),
     sourceUpdatedAt: input.payload.data.attributes.updated_at,
+    extensions: {},
     capabilities: {
       currentStatus: true,
       heartbeatSeries: false,

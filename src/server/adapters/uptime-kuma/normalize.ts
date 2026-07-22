@@ -80,6 +80,7 @@ export const normalizeUptimeKumaSnapshot = ({
     status: aggregateStatus(services.map(service => service.status)),
     fetchedAt: fetchedAt.toISOString(),
     sourceUpdatedAt,
+    extensions: {},
     capabilities: {
       currentStatus: true,
       heartbeatSeries: true,

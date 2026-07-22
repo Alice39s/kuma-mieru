@@ -30,6 +30,7 @@ export interface SourceSnapshotState {
     description: string;
     status: string;
     fetchedAt: string;
+    extensions: Record<string, unknown>;
     groups: Array<{ id: string; name: string; position: number; serviceIds: string[] }>;
     services: Array<{
       id: string;

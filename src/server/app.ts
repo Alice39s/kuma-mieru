@@ -164,7 +164,7 @@ export const createApp = ({
         managedConfig: runtime.mode === 'managed',
         fileConfig: runtime.mode === 'file',
         legacyEnvironment: runtime.mode === 'compatibility',
-        sourceAdapters: ['uptime-kuma', 'better-stack', 'uptime-robot', 'incident-io'],
+        sourceAdapters: ['uptime-kuma', 'better-stack', 'uptime-robot', 'incident-io', 'llm-mieru'],
       },
     });
   });

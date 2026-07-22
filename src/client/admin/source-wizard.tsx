@@ -38,6 +38,9 @@ const toSource = (input: SourceDraftInput, secretRef?: string): AdminSource => {
     if (!secretRef) throw new Error('UptimeRobot secret storage did not return a reference.');
     return { ...common, kind: input.kind, secretRef };
   }
+  if (input.kind === 'llm-mieru') {
+    return { ...common, kind: input.kind, ...(secretRef ? { secretRef } : {}) };
+  }
   return { ...common, kind: input.kind };
 };
 
@@ -60,7 +63,8 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
     setTesting(true);
     try {
       const secretRef =
-        input.kind === 'uptime-robot'
+        input.kind === 'uptime-robot' ||
+        (input.kind === 'llm-mieru' && input.token.trim().length > 0)
           ? (await putSourceToken(session, input.id.trim(), input.token.trim())).data.secretRef
           : undefined;
       const source = toSource(input, secretRef);
@@ -131,6 +135,7 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
                     form.setValue('baseUrl', 'https://api.uptimerobot.com/v3');
                     form.setValue('pageIds', 'all');
                   }
+                  if (event.target.value === 'llm-mieru') form.setValue('pageIds', 'default');
                 },
               })}
             >
@@ -138,12 +143,13 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
               <option value="better-stack">Better Stack public JSON</option>
               <option value="uptime-robot">UptimeRobot v3 API</option>
               <option value="incident-io">incident.io public Widget</option>
+              <option value="llm-mieru">LLM-Mieru read API</option>
             </select>
           </label>
         </div>
-        {selectedKind === 'uptime-robot' ? (
+        {selectedKind === 'uptime-robot' || selectedKind === 'llm-mieru' ? (
           <label className="admin-field">
-            <span>Read-only API token</span>
+            <span>Read-only API token{selectedKind === 'llm-mieru' ? ' (optional)' : ''}</span>
             <input
               autoComplete="off"
               placeholder="Stored encrypted; never shown again"
@@ -152,6 +158,8 @@ export const SourceWizard = ({ session, revision, onCommitted }: SourceWizardPro
             />
             {form.formState.errors.token ? (
               <small>{form.formState.errors.token.message}</small>
+            ) : selectedKind === 'llm-mieru' ? (
+              <small>Leave empty for a public instance, or provide a scoped read token.</small>
             ) : (
               <small>Use a scoped read-only v3 token. It is replaced by an opaque secretRef.</small>
             )}

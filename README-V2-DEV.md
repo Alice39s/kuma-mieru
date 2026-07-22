@@ -125,6 +125,25 @@ uptime or incident history, and it does not call any write endpoint. Internal in
 Pages and pages without Widget API access fail connection testing instead of falling back to HTML
 scraping.
 
+## LLM-Mieru read adapter
+
+The LLM-Mieru adapter is the only native integration between the two independently deployable
+products. It negotiates `/api/v1/meta`, then reads only the service catalog, current status
+snapshot, and advertised optional incident endpoint. API major versions other than v1 fail with a
+stable `unsupported_version` error and preserve the previous last-known-good snapshot.
+
+Public LLM-Mieru instances need no credential. Private instances use a scoped read token stored by
+the encrypted Secret Store; Provider keys, Agent credentials, Plan signing keys, and Admin tokens
+are never accepted. Provider route, model, scenario, observed region, protocol version, freshness,
+and raw status survive normalization as generic tags or Adapter-owned `extensions`. They do not add
+LLM-specific fields to the Kuma Core schema. Missing or stale measurements and unknown future
+status values become `unknown`, never `operational`.
+
+Current status and automatic incidents are available in this slice. Advertised upstream features
+are retained in Adapter-owned metadata, while `nativeMetrics` stays false until MetricSeries queries
+and the Metric Explorer are implemented. Mirrored-event persistence likewise stays disabled until
+its executable contract and storage projection are implemented.
+
 ## Authentication and managed revisions
 
 Better Auth is mounted at `/api/auth/*` with public sign-up disabled. The first startup with no users

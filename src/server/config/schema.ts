@@ -27,11 +27,18 @@ export const incidentIoSourceSchema = sourceBaseSchema.extend({
   pageIds: z.tuple([z.literal('summary')]),
 });
 
+export const llmMieruSourceSchema = sourceBaseSchema.extend({
+  kind: z.literal('llm-mieru'),
+  pageIds: z.tuple([z.literal('default')]),
+  secretRef: z.string().startsWith('sec_').optional(),
+});
+
 export const sourceSchema = z.discriminatedUnion('kind', [
   uptimeKumaSourceSchema,
   betterStackSourceSchema,
   uptimeRobotSourceSchema,
   incidentIoSourceSchema,
+  llmMieruSourceSchema,
 ]);
 
 export const sourcePatchSchema = z.object({
