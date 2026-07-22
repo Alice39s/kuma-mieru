@@ -653,6 +653,42 @@
   font-size: 0.78rem;
   line-height: 1.7;
 }
+.compatibility-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-top: 1rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(166, 95, 23, 0.3);
+  border-radius: 0.75rem;
+  background: rgba(166, 95, 23, 0.06);
+}
+.compatibility-card h2,
+.compatibility-card p {
+  margin: 0;
+}
+.compatibility-card h2 {
+  margin-top: 0.35rem;
+  font-size: 1.45rem;
+}
+.compatibility-card > div > p:last-child {
+  margin-top: 0.45rem;
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+.compatibility-card code,
+.compatibility-card > span {
+  font-family: ui-monospace, monospace;
+}
+.compatibility-card > span {
+  flex: 0 0 auto;
+  color: var(--admin-amber);
+  font-size: 0.65rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
 
 .event-workspace {
   display: grid;
@@ -993,7 +1029,8 @@
   .attention-queue {
     grid-template-columns: 1fr;
   }
-  .file-reload-card {
+  .file-reload-card,
+  .compatibility-card {
     align-items: flex-start;
     flex-direction: column;
   }

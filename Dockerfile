@@ -1,114 +1,56 @@
-# ============================================
-# Build stage
-# ============================================
-FROM node:26-alpine AS builder
+FROM oven/bun:1.3.14-alpine AS bun-base
 
-RUN npm install -g bun@latest
+RUN apk add --no-cache python3 make g++
+
+FROM bun-base AS dependencies
 
 WORKDIR /app
-
-# 构建时固定的环境变量
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    UPTIME_KUMA_URLS= \
-    UPTIME_KUMA_BASE_URL=https://whimsical-sopapillas-78abba.netlify.app \
-    PAGE_ID=demo \
-    KUMA_MIERU_EDIT_THIS_PAGE=false \
-    KUMA_MIERU_SHOW_STAR_BUTTON=true \
-    KUMA_MIERU_TITLE="Uptime Kuma" \
-    KUMA_MIERU_DESCRIPTION="A beautiful and modern uptime monitoring dashboard" \
-    KUMA_MIERU_ICON="" \
-    ALLOW_EMBEDDING=false
-
-# 复制依赖文件
 COPY package.json bun.lock ./
-COPY scripts ./scripts
-COPY utils ./utils
+RUN bun install --frozen-lockfile
 
-# 使用 Bun 安装依赖
-RUN set -e && \
-    echo "Installing dependencies..." && \
-    bun install --frozen-lockfile || { echo "Failed to install dependencies"; exit 1; }
+FROM dependencies AS builder
 
-# 复制源代码
 COPY . .
+RUN bun run build
 
-# 使用 Node.js 构建应用
-RUN set -e && \
-    echo "Starting build process..." && \
-    bun run generate && \
-    npx next build || { echo "Build failed"; exit 1; }
+FROM bun-base AS production-dependencies
 
-
-
-# ============================================
-# Runtime stage
-# ============================================
-FROM node:26-alpine
 WORKDIR /app
+COPY runtime/v2/package.json runtime/v2/bun.lock ./
+RUN bun install --frozen-lockfile --production
 
-# 运行时的所有 ARG 和 ENV 配置
-ARG PORT=3000
-ARG HOSTNAME="0.0.0.0"
-ARG NODE_ENV=production
-ARG NEXT_TELEMETRY_DISABLED=1
-ARG UPTIME_KUMA_URLS=
-ARG UPTIME_KUMA_BASE_URL=https://whimsical-sopapillas-78abba.netlify.app
-ARG PAGE_ID=demo
-ARG KUMA_MIERU_EDIT_THIS_PAGE=false
-ARG KUMA_MIERU_SHOW_STAR_BUTTON=true
-ARG KUMA_MIERU_TITLE="Uptime Kuma"
-ARG KUMA_MIERU_DESCRIPTION="A beautiful and modern uptime monitoring dashboard"
-ARG KUMA_MIERU_ICON=
-ARG ALLOW_EMBEDDING=false
-ARG IS_DOCKER=true
+FROM node:24-alpine AS runtime
 
-ENV PORT=${PORT} \
-    HOSTNAME=${HOSTNAME} \
-    NODE_ENV=${NODE_ENV} \
-    NEXT_TELEMETRY_DISABLED=${NEXT_TELEMETRY_DISABLED} \
-    UPTIME_KUMA_URLS=${UPTIME_KUMA_URLS} \
-    UPTIME_KUMA_BASE_URL=${UPTIME_KUMA_BASE_URL} \
-    PAGE_ID=${PAGE_ID} \
-    KUMA_MIERU_EDIT_THIS_PAGE=${KUMA_MIERU_EDIT_THIS_PAGE} \
-    KUMA_MIERU_SHOW_STAR_BUTTON=${KUMA_MIERU_SHOW_STAR_BUTTON} \
-    KUMA_MIERU_TITLE=${KUMA_MIERU_TITLE} \
-    KUMA_MIERU_DESCRIPTION=${KUMA_MIERU_DESCRIPTION} \
-    KUMA_MIERU_ICON=${KUMA_MIERU_ICON} \
-    ALLOW_EMBEDDING=${ALLOW_EMBEDDING} \
-    IS_DOCKER=${IS_DOCKER} \
-    PATH="$PATH:/app/node_modules/.bin"
+ARG KUMA_MIERU_BUILD_VERSION=2.0.0-dev
+LABEL org.opencontainers.image.title="Kuma Mieru" \
+      org.opencontainers.image.description="Uptime-first status page and public communication control plane" \
+      org.opencontainers.image.source="https://github.com/Alice39s/kuma-mieru" \
+      org.opencontainers.image.licenses="MPL-2.0" \
+      org.opencontainers.image.version="${KUMA_MIERU_BUILD_VERSION}"
 
-# 安装运行时需要的工具（healthcheck 用）
-RUN apk add --no-cache curl dumb-init && \
-    addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001 && \
-    chown -R nextjs:nodejs /app
+RUN apk add --no-cache dumb-init \
+    && addgroup -S -g 10001 kuma-mieru \
+    && adduser -S -D -H -u 10001 -G kuma-mieru kuma-mieru \
+    && mkdir -p /app /data \
+    && chown -R 10001:10001 /app /data
 
-# 切换到非 root 用户
-USER nextjs
+WORKDIR /app
+COPY --from=production-dependencies --chown=10001:10001 /app/node_modules ./node_modules
+COPY --from=production-dependencies --chown=10001:10001 /app/package.json ./package.json
+COPY --from=builder --chown=10001:10001 /app/dist/v2 ./dist/v2
 
-# 创建最小化的 package.json 只包含运行时依赖
-# 包括 serverExternalPackages 声明的包：sharp, cheerio
-# 以及 generate 脚本需要的：zod, json5, dotenv, chalk
-# tsx 用于运行 TypeScript 启动脚本（替代 Bun，避免 AVX2 指令集兼容性问题）
-RUN npm install --prefer-online --omit=dev sharp cheerio zod json5 dotenv chalk tsx
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOST=0.0.0.0 \
+    KUMA_MIERU_DATA_DIR=/data \
+    KUMA_MIERU_BUILD_VERSION=${KUMA_MIERU_BUILD_VERSION}
 
-# 从 builder 复制构建产物（standalone 输出）
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/ ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/config ./config
-COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
-COPY --from=builder --chown=nextjs:nodejs /app/utils ./utils
+USER 10001:10001
+EXPOSE 3000
+VOLUME ["/data"]
 
-EXPOSE ${PORT}
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -q -O /dev/null "http://127.0.0.1:${PORT}/health/live" || exit 1
 
-# Healthcheck 配置
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-    CMD curl -f http://localhost:${PORT}/api/health || exit 1
-
-# 使用 dumb-init 作为 PID 1，正确处理信号
-# 使用 tsx 运行 TypeScript 启动脚本，使用 Node.js 运行 standalone 服务器
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["sh", "-c", "tsx scripts/generate-config.ts && tsx scripts/generate-image-domains.ts && tsx scripts/banner.ts && exec node server.js"]
+CMD ["node", "dist/v2/server/index.js"]

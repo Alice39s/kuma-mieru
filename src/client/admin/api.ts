@@ -153,6 +153,18 @@ export interface AdminMeta {
     contentHash: string;
     loadedAt: string;
     reload: (ReloadStatus & { failedHash: string | null }) | null;
+    compatibility: {
+      source: 'environment_urls' | 'environment_base' | 'generated_json';
+      contentHash: string;
+      decisions: Array<{
+        key: string;
+        status: 'mapped' | 'ignored_by_precedence' | 'accepted_no_effect';
+        target: string;
+        note: string;
+      }>;
+      conflicts: string[];
+      ignoredFields: string[];
+    } | null;
   };
 }
 

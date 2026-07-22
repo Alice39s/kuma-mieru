@@ -1096,6 +1096,7 @@ export const registerAdminRoutes = (
         contentHash: runtime.contentHash,
         loadedAt: runtime.loadedAt,
         reload: getFileReloadStatus?.() ?? null,
+        compatibility: runtime.compatibility ?? null,
       },
     });
   });

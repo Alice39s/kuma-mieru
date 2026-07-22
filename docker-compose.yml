@@ -1,33 +1,45 @@
+name: kuma-mieru-v2
+
 services:
   kuma-mieru:
-    image: ghcr.io/alice39s/kuma-mieru:1
-    # 如果遇到问题，请注释上方的 image 行，取消下面的 build 行注释
-    # build: .
-    container_name: kuma-mieru
+    image: ghcr.io/alice39s/kuma-mieru:2-dev
+    build:
+      context: .
+      args:
+        KUMA_MIERU_BUILD_VERSION: ${KUMA_MIERU_BUILD_VERSION:-2.0.0-dev}
     restart: unless-stopped
+    user: '10001:10001'
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     ports:
-      - '3883:3000'
+      - '${KUMA_MIERU_PORT:-3883}:3000'
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
-      - NODE_ENV=production
-      # Recommended: full status page URL(s), pipe-separated
-      - UPTIME_KUMA_URLS=${UPTIME_KUMA_URLS:-}
-      # Legacy (backward compat): used when UPTIME_KUMA_URLS is not set
-      - UPTIME_KUMA_BASE_URL=${UPTIME_KUMA_BASE_URL:-}
-      - PAGE_ID=${PAGE_ID:-}
-      # Feature flags (KUMA_MIERU_* preferred; FEATURE_* also accepted)
-      - KUMA_MIERU_EDIT_THIS_PAGE=${KUMA_MIERU_EDIT_THIS_PAGE:-${FEATURE_EDIT_THIS_PAGE:-}}
-      - KUMA_MIERU_SHOW_STAR_BUTTON=${KUMA_MIERU_SHOW_STAR_BUTTON:-${FEATURE_SHOW_STAR_BUTTON:-}}
-      - KUMA_MIERU_TITLE=${KUMA_MIERU_TITLE:-${FEATURE_TITLE:-}}
-      - KUMA_MIERU_DESCRIPTION=${KUMA_MIERU_DESCRIPTION:-${FEATURE_DESCRIPTION:-}}
-      - KUMA_MIERU_ICON=${KUMA_MIERU_ICON:-${FEATURE_ICON:-}}
-      - ALLOW_INSECURE_TLS=${ALLOW_INSECURE_TLS:-false}
-      - ALLOW_EMBEDDING=${ALLOW_EMBEDDING:-false}
+      NODE_ENV: production
+      PORT: '3000'
+      HOST: 0.0.0.0
+      KUMA_MIERU_DATA_DIR: /data
+      KUMA_MIERU_BASE_URL: ${KUMA_MIERU_BASE_URL:-http://localhost:3883}
+      KUMA_MIERU_TRUSTED_ORIGINS: ${KUMA_MIERU_TRUSTED_ORIGINS:-http://localhost:3883}
+    volumes:
+      - kuma-mieru-data:/data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 20s
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:3000/health/ready || exit 1']
       interval: 30s
       timeout: 3s
+      start_period: 10s
       retries: 3
-    tmpfs:
-      - /tmp
+
+volumes:
+  kuma-mieru-data:

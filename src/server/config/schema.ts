@@ -6,6 +6,11 @@ const sourceBaseSchema = z.object({
   id: z.string().min(1),
   baseUrl: z.string().url(),
   pageIds: z.array(z.string().min(1)).min(1),
+  requestPolicy: z
+    .object({
+      timeoutMs: z.number().int().min(250).max(120_000).optional(),
+    })
+    .optional(),
 });
 
 export const uptimeKumaSourceSchema = sourceBaseSchema.extend({
@@ -51,6 +56,14 @@ export const statusPageSchema = z.object({
   id: z.string().min(1),
   slug: z.string().min(1),
   title: z.string().min(1),
+  description: z.string().max(10_000).optional(),
+  icon: z.string().max(2_048).optional(),
+  features: z
+    .object({
+      editThisPage: z.boolean().optional(),
+      showStarButton: z.boolean().optional(),
+    })
+    .optional(),
   sourceRefs: z.array(z.string().min(1)).min(1),
 });
 

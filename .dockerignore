@@ -1,4 +1,7 @@
 node_modules
+.next
+dist
+data
 .git
 .github
 .vscode

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { serveStatic } from '@hono/node-server/serve-static';
 import type Database from 'better-sqlite3';
@@ -88,6 +88,19 @@ export const createApp = ({
     currentSnapshot().config.pages.find(
       candidate => candidate.slug === slug || candidate.id === slug
     );
+  const findLegacyPage = (requested: string | undefined) =>
+    (requested ? findPage(requested) : null) ?? currentSnapshot().config.pages[0] ?? null;
+  const setLegacyHeaders = (context: Context<AppEnvironment>, available: boolean) => {
+    context.header('Deprecation', 'true');
+    context.header('Link', '</about#v1-compatibility>; rel="deprecation"');
+    if (available) {
+      context.header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30');
+    } else {
+      context.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      context.header('Pragma', 'no-cache');
+      context.header('Expires', '0');
+    }
+  };
 
   app.use('*', secureHeaders());
   app.use('*', async (context, next) => {
@@ -161,6 +174,159 @@ export const createApp = ({
   app.get('/api/health', context => {
     context.header('Cache-Control', 'no-store');
     return context.json({ status: 'ok', uptime: Math.floor((Date.now() - startedAt) / 1000) });
+  });
+
+  app.get('/api/config', context => {
+    const page = findLegacyPage(context.req.query('pageId'));
+    const pageSnapshots = page ? (loadPageSnapshots?.(page) ?? []) : [];
+    const available = Boolean(page && pageSnapshots.length > 0);
+    setLegacyHeaders(context, available);
+    const incidents = pageSnapshots.flatMap(item => item.snapshot.incidents);
+    const pages = currentSnapshot().config.pages;
+    return context.json(
+      {
+        config: {
+          slug: page?.slug ?? '',
+          title: page?.title ?? '',
+          description: page?.description ?? '',
+          icon: `/api/icon${page ? `?pageId=${encodeURIComponent(page.slug)}` : ''}`,
+          theme: 'system',
+          published: true,
+          showTags: true,
+          customCSS: '',
+          footerText: '',
+          showPoweredBy: false,
+          googleAnalyticsId: null,
+          showCertificateExpiry: false,
+        },
+        incidents,
+        maintenanceList: [],
+        success: available,
+        status: available ? 'ok' : 'all_failed',
+        pageTabs: pages.map(item => ({
+          id: item.slug,
+          title: item.title,
+          description: item.description,
+          icon: `/api/icon?pageId=${encodeURIComponent(item.slug)}`,
+          health: 'healthy',
+        })),
+        matrixStatus: available ? 'ok' : 'all_failed',
+        ...(available
+          ? {}
+          : {
+              failureType: 'unavailable',
+              error: 'No normalized source snapshot is available yet',
+            }),
+        timestamp: Date.now(),
+      },
+      available ? 200 : 503
+    );
+  });
+
+  app.get('/api/monitor', context => {
+    const page = findLegacyPage(context.req.query('pageId'));
+    const pageSnapshots = page ? (loadPageSnapshots?.(page) ?? []) : [];
+    const available = Boolean(page && pageSnapshots.length > 0);
+    setLegacyHeaders(context, available);
+    const services = pageSnapshots.flatMap(item =>
+      item.snapshot.services.map(service => ({ sourceId: item.snapshot.sourceId, service }))
+    );
+    const serviceIds = new Map(
+      services.map((item, index) => [`${item.sourceId}:${item.service.id}`, index + 1])
+    );
+    const heartbeatList = Object.fromEntries(
+      services.map(item => {
+        const id = serviceIds.get(`${item.sourceId}:${item.service.id}`) as number;
+        const status =
+          item.service.status === 'operational'
+            ? 1
+            : item.service.status === 'maintenance'
+              ? 3
+              : item.service.status === 'unknown'
+                ? 2
+                : 0;
+        return [
+          id,
+          [
+            {
+              status,
+              time: item.service.observedAt ?? pageSnapshots[0]?.snapshot.fetchedAt,
+              msg: item.service.status,
+              ping: item.service.latencyMs,
+            },
+          ],
+        ];
+      })
+    );
+    const uptimeList = Object.fromEntries(
+      services.map(item => [
+        `${serviceIds.get(`${item.sourceId}:${item.service.id}`) as number}_24`,
+        item.service.uptime24h ?? 0,
+      ])
+    );
+    const monitorGroups = pageSnapshots.flatMap(item =>
+      item.snapshot.groups.map(group => ({
+        id: group.position + 1,
+        name: group.name,
+        weight: group.position,
+        monitorList: group.serviceIds.flatMap(serviceId => {
+          const service = item.snapshot.services.find(candidate => candidate.id === serviceId);
+          if (!service) return [];
+          return [
+            {
+              id: serviceIds.get(`${item.snapshot.sourceId}:${service.id}`) as number,
+              name: service.name,
+              sendUrl: 0,
+              type: 'unknown',
+            },
+          ];
+        }),
+      }))
+    );
+    return context.json(
+      {
+        monitorGroups,
+        data: { heartbeatList, uptimeList },
+        success: available,
+        status: available ? 'ok' : 'all_failed',
+        ...(available
+          ? {}
+          : {
+              failureType: 'unavailable',
+              error: 'No normalized source snapshot is available yet',
+            }),
+        timestamp: Date.now(),
+      },
+      available ? 200 : 503
+    );
+  });
+
+  app.get('/api/icon', async context => {
+    setLegacyHeaders(context, true);
+    if (!publicDirectory) {
+      context.header('Cache-Control', 'no-store');
+      return context.body(null, 404);
+    }
+    try {
+      const icon = await readFile(resolve(publicDirectory, 'icon.svg'));
+      if (icon.byteLength > 2 * 1024 * 1024) throw new Error('Fallback icon exceeds 2 MiB');
+      context.header('Content-Type', 'image/svg+xml');
+      context.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+      return context.body(icon);
+    } catch {
+      context.header('Cache-Control', 'no-store');
+      return context.body(null, 404);
+    }
+  });
+
+  app.get('/api/manage-status-page', context => {
+    setLegacyHeaders(context, true);
+    const page = findLegacyPage(context.req.query('pageId'));
+    if (!page?.features?.editThisPage) return context.redirect('/', 307);
+    const source = currentSnapshot().config.sources.find(item => item.id === page.sourceRefs[0]);
+    return source
+      ? context.redirect(`${source.baseUrl.replace(/\/$/u, '')}/manage-status-page`, 307)
+      : context.redirect('/', 307);
   });
 
   app.get('/api/v1/meta', context => {

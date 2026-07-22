@@ -43,6 +43,8 @@ test('prefers UPTIME_KUMA_URLS in compatibility mode', async () => {
         UPTIME_KUMA_BASE_URL: 'https://ignored.example.com',
         PAGE_ID: 'ignored',
         KUMA_MIERU_TITLE: 'Example Status',
+        FEATURE_TITLE: 'Ignored title',
+        SSR_STRICT_MODE: 'true',
       },
     });
     assert.equal(snapshot.mode, 'compatibility');
@@ -52,6 +54,12 @@ test('prefers UPTIME_KUMA_URLS in compatibility mode', async () => {
       ['main', 'cn']
     );
     assert.equal(snapshot.config.pages[0]?.title, 'Example Status');
+    assert.equal(snapshot.compatibility?.conflicts.length, 1);
+    assert.equal(
+      snapshot.compatibility?.decisions.find(item => item.key === 'FEATURE_TITLE')?.status,
+      'ignored_by_precedence'
+    );
+    assert.deepEqual(snapshot.compatibility?.ignoredFields, ['SSR_STRICT_MODE']);
   } finally {
     database.close();
   }

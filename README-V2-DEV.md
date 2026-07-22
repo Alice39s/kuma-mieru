@@ -71,6 +71,46 @@ Uptime Kuma instances on a trusted private network require
 `KUMA_MIERU_ALLOW_PRIVATE_SOURCES=true`. Redirect targets are validated again and URLs containing
 credentials are always rejected.
 
+### v1 compatibility migration
+
+Compatibility startup classifies the complete v1 environment matrix. `UPTIME_KUMA_URLS` remains
+higher priority than `UPTIME_KUMA_BASE_URL + PAGE_ID`; `KUMA_MIERU_*` remains higher priority than
+its `FEATURE_*` fallback. Title, description, icon, Edit-this-page, Star button, and bounded request
+timeout map into canonical v2 configuration. SSR-only or unsafe legacy switches are recorded as
+`accepted_no_effect` with an explanation instead of becoming unknown-variable failures or silently
+weakening the v2 security baseline.
+
+`bun run migrate-v1 -- --dry-run` is the default, zero-write workflow. It reads the legacy
+environment and optional `config/generated-config.json`, then reports Source/Page/Slug metadata,
+precedence conflicts, ignored fields, Content Hash, parent Revision, and target Revision. Explicit
+`--execute` runs checked SQLite migrations, creates a pre-import SQLite backup, preserves the v1
+generated JSON, writes a migration manifest, and atomically activates a Managed Revision. The
+operator then sets `KUMA_MIERU_CONFIG_MODE=managed`; keeping the old environment continues to select
+the read-only Compatibility Profile until that explicit cutover.
+
+The compatibility surface also preserves the v1 read routes `/api/config`, `/api/monitor`,
+`/api/icon`, `/api/manage-status-page`, `/about`, and `/monitor/:monitorId`. Config and monitor
+responses are projected exclusively from the local last-known-good snapshot; they never trigger an
+upstream request from a visitor. An unavailable snapshot returns `503` with `Cache-Control:
+no-store`, legacy responses carry deprecation metadata, and monitor links resolve into the canonical
+v2 status page instead of maintaining a second public renderer. The icon route serves only the
+packaged fallback within the 2 MiB limit, while the management redirect is derived from the active
+validated Source rather than accepting an arbitrary request target.
+
+### Rootless simple image
+
+The v2 Dockerfile builds with Bun but runs on Node 24 as fixed UID/GID 10001. A dedicated
+`runtime/v2` dependency manifest keeps Next.js and the v1 frontend graph out of the runtime image.
+The Simple Compose profile applies a read-only root filesystem, `/tmp` tmpfs, the sole persistent
+`/data` volume, `cap_drop: [ALL]`, `no-new-privileges`, PID/memory/CPU limits, health checks, and a
+20-second graceful shutdown window. It does not mount a Docker socket or request host namespaces,
+devices, privileged mode, or a writable Source mount.
+
+The 2026-07-23 amd64 Docker PoC produced a 75,175,529-byte image, ran as `10001:10001`, rejected a
+root-filesystem write, accepted the `/data` write, returned schema version 7 from Readiness, and
+exited with code 0 on Compose SIGTERM. The isolated Compose project, volume, network, image, and
+temporary remote directory were removed after the test.
+
 ## Uptime Kuma public adapter
 
 The v1/v2 adapter only reads the public status-page and heartbeat endpoints. It never connects to

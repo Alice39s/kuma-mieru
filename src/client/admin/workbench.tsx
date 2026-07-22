@@ -136,6 +136,21 @@ const Overview = ({
         ) : null}
       </section>
     ) : null}
+    {data.meta.config.mode === 'compatibility' && data.meta.config.compatibility ? (
+      <section className="compatibility-card">
+        <div>
+          <p className="admin-eyebrow">v1 compatibility profile</p>
+          <h2>Legacy configuration is active and read-only.</h2>
+          <p>
+            {data.meta.config.compatibility.decisions.length} variables were classified;{' '}
+            {data.meta.config.compatibility.ignoredFields.length} retain no effect under the safer
+            v2 runtime. Run <code>bun run migrate-v1 -- --dry-run</code> before switching to Managed
+            Mode.
+          </p>
+        </div>
+        <span>{data.meta.config.compatibility.source.replaceAll('_', ' ')}</span>
+      </section>
+    ) : null}
   </div>
 );
 

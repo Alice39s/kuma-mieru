@@ -42,27 +42,29 @@ export const createSourceTestService = ({
   requester,
   secretStore,
 }: CreateSourceTestServiceOptions): SourceTestService => {
-  const httpClient = createHttpJsonClient({ allowPrivateAddresses });
-  const directRequester: SourceJsonRequester =
-    requester ??
-    ({
-      request: async <T>(
-        url: URL,
-        _resourceKey: string,
-        schema: z.ZodType<T>,
-        options?: { headers?: Record<string, string> }
-      ) => {
-        const response = await httpClient(url, options?.headers);
-        if (response.status === 304) throw new Error('Unexpected 304 during source test');
-        return schema.parse(response.data);
-      },
-    } satisfies SourceJsonRequester);
-
   const sign = (payload: string) =>
     createHmac('sha256', secret).update(`source-test:${payload}`, 'utf8').digest('base64url');
 
   const test = async (rawSource: CanonicalConfig['sources'][number]) => {
     const source = sourceSchema.parse(rawSource);
+    const httpClient = createHttpJsonClient({
+      allowPrivateAddresses,
+      timeoutMs: source.requestPolicy?.timeoutMs,
+    });
+    const directRequester: SourceJsonRequester =
+      requester ??
+      ({
+        request: async <T>(
+          url: URL,
+          _resourceKey: string,
+          schema: z.ZodType<T>,
+          options?: { headers?: Record<string, string> }
+        ) => {
+          const response = await httpClient(url, options?.headers);
+          if (response.status === 304) throw new Error('Unexpected 304 during source test');
+          return schema.parse(response.data);
+        },
+      } satisfies SourceJsonRequester);
     const snapshots = await Promise.all(
       source.pageIds.map(pageId =>
         fetchSourceSnapshot(source, pageId, directRequester, secretStore)

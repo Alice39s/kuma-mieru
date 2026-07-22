@@ -40,9 +40,12 @@ export const startSourcePoller = ({
 }: SourcePollerOptions) => {
   const timers = new Set<NodeJS.Timeout>();
   let stopped = false;
-  const httpClient = createHttpJsonClient({ allowPrivateAddresses });
 
   for (const source of config.sources) {
+    const httpClient = createHttpJsonClient({
+      allowPrivateAddresses,
+      timeoutMs: source.requestPolicy?.timeoutMs,
+    });
     for (const pageId of source.pageIds) {
       let consecutiveFailures = 0;
       const requester = createCachedSourceRequester(database, source.id, httpClient);
