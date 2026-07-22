@@ -30,7 +30,14 @@ test('keeps incident updates append-only and publishes outbox work atomically', 
       directory: resolve(process.cwd(), 'migrations'),
       databasePath,
     });
-    assert.equal(migration.currentVersion, 5);
+    assert.equal(
+      (
+        database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as {
+          version: number;
+        }
+      ).version,
+      migration.currentVersion
+    );
 
     const input = {
       pageId: 'public',

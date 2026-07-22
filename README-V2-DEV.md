@@ -88,6 +88,19 @@ Source polling and Test Connection dispatch through a function-based Adapter Reg
 adapter no longer requires a provider-specific branch in the scheduler, and public requests still
 read only the local last-known-good snapshot.
 
+## Encrypted secret store
+
+Private source and transport credentials are stored as opaque `secretRef` values. Secret values are
+encrypted with AES-256-GCM using a fresh 96-bit nonce and authenticated binding metadata for the
+resource ID, field name, and key ID. SQLite stores ciphertext only; metadata listing never returns
+the ciphertext or plaintext, and consumers must resolve a reference with the exact expected
+resource, field, and purpose.
+
+Quickstart creates a rootless `0600` keyring at `/data/.secrets/keyring.json`. Hardened deployments
+can mount a read-only keyring and set `KUMA_MIERU_MASTER_KEY_FILE`. A keyring declares one current
+write key and may retain old read keys; the store can atomically re-encrypt old records before an
+operator removes retired keys.
+
 ## Authentication and managed revisions
 
 Better Auth is mounted at `/api/auth/*` with public sign-up disabled. The first startup with no users

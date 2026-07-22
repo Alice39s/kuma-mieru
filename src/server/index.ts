@@ -12,6 +12,8 @@ import { loadOrCreateAuthSecret } from './auth/secret.js';
 import { loadRuntimeConfig } from './config/runtime-config.js';
 import { openDatabase } from './db/database.js';
 import { migrateDatabase } from './db/migrator.js';
+import { loadOrCreateSecretKeyring } from './secrets/keyring.js';
+import { createSecretStore } from './secrets/store.js';
 
 const currentDirectory = fileURLToPath(new URL('.', import.meta.url));
 const dataDirectory = resolve(process.env.KUMA_MIERU_DATA_DIR ?? './data');
@@ -38,6 +40,8 @@ const migration = await migrateDatabase(database, {
   databasePath,
   appBuild: buildVersion,
 });
+const secretKeyring = await loadOrCreateSecretKeyring(dataDirectory);
+createSecretStore(database, secretKeyring);
 let runtimeSnapshot = await loadRuntimeConfig({ database });
 let stopSourcePoller = startSourcePoller({
   database,
