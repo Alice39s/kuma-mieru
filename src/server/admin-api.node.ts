@@ -399,12 +399,63 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     assert.equal(publicMaintenance.status, 200);
     assert.equal(publicMaintenanceBody.data.length, 1);
 
+    const noticeCreated = await app.request('/api/v1/admin/notices', {
+      method: 'POST',
+      headers: { ...mutationHeaders, 'Idempotency-Key': 'notice-create-admin-api-0001' },
+      body: JSON.stringify({
+        pageId: 'public',
+        title: 'Support hours update',
+        body: 'Support hours will change next week.',
+        kind: 'information',
+        affectedComponentIds: [],
+      }),
+    });
+    const notice = (await noticeCreated.json()) as { data: { id: string; version: number } };
+    assert.equal(noticeCreated.status, 201);
+    const noticeUpdated = await app.request(`/api/v1/admin/notices/${notice.data.id}/updates`, {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({
+        expectedVersion: notice.data.version,
+        state: 'published',
+        body: 'Support hours will change next week.',
+      }),
+    });
+    assert.equal(noticeUpdated.status, 200);
+    const noticeReviewResponse = await app.request(
+      `/api/v1/admin/notices/${notice.data.id}/review`,
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({ expectedVersion: 2, notifySubscribers: false }),
+      }
+    );
+    const noticeReview = (await noticeReviewResponse.json()) as {
+      data: { reviewNonce: string };
+    };
+    assert.equal(noticeReviewResponse.status, 200);
+    const noticePublished = await app.request(`/api/v1/admin/notices/${notice.data.id}/publish`, {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({
+        expectedVersion: 2,
+        notifySubscribers: false,
+        reviewNonce: noticeReview.data.reviewNonce,
+      }),
+    });
+    assert.equal(noticePublished.status, 201);
+    const publicNotices = await app.request('/api/v1/public/pages/main/notices');
+    const publicNoticesBody = (await publicNotices.json()) as { data: unknown[] };
+    assert.equal(publicNotices.status, 200);
+    assert.equal(publicNoticesBody.data.length, 1);
+
     const rss = await app.request('/status/main/rss.xml');
     assert.equal(rss.status, 200);
     assert.equal(rss.headers.get('content-type'), 'application/rss+xml; charset=utf-8');
     const rssBody = await rss.text();
     assert.equal(rssBody.includes('API latency elevated'), true);
     assert.equal(rssBody.includes('Database maintenance'), true);
+    assert.equal(rssBody.includes('Support hours update'), true);
     const etag = rss.headers.get('etag');
     assert.ok(etag);
     const unchangedRss = await app.request('/status/main/rss.xml', {

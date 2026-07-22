@@ -40,6 +40,8 @@ import {
   incidentUpdateSchema,
   maintenanceCreateSchema,
   maintenanceUpdateSchema,
+  noticeCreateSchema,
+  noticeUpdateSchema,
 } from '../events/schemas.js';
 import {
   appendMaintenanceUpdate,
@@ -48,6 +50,13 @@ import {
   listMaintenances,
   publishMaintenance,
 } from '../events/maintenance-repository.js';
+import {
+  appendNoticeUpdate,
+  createNotice,
+  getNoticePublicationReview,
+  listNotices,
+  publishNotice,
+} from '../events/notice-repository.js';
 import { createPiiProtector } from '../subscriptions/crypto.js';
 
 const pageCreateSchema = z.object({
@@ -620,6 +629,141 @@ export const registerAdminRoutes = (
         );
       }
       const publication = publishMaintenance(
+        database,
+        {
+          eventId,
+          expectedVersion: input.expectedVersion,
+          notifySubscribers: input.notifySubscribers,
+          expectedRecipients: review.estimatedRecipients,
+          piiProtector: piiProtector ?? undefined,
+        },
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: publication }, 201);
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.get('/api/v1/admin/notices', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    return context.json({ data: listNotices(database) });
+  });
+
+  app.post('/api/v1/admin/notices', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const idempotencyKey = idempotencyKeySchema.parse(context.req.header('idempotency-key'));
+      const input = noticeCreateSchema.parse(await context.req.json());
+      const page = currentSnapshot().config.pages.find(
+        candidate => candidate.id === input.pageId || candidate.slug === input.pageId
+      );
+      if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+      const notice = createNotice(
+        database,
+        { ...input, pageId: page.id },
+        idempotencyKey,
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: notice }, 201);
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/notices/:id/updates', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const notice = appendNoticeUpdate(
+        database,
+        context.req.param('id'),
+        noticeUpdateSchema.parse(await context.req.json()),
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: notice });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/notices/:id/review', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database || !publicationReview) {
+      return errorResponse(context, 503, 'EVENT_REVIEW_NOT_READY', 'Event review is unavailable');
+    }
+    try {
+      const input = incidentReviewSchema.parse(await context.req.json());
+      const review = getNoticePublicationReview(
+        database,
+        context.req.param('id'),
+        input.expectedVersion
+      );
+      const token = publicationReview.create({
+        eventId: review.event.id,
+        eventVersion: review.event.version,
+        notifySubscribers: input.notifySubscribers,
+        estimatedRecipients: review.estimatedRecipients,
+        principal: authorization.principal,
+      });
+      return context.json({
+        data: {
+          notice: review.event,
+          notifySubscribers: input.notifySubscribers,
+          estimatedRecipients: review.estimatedRecipients,
+          reviewNonce: token.nonce,
+          expiresAt: token.expiresAt,
+        },
+      });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/notices/:id/publish', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database || !publicationReview) {
+      return errorResponse(context, 503, 'EVENT_REVIEW_NOT_READY', 'Event review is unavailable');
+    }
+    try {
+      const eventId = context.req.param('id');
+      const input = incidentPublishSchema.parse(await context.req.json());
+      const review = getNoticePublicationReview(database, eventId, input.expectedVersion);
+      const reviewInput = {
+        eventId,
+        eventVersion: input.expectedVersion,
+        notifySubscribers: input.notifySubscribers,
+        estimatedRecipients: review.estimatedRecipients,
+        principal: authorization.principal,
+      };
+      if (!publicationReview.verify(reviewInput, input.reviewNonce)) {
+        writeRouteAudit(
+          context,
+          authorization.principal.userId,
+          'failed',
+          'PUBLICATION_REVIEW_INVALID'
+        );
+        return errorResponse(
+          context,
+          409,
+          'PUBLICATION_REVIEW_INVALID',
+          'Publication review is invalid, expired, or stale'
+        );
+      }
+      const publication = publishNotice(
         database,
         {
           eventId,

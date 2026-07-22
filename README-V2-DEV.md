@@ -237,6 +237,17 @@ maintenance API. Email remains an explicit Boolean on every reviewed publication
 inherits a previous notification choice. The backend Admin API is available in this slice, while
 the dedicated Maintenance editor UI and automatic start/end scheduler remain disabled.
 
+## Native notices
+
+Notice is a separate append-only aggregate for non-incident communication. It uses
+`draft → published → expired/withdrawn`, an `information | warning` kind, and an optional display
+window that is validated whenever it changes. Publishing a Notice does not mutate Component or
+Overall Status and cannot masquerade as Incident history.
+
+Notice creation, update, review, explicit notification choice, public read API, and RSS/Atom
+projection use the shared native-event transaction core. The dedicated Notice editor and automatic
+expiry scheduler remain disabled until their UI and scheduler gates are implemented.
+
 ## Migration invariants
 
 Migration files use the form `000001_name.up.sql`. Startup rejects gaps, invalid names, missing
@@ -244,6 +255,6 @@ historical files, changed checksums, failed integrity checks, and failed foreign
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
 The current implementation does not yet provide passkey enrollment UI, identity administration,
-the Maintenance editor and automatic scheduler, Notice/Postmortem aggregates, SMTP Secret Store
+the Maintenance/Notice editors and automatic schedulers, Postmortem aggregate, SMTP Secret Store
 configuration, or Subscriber/Delivery administration UI. Their control-plane capabilities must
 remain disabled until the corresponding contracts and security gates are implemented.

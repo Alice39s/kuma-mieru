@@ -68,7 +68,7 @@ export interface IncidentRecord {
 
 export interface PublishableEventRecord {
   id: string;
-  type: 'incident' | 'maintenance';
+  type: 'incident' | 'maintenance' | 'notice';
   pageId: string;
   title: string;
   state: string;

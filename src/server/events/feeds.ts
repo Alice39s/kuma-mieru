@@ -11,10 +11,13 @@ const escapeXml = (value: string) =>
 
 const absolute = (baseUrl: string, path: string) => new URL(path, baseUrl).toString();
 
-const publicationPath = (pageSlug: string, item: PublicationSnapshot) =>
-  item.type === 'maintenance'
-    ? `/status/${encodeURIComponent(pageSlug)}/maintenance/${encodeURIComponent(item.eventId)}/`
-    : `/status/${encodeURIComponent(pageSlug)}/incidents/${encodeURIComponent(item.eventId)}/`;
+const publicationPath = (pageSlug: string, item: PublicationSnapshot) => {
+  const page = encodeURIComponent(pageSlug);
+  const event = encodeURIComponent(item.eventId);
+  if (item.type === 'maintenance') return `/status/${page}/maintenance/${event}/`;
+  if (item.type === 'notice') return `/status/${page}/notices/#${event}`;
+  return `/status/${page}/incidents/${event}/`;
+};
 
 export const feedEtag = (items: PublicationSnapshot[]) =>
   `"${createHash('sha256').update(JSON.stringify(items), 'utf8').digest('base64url')}"`;

@@ -115,9 +115,67 @@ export const maintenancePublicationSnapshotSchema = publicationSnapshotBaseSchem
   ...maintenanceWindowShape,
 });
 
+export const noticeStateSchema = z.enum(['draft', 'published', 'expired', 'withdrawn']);
+export const noticeKindSchema = z.enum(['information', 'warning']);
+
+const noticeWindowShape = {
+  startsAt: occurredAtSchema.nullable(),
+  endsAt: occurredAtSchema.nullable(),
+};
+
+const validateNoticeWindow = (
+  input: { startsAt: string | null; endsAt: string | null },
+  context: z.RefinementCtx
+) => {
+  if (input.startsAt && input.endsAt && Date.parse(input.endsAt) <= Date.parse(input.startsAt)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['endsAt'],
+      message: 'Notice end must be after its start.',
+    });
+  }
+};
+
+export const noticeWindowSchema = z
+  .object({ kind: noticeKindSchema, ...noticeWindowShape })
+  .superRefine(validateNoticeWindow);
+
+export const noticeCreateSchema = z
+  .object({
+    pageId: z.string().min(1).max(200),
+    title: z.string().min(1).max(200),
+    body: z.string().min(1).max(50_000),
+    state: z.literal('draft').default('draft'),
+    kind: noticeKindSchema.default('information'),
+    affectedComponentIds: affectedComponentsSchema,
+    occurredAt: occurredAtSchema.optional(),
+    startsAt: occurredAtSchema.nullable().default(null),
+    endsAt: occurredAtSchema.nullable().default(null),
+  })
+  .superRefine(validateNoticeWindow);
+
+export const noticeUpdateSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+  state: noticeStateSchema,
+  body: z.string().min(1).max(50_000),
+  kind: noticeKindSchema.optional(),
+  affectedComponentIds: affectedComponentsSchema.optional(),
+  occurredAt: occurredAtSchema.optional(),
+  startsAt: occurredAtSchema.nullable().optional(),
+  endsAt: occurredAtSchema.nullable().optional(),
+});
+
+export const noticePublicationSnapshotSchema = publicationSnapshotBaseSchema.extend({
+  type: z.literal('notice'),
+  state: noticeStateSchema,
+  kind: noticeKindSchema,
+  ...noticeWindowShape,
+});
+
 export const publicationSnapshotSchema = z.discriminatedUnion('type', [
   incidentPublicationSnapshotSchema,
   maintenancePublicationSnapshotSchema,
+  noticePublicationSnapshotSchema,
 ]);
 
 export type IncidentCreateInput = z.infer<typeof incidentCreateSchema>;
@@ -129,3 +187,8 @@ export type MaintenanceCreateInput = z.infer<typeof maintenanceCreateSchema>;
 export type MaintenanceUpdateInput = z.infer<typeof maintenanceUpdateSchema>;
 export type MaintenanceState = z.infer<typeof maintenanceStateSchema>;
 export type MaintenancePublicationSnapshot = z.infer<typeof maintenancePublicationSnapshotSchema>;
+export type NoticeCreateInput = z.infer<typeof noticeCreateSchema>;
+export type NoticeUpdateInput = z.infer<typeof noticeUpdateSchema>;
+export type NoticeState = z.infer<typeof noticeStateSchema>;
+export type NoticeKind = z.infer<typeof noticeKindSchema>;
+export type NoticePublicationSnapshot = z.infer<typeof noticePublicationSnapshotSchema>;

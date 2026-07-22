@@ -28,6 +28,7 @@ import {
   getPublishedMaintenance,
   listPublishedMaintenances,
 } from './events/maintenance-repository.js';
+import { listPublishedNotices } from './events/notice-repository.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
 import { createSubscriptionNonceService } from './subscriptions/nonce.js';
 import {
@@ -250,6 +251,13 @@ export const createApp = ({
     }
     context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
     return context.json({ data });
+  });
+
+  app.get('/api/v1/public/pages/:slug/notices', context => {
+    const page = findPage(context.req.param('slug'));
+    if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+    context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+    return context.json({ data: database ? listPublishedNotices(database, page.id) : [] });
   });
 
   const renderFeed = (context: Context<AppEnvironment>, format: 'rss' | 'atom') => {
