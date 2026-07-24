@@ -59,6 +59,96 @@ test('returns a stable JSON error for unknown API routes', async () => {
   assert.equal(typeof body.error.requestId, 'string');
 });
 
+test('serves generic native metrics only from the local extension cache', async () => {
+  const app = createApp({
+    snapshot,
+    schemaVersion: 8,
+    buildVersion: '2.0.0-test',
+    loadPageMetricExtensions: () => [
+      {
+        sourceId: 'llm',
+        pageId: 'default',
+        fetchedAt: '2026-07-25T00:00:00Z',
+        staleAfter: '2026-07-25T00:15:00Z',
+        stale: false,
+        extension: {
+          catalog: [
+            {
+              id: 'latency',
+              unit: 'milliseconds',
+              minimumSamples: { p50: 10 },
+              presentationHint: 'distribution',
+            },
+          ],
+          series: [
+            {
+              metricId: 'latency',
+              unit: 'milliseconds',
+              window: '5m',
+              generatedAt: '2026-07-25T00:00:00Z',
+              points: [
+                {
+                  window: {
+                    start: '2026-07-24T23:55:00Z',
+                    end: '2026-07-25T00:00:00Z',
+                  },
+                  dimensions: { region: 'ap-northeast-tyo' },
+                  protocolVersion: '1.0',
+                  sampleCount: 10,
+                  eligibleCount: 10,
+                  value: { p50: 420 },
+                  freshness: {
+                    state: 'fresh',
+                    observedAt: '2026-07-24T23:59:00Z',
+                  },
+                  coverageState: 'active',
+                  limitations: [],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  const catalog = await app.request('/api/v1/public/pages/main/metrics/catalog');
+  assert.equal(catalog.status, 200);
+  const catalogBody = (await catalog.json()) as {
+    data: Array<{ sourceId: string; metrics: Array<{ id: string }> }>;
+  };
+  assert.equal(catalogBody.data[0]?.sourceId, 'llm');
+  assert.equal(catalogBody.data[0]?.metrics[0]?.id, 'latency');
+
+  const query = await app.request(
+    '/api/v1/public/pages/main/metrics/query?source=llm&metric=latency&window=5m'
+  );
+  assert.equal(query.status, 200);
+  const queryBody = (await query.json()) as {
+    data: Array<{ points: Array<{ dimensions: Record<string, string> }> }>;
+  };
+  assert.equal(queryBody.data[0]?.points[0]?.dimensions.region, 'ap-northeast-tyo');
+
+  const unsupportedWindow = await app.request(
+    '/api/v1/public/pages/main/metrics/query?source=llm&metric=latency&window=2m'
+  );
+  assert.equal(unsupportedWindow.status, 400);
+  const unknownParameter = await app.request(
+    '/api/v1/public/pages/main/metrics/query?source=llm&metric=latency&window=5m&raw=true'
+  );
+  assert.equal(unknownParameter.status, 400);
+  const repeatedMetric = await app.request(
+    '/api/v1/public/pages/main/metrics/query?metric=latency&metric=throughput'
+  );
+  assert.equal(repeatedMetric.status, 400);
+
+  const unavailable = await app.request(
+    '/api/v1/public/pages/main/metrics/query?source=llm&metric=throughput&window=5m'
+  );
+  assert.equal(unavailable.status, 404);
+  assert.equal(unavailable.headers.get('cache-control'), 'no-store');
+});
+
 test('returns 503 instead of fetching upstream when no local snapshot exists', async () => {
   const app = createApp({ snapshot, schemaVersion: 2, buildVersion: '2.0.0-test' });
   const response = await app.request('/api/v1/public/pages/main/snapshot');

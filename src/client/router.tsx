@@ -19,6 +19,10 @@ export const router = createBrowserRouter([
       { path: 'about', Component: About },
       { path: 'monitor/:monitorId', Component: LegacyMonitorRedirect },
       { path: ':pageId', loader: loadStatusSnapshot, Component: StatusPage },
+      {
+        path: 'status/:pageSlug/metrics',
+        lazy: () => import('./routes/metric-explorer'),
+      },
       { path: 'status/:pageSlug/*', loader: loadStatusSnapshot, Component: StatusPage },
     ],
   },

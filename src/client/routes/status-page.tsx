@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronLeft, RadioTower } from 'lucide-react';
+import { BarChart3, CheckCircle2, ChevronLeft, RadioTower } from 'lucide-react';
 import { Link, useLoaderData, useParams, useRouteLoaderData } from 'react-router';
 import type { PublicBootstrap, SourceSnapshotState } from '../api';
 
@@ -11,6 +11,8 @@ export const StatusPage = () => {
   const { pageId, pageSlug } = useParams();
   const slug = pageSlug ?? pageId;
   const page = data.pages.find(candidate => candidate.slug === slug || candidate.id === slug);
+  const hasNativeMetrics =
+    payload?.data.some(item => item.snapshot.capabilities.nativeMetrics) ?? false;
 
   if (!page) {
     return (
@@ -51,6 +53,14 @@ export const StatusPage = () => {
             Public data is served from the local normalized snapshot. Visitor requests never call
             the upstream source directly.
           </p>
+          {hasNativeMetrics ? (
+            <Link
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#17211a] px-4 py-2.5 text-sm font-medium text-white"
+              to={`/status/${encodeURIComponent(page.slug)}/metrics`}
+            >
+              <BarChart3 size={16} /> Explore native metrics
+            </Link>
+          ) : null}
         </div>
         <div className="p-7 sm:p-10">
           {payload ? (

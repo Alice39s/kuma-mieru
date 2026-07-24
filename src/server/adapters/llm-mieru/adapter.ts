@@ -1,11 +1,15 @@
 import {
+  metricExtensionSchema,
   normalizedSnapshotSchema,
+  type MetricExtension,
   type NormalizedStatus,
   type SourceJsonRequester,
 } from '../types.js';
 import {
   llmMieruIncidentsSchema,
   llmMieruMetaSchema,
+  llmMieruMetricCatalogSchema,
+  llmMieruMetricQuerySchema,
   llmMieruServicesSchema,
   llmMieruStatusSnapshotSchema,
 } from './schemas.js';
@@ -48,9 +52,12 @@ const severity = (input: string) => {
   switch (input) {
     case 'critical':
     case 'major':
+    case 'major_outage':
       return 'danger' as const;
     case 'minor':
     case 'warning':
+    case 'degraded':
+    case 'partial_outage':
       return 'warning' as const;
     case 'info':
       return 'info' as const;
@@ -61,6 +68,83 @@ const severity = (input: string) => {
 
 const endpoint = (baseUrl: string, path: string) => new URL(path, new URL(baseUrl));
 
+const requestOptions = (token?: string) =>
+  token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+
+const supportsMetrics = (features: string[]) =>
+  features.includes('metric-catalog') && features.includes('metric-query');
+
+const metricPresentationHint = (unit: string) => {
+  switch (unit) {
+    case 'ratio':
+      return 'ratio';
+    case 'milliseconds':
+    case 'tokens_per_second':
+      return 'distribution';
+    case 'currency_micros':
+      return 'currency';
+    default:
+      return 'scalar';
+  }
+};
+
+export const fetchLlmMieruMetrics = async (
+  input: {
+    sourceId: string;
+    baseUrl: string;
+    token?: string;
+    features: string[];
+    window?: string;
+  },
+  requester: SourceJsonRequester
+): Promise<MetricExtension | null> => {
+  if (!supportsMetrics(input.features)) return null;
+  const window = input.window ?? '5m';
+  const options = requestOptions(input.token);
+  const catalog = await requester.request(
+    endpoint(input.baseUrl, '/api/v1/metrics/catalog'),
+    'metrics:catalog',
+    llmMieruMetricCatalogSchema,
+    options
+  );
+  const queries = [];
+  for (let offset = 0; offset < catalog.data.length; offset += 4) {
+    const batch = catalog.data.slice(offset, offset + 4);
+    queries.push(
+      ...(await Promise.all(
+        batch.map(definition => {
+          const url = endpoint(input.baseUrl, '/api/v1/metrics/query');
+          url.searchParams.set('metric', definition.id);
+          url.searchParams.set('window', window);
+          return requester.request(
+            url,
+            `metrics:${definition.id}:${window}`,
+            llmMieruMetricQuerySchema,
+            options
+          );
+        })
+      ))
+    );
+  }
+  const definitionsById = new Map(catalog.data.map(definition => [definition.id, definition]));
+  return metricExtensionSchema.parse({
+    catalog: catalog.data.map(definition => ({
+      id: definition.id,
+      unit: definition.unit,
+      minimumSamples: definition.minimumSamples,
+      requiredScenario: definition.requiredScenario,
+      presentationHint: metricPresentationHint(definition.unit),
+    })),
+    series: queries.map(query => ({
+      metricId: query.metric,
+      unit: definitionsById.get(query.metric)?.unit ?? 'unknown',
+      window,
+      generatedAt: query.generatedAt,
+      points: query.data,
+    })),
+  });
+};
+
 export const fetchLlmMieruSnapshot = async (
   input: { sourceId: string; baseUrl: string; pageId: string; token?: string },
   requester: SourceJsonRequester
@@ -70,14 +154,12 @@ export const fetchLlmMieruSnapshot = async (
       code: 'unsupported_page_type',
     });
   }
-  const requestOptions = input.token
-    ? { headers: { Authorization: `Bearer ${input.token}` } }
-    : undefined;
+  const options = requestOptions(input.token);
   const meta = await requester.request(
     endpoint(input.baseUrl, '/api/v1/meta'),
     'meta',
     llmMieruMetaSchema,
-    requestOptions
+    options
   );
   if (meta.apiVersion.split('.')[0] !== supportedApiMajor) {
     throw Object.assign(new Error(`Unsupported LLM-Mieru API version ${meta.apiVersion}`), {
@@ -89,52 +171,58 @@ export const fetchLlmMieruSnapshot = async (
       endpoint(input.baseUrl, '/api/v1/services'),
       'services',
       llmMieruServicesSchema,
-      requestOptions
+      options
     ),
     requester.request(
       endpoint(input.baseUrl, '/api/v1/status/snapshot'),
       'status:snapshot',
       llmMieruStatusSnapshotSchema,
-      requestOptions
+      options
     ),
-    meta.features.includes('incidents')
+    meta.features.includes('automatic-incidents')
       ? requester.request(
           endpoint(input.baseUrl, '/api/v1/incidents'),
           'incidents',
           llmMieruIncidentsSchema,
-          requestOptions
+          options
         )
       : Promise.resolve({ data: [] }),
   ]);
-  const statusByService = new Map(status.data.map(item => [item.serviceId, item]));
-  const groupNames = [...new Set(catalog.data.map(service => service.dimensions.macro_region))];
+  const catalogByService = new Map(catalog.data.map(item => [item.id, item]));
+  const regions = status.data.flatMap(service =>
+    service.regions.map(region => ({ service, region }))
+  );
+  const groupNames = [...new Set(regions.map(item => item.region.macroRegion))];
   const groupId = (name: string) => `${input.sourceId}:group:${encodeURIComponent(name)}`;
-  const serviceId = (id: string) => `${input.sourceId}:service:${id}`;
-  const services = catalog.data.map(service => {
-    const state = statusByService.get(service.id);
+  const serviceId = (id: string, region: string) =>
+    `${input.sourceId}:service:${encodeURIComponent(id)}:${encodeURIComponent(region)}`;
+  const services = regions.map(({ service, region }) => {
+    const catalogService = catalogByService.get(service.id);
     const normalized =
-      !state || state.freshness !== 'fresh' ? 'unknown' : normalizeStatus(state.status);
+      region.freshnessState !== 'fresh' || region.coverageState !== 'active'
+        ? 'unknown'
+        : normalizeStatus(region.status);
     return {
-      id: serviceId(service.id),
+      id: serviceId(service.id, region.observedRegion),
       sourceId: input.sourceId,
-      upstreamId: service.id,
-      name: service.name,
-      groupId: groupId(service.dimensions.macro_region),
+      upstreamId: `${service.id}:${region.observedRegion}`,
+      name: `${service.providerRoute} · ${service.requestedModel} · ${region.observedRegion}`,
+      groupId: groupId(region.macroRegion),
       tags: [
-        { name: 'provider_route', value: service.dimensions.provider_route, color: '#64748b' },
-        { name: 'model', value: service.dimensions.model, color: '#2563eb' },
-        { name: 'scenario', value: service.dimensions.scenario, color: '#7c3aed' },
-        { name: 'observed_region', value: service.dimensions.observed_region, color: '#059669' },
+        { name: 'provider_route', value: service.providerRoute, color: '#64748b' },
+        { name: 'model', value: service.requestedModel, color: '#2563eb' },
+        { name: 'observed_region', value: region.observedRegion, color: '#059669' },
+        { name: 'macro_region', value: region.macroRegion, color: '#7c3aed' },
         {
           name: 'protocol_version',
-          value: state?.protocolVersion ?? 'unknown',
+          value: service.protocolVersion,
           color: '#d97706',
         },
       ],
       status: normalized,
-      rawStatus: state?.rawStatus ?? 'missing',
+      rawStatus: region.status,
       latencyMs: null,
-      observedAt: state?.observedAt ?? null,
+      observedAt: service.observedAt ?? catalogService?.observedAt ?? null,
       uptime24h: null,
     };
   });
@@ -161,30 +249,34 @@ export const fetchLlmMieruSnapshot = async (
       heartbeatSeries: false,
       latencySeries: false,
       uptimeWindows: [],
-      incidents: meta.features.includes('incidents') ? 'history' : 'none',
+      incidents: meta.features.includes('automatic-incidents') ? 'history' : 'none',
       maintenance: false,
       groups: true,
       tags: true,
-      nativeMetrics: false,
+      nativeMetrics: supportsMetrics(meta.features),
       historicalDays: null,
     },
     groups: groupNames.map((name, position) => ({
       id: groupId(name),
       name,
       position,
-      serviceIds: catalog.data
-        .filter(service => service.dimensions.macro_region === name)
-        .map(service => serviceId(service.id)),
+      serviceIds: catalog.data.flatMap(
+        service =>
+          status.data
+            .find(candidate => candidate.id === service.id)
+            ?.regions.filter(region => region.macroRegion === name)
+            .map(region => serviceId(service.id, region.observedRegion)) ?? []
+      ),
     })),
     services,
     incidents: incidents.data.map(incident => ({
       id: `${input.sourceId}:incident:${incident.id}`,
-      title: incident.title,
-      content: incident.summary,
+      title: `${incident.providerRoute} · ${incident.requestedModel}`,
+      content: `Automatic incident · ${incident.ruleVersion}`,
       severity: severity(incident.severity),
-      startedAt: incident.startedAt,
+      startedAt: incident.openedAt,
       updatedAt: incident.updatedAt,
-      rawStatus: incident.status,
+      rawStatus: incident.state,
     })),
   });
 };

@@ -47,6 +47,49 @@ export const normalizedServiceSchema = z.object({
   uptime24h: z.number().nullable(),
 });
 
+export const metricDefinitionSchema = z.object({
+  id: z.string().min(1),
+  unit: z.string().min(1),
+  minimumSamples: z.union([
+    z.number().int().nonnegative(),
+    z.record(z.string(), z.number().int().nonnegative()),
+  ]),
+  requiredScenario: z.string().min(1).optional(),
+  presentationHint: z.string().min(1).optional(),
+});
+
+export const metricPointSchema = z.object({
+  window: z.object({
+    start: z.string().datetime({ offset: true }),
+    end: z.string().datetime({ offset: true }),
+  }),
+  dimensions: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+  protocolVersion: z.string().min(1),
+  sampleCount: z.number().int().nonnegative(),
+  eligibleCount: z.number().int().nonnegative(),
+  value: z.record(z.string(), z.unknown()),
+  freshness: z.object({
+    state: z.string().min(1),
+    observedAt: z.string().datetime({ offset: true }).nullable().optional(),
+    staleAfter: z.string().datetime({ offset: true }).nullable().optional(),
+  }),
+  coverageState: z.string().min(1),
+  limitations: z.array(z.string()),
+});
+
+export const metricSeriesSchema = z.object({
+  metricId: z.string().min(1),
+  unit: z.string().min(1),
+  window: z.string().min(1),
+  generatedAt: z.string().datetime({ offset: true }),
+  points: z.array(metricPointSchema),
+});
+
+export const metricExtensionSchema = z.object({
+  catalog: z.array(metricDefinitionSchema),
+  series: z.array(metricSeriesSchema),
+});
+
 export const normalizedSnapshotSchema = z.object({
   sourceId: z.string(),
   pageId: z.string(),
@@ -82,3 +125,6 @@ export const normalizedSnapshotSchema = z.object({
 export type NormalizedStatus = z.infer<typeof normalizedStatusSchema>;
 export type SourceCapabilities = z.infer<typeof sourceCapabilitiesSchema>;
 export type NormalizedSnapshot = z.infer<typeof normalizedSnapshotSchema>;
+export type MetricDefinition = z.infer<typeof metricDefinitionSchema>;
+export type MetricSeries = z.infer<typeof metricSeriesSchema>;
+export type MetricExtension = z.infer<typeof metricExtensionSchema>;

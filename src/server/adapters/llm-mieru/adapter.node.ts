@@ -1,96 +1,137 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SourceJsonRequester } from '../types.js';
-import { fetchLlmMieruSnapshot } from './adapter.js';
+import { fetchLlmMieruMetrics, fetchLlmMieruSnapshot } from './adapter.js';
 
 const meta = {
   apiVersion: '1.0',
   schemaVersion: '1.0',
   instanceId: 'instance-fixture',
-  generatedAt: '2026-07-23T00:00:00Z',
+  generatedAt: '2026-07-25T00:00:00Z',
   protocolVersions: ['1.0'],
-  features: ['coverage', 'metric-catalog', 'metric-query', 'incidents'],
+  features: [
+    'coverage',
+    'metric-catalog',
+    'metric-query',
+    'status-snapshot',
+    'service-catalog',
+    'automatic-incidents',
+    'methodology',
+  ],
   futureField: 'ignored within the same major',
 };
 
-const services = {
-  data: [
+const service = {
+  id: 'openai-global/gpt-fixture',
+  providerRoute: 'openai-global',
+  requestedModel: 'gpt-fixture',
+  status: 'degraded',
+  protocolVersion: '1.0',
+  observedAt: '2026-07-24T23:59:00Z',
+  regions: [
     {
-      id: 'route-eastasia',
-      name: 'GPT route · East Asia',
-      dimensions: {
-        provider_route: 'openai-primary',
-        model: 'gpt-fixture',
-        scenario: 'one-shot-10',
-        observed_region: 'tyo',
-        macro_region: 'eastasia',
-      },
-    },
-    {
-      id: 'route-us-east',
-      name: 'GPT route · US East',
-      dimensions: {
-        provider_route: 'openai-primary',
-        model: 'gpt-fixture',
-        scenario: 'one-shot-10',
-        observed_region: 'iad',
-        macro_region: 'us-east',
-      },
-    },
-  ],
-};
-
-const status = {
-  generatedAt: '2026-07-23T00:01:00Z',
-  coverageGeneratedAt: '2026-07-23T00:00:30Z',
-  data: [
-    {
-      serviceId: 'route-eastasia',
+      observedRegion: 'ap-northeast-tyo',
+      macroRegion: 'east-asia',
       status: 'operational',
-      rawStatus: 'healthy',
-      observedAt: '2026-07-23T00:00:50Z',
-      freshness: 'fresh',
-      protocolVersion: '1.0',
+      coverageState: 'active',
+      freshnessState: 'fresh',
+      sampleCount: 10,
+      consumerSuccessCount: 10,
     },
     {
-      serviceId: 'route-us-east',
+      observedRegion: 'us-east-iad',
+      macroRegion: 'north-america',
       status: 'degraded',
-      rawStatus: 'high_ttft',
-      observedAt: '2026-07-22T23:00:00Z',
-      freshness: 'stale',
-      protocolVersion: '1.0',
+      coverageState: 'stale',
+      freshnessState: 'stale',
+      sampleCount: 10,
+      consumerSuccessCount: 9,
     },
   ],
 };
 
+const services = { data: [service] };
+const status = {
+  generatedAt: '2026-07-25T00:00:00Z',
+  coverageGeneratedAt: '2026-07-25T00:00:00Z',
+  data: [{ ...service, ruleVersion: 'availability-v1' }],
+};
 const incidents = {
   data: [
     {
       id: 'automatic-incident-1',
-      title: 'Elevated TTFT in US East',
-      summary: 'Synthetic probes exceeded the degraded threshold.',
-      status: 'monitoring',
-      severity: 'major',
-      startedAt: '2026-07-22T23:30:00Z',
-      updatedAt: '2026-07-23T00:00:00Z',
+      providerRoute: 'openai-global',
+      requestedModel: 'gpt-fixture',
+      state: 'open',
+      severity: 'degraded',
+      ruleVersion: 'availability-v1',
+      openedAt: '2026-07-24T23:30:00Z',
+      updatedAt: '2026-07-25T00:00:00Z',
+      resolvedAt: null,
+      latestEvidence: { degradedRegions: 1, affectedRegions: ['us-east-iad'] },
     },
   ],
 };
+const metricCatalog = {
+  data: [
+    {
+      id: 'ttft_visible_ms',
+      unit: 'milliseconds',
+      minimumSamples: { p50: 10, p95: 30 },
+    },
+    {
+      id: 'tool_call_error_rate',
+      unit: 'ratio',
+      minimumSamples: 1,
+      requiredScenario: 'tool_min',
+    },
+  ],
+};
+
+const metricQuery = (metric: string) => ({
+  generatedAt: '2026-07-25T00:00:00Z',
+  metric,
+  data: [
+    {
+      window: { start: '2026-07-24T23:55:00Z', end: '2026-07-25T00:00:00Z' },
+      dimensions: {
+        providerRoute: 'openai-global',
+        requestedModel: 'gpt-fixture',
+        scenario: metric === 'tool_call_error_rate' ? 'tool_min' : 'perf_10',
+        observedRegion: 'ap-northeast-tyo',
+      },
+      protocolVersion: '1.0',
+      sampleCount: 10,
+      eligibleCount: 10,
+      value: metric === 'tool_call_error_rate' ? { ratio: 0 } : { p50: 420 },
+      freshness: { state: 'fresh', observedAt: '2026-07-24T23:59:00Z' },
+      coverageState: 'active',
+      limitations: metric === 'ttft_visible_ms' ? ['p95_insufficient_samples'] : [],
+    },
+  ],
+});
 
 const fixtureRequester = (
   requested: Array<{ path: string; authorization: string | undefined }>
 ): SourceJsonRequester => ({
   request: async (url, _resourceKey, schema, options) => {
-    requested.push({ path: url.pathname, authorization: options?.headers?.Authorization });
+    requested.push({
+      path: `${url.pathname}${url.search}`,
+      authorization: options?.headers?.Authorization,
+    });
     if (url.pathname.endsWith('/meta')) return schema.parse(meta);
     if (url.pathname.endsWith('/services')) return schema.parse(services);
     if (url.pathname.endsWith('/status/snapshot')) return schema.parse(status);
     if (url.pathname.endsWith('/incidents')) return schema.parse(incidents);
+    if (url.pathname.endsWith('/metrics/catalog')) return schema.parse(metricCatalog);
+    if (url.pathname.endsWith('/metrics/query')) {
+      return schema.parse(metricQuery(url.searchParams.get('metric') ?? ''));
+    }
     throw new Error(`Unexpected fixture request: ${url.pathname}`);
   },
 });
 
-test('negotiates capabilities and preserves LLM dimensions outside the Kuma Core schema', async () => {
+test('negotiates the frozen v1 producer shape and fails stale regions closed', async () => {
   const requested: Array<{ path: string; authorization: string | undefined }> = [];
   const snapshot = await fetchLlmMieruSnapshot(
     {
@@ -119,23 +160,45 @@ test('negotiates capabilities and preserves LLM dimensions outside the Kuma Core
   assert.deepEqual(
     snapshot.services[0]?.tags.map(tag => [tag.name, tag.value]),
     [
-      ['provider_route', 'openai-primary'],
+      ['provider_route', 'openai-global'],
       ['model', 'gpt-fixture'],
-      ['scenario', 'one-shot-10'],
-      ['observed_region', 'tyo'],
+      ['observed_region', 'ap-northeast-tyo'],
+      ['macro_region', 'east-asia'],
       ['protocol_version', '1.0'],
     ]
   );
-  assert.deepEqual(snapshot.extensions['llm-mieru'], {
-    apiVersion: '1.0',
-    schemaVersion: '1.0',
-    protocolVersions: ['1.0'],
-    upstreamFeatures: ['coverage', 'metric-catalog', 'metric-query', 'incidents'],
-    coverageGeneratedAt: '2026-07-23T00:00:30Z',
-  });
-  assert.equal(snapshot.capabilities.nativeMetrics, false);
+  assert.equal(snapshot.capabilities.nativeMetrics, true);
   assert.equal(snapshot.capabilities.incidents, 'history');
-  assert.equal(snapshot.incidents[0]?.severity, 'danger');
+  assert.equal(snapshot.incidents[0]?.severity, 'warning');
+  assert.equal(snapshot.incidents[0]?.rawStatus, 'open');
+});
+
+test('preserves generic metric dimensions and evidence without LLM fields in the core schema', async () => {
+  const requested: Array<{ path: string; authorization: string | undefined }> = [];
+  const extension = await fetchLlmMieruMetrics(
+    {
+      sourceId: 'llm',
+      baseUrl: 'https://metrics.example.com',
+      token: 'read-metrics-token',
+      features: meta.features,
+    },
+    fixtureRequester(requested)
+  );
+
+  assert.equal(extension?.catalog.length, 2);
+  assert.equal(extension?.series.length, 2);
+  assert.equal(extension?.series[0]?.points[0]?.dimensions.observedRegion, 'ap-northeast-tyo');
+  assert.equal(extension?.series[0]?.points[0]?.coverageState, 'active');
+  assert.deepEqual(extension?.series[0]?.points[0]?.limitations, ['p95_insufficient_samples']);
+  assert.equal(
+    requested.every(item => item.authorization === 'Bearer read-metrics-token'),
+    true
+  );
+  assert.deepEqual(requested.map(item => item.path).sort(), [
+    '/api/v1/metrics/catalog',
+    '/api/v1/metrics/query?metric=tool_call_error_rate&window=5m',
+    '/api/v1/metrics/query?metric=ttft_visible_ms&window=5m',
+  ]);
 });
 
 test('does not request optional endpoints that the producer did not advertise', async () => {
@@ -143,9 +206,7 @@ test('does not request optional endpoints that the producer did not advertise', 
   const requester: SourceJsonRequester = {
     request: async (url, _resourceKey, schema) => {
       requested.push(url.pathname);
-      if (url.pathname.endsWith('/meta')) {
-        return schema.parse({ ...meta, features: [] });
-      }
+      if (url.pathname.endsWith('/meta')) return schema.parse({ ...meta, features: [] });
       if (url.pathname.endsWith('/services')) return schema.parse(services);
       if (url.pathname.endsWith('/status/snapshot')) return schema.parse(status);
       throw new Error(`Unexpected optional request: ${url.pathname}`);
@@ -158,6 +219,17 @@ test('does not request optional endpoints that the producer did not advertise', 
   assert.equal(requested.includes('/api/v1/incidents'), false);
   assert.equal(snapshot.capabilities.incidents, 'none');
   assert.equal(snapshot.capabilities.nativeMetrics, false);
+  assert.equal(
+    await fetchLlmMieruMetrics(
+      {
+        sourceId: 'llm',
+        baseUrl: 'https://metrics.example.com',
+        features: [],
+      },
+      requester
+    ),
+    null
+  );
 });
 
 test('rejects an unsupported producer major version before reading data endpoints', async () => {

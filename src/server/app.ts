@@ -8,6 +8,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { secureHeaders } from 'hono/secure-headers';
 import { z } from 'zod';
 import type { SourceSnapshotState } from './adapters/source-store.js';
+import type { MetricExtensionState } from './adapters/metric-store.js';
 import type { SourceTestService } from './adapters/source-test.js';
 import { registerAdminRoutes } from './admin/routes.js';
 import { errorResponse, type AppEnvironment } from './api/errors.js';
@@ -41,6 +42,12 @@ import {
 } from './subscriptions/repository.js';
 import { subscriptionManageSchema, subscriptionRequestSchema } from './subscriptions/schemas.js';
 
+const publicMetricQuerySchema = z.object({
+  metric: z.string().min(1).max(128),
+  source: z.string().min(1).max(128).optional(),
+  window: z.enum(['5m', '1h', '1d', '7d', '30d']).default('5m'),
+});
+
 export interface AppOptions {
   snapshot: RuntimeConfigSnapshot;
   schemaVersion: number;
@@ -48,6 +55,7 @@ export interface AppOptions {
   publicDirectory?: string;
   startedAt?: number;
   loadPageSnapshots?: (page: CanonicalConfig['pages'][number]) => SourceSnapshotState[];
+  loadPageMetricExtensions?: (page: CanonicalConfig['pages'][number]) => MetricExtensionState[];
   getRuntimeSnapshot?: () => RuntimeConfigSnapshot;
   database?: Database.Database;
   auth?: KumaAuth;
@@ -68,6 +76,7 @@ export const createApp = ({
   publicDirectory,
   startedAt = Date.now(),
   loadPageSnapshots,
+  loadPageMetricExtensions,
   getRuntimeSnapshot,
   database,
   auth,
@@ -646,6 +655,97 @@ export const createApp = ({
     const partial = data.some(item => item.health.stale) || data.length < page.sourceRefs.length;
     context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
     return context.json({ data, meta: { status: partial ? 'partial' : 'ok' } });
+  });
+
+  app.get('/api/v1/public/pages/:slug/metrics/catalog', context => {
+    const page = findPage(context.req.param('slug'));
+    if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+    const extensions = loadPageMetricExtensions?.(page) ?? [];
+    if (extensions.length === 0) {
+      context.header('Cache-Control', 'no-store');
+      return errorResponse(
+        context,
+        404,
+        'METRIC_EXTENSION_UNAVAILABLE',
+        'No native metric extension is available for this page'
+      );
+    }
+    const stale = extensions.some(extension => extension.stale);
+    context.header(
+      'Cache-Control',
+      stale
+        ? 'public, max-age=0, must-revalidate'
+        : 'public, max-age=300, stale-while-revalidate=600'
+    );
+    return context.json({
+      data: extensions.map(extension => ({
+        sourceId: extension.sourceId,
+        pageId: extension.pageId,
+        fetchedAt: extension.fetchedAt,
+        staleAfter: extension.staleAfter,
+        stale: extension.stale,
+        metrics: extension.extension.catalog,
+      })),
+    });
+  });
+
+  app.get('/api/v1/public/pages/:slug/metrics/query', context => {
+    const page = findPage(context.req.param('slug'));
+    if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+    const rawQuery = context.req.queries();
+    const allowedParameters = new Set(['metric', 'source', 'window']);
+    if (
+      Object.entries(rawQuery).some(
+        ([key, values]) => !allowedParameters.has(key) || values.length !== 1
+      )
+    ) {
+      return errorResponse(context, 400, 'INVALID_METRIC_QUERY', 'Metric query is invalid');
+    }
+    const query = publicMetricQuerySchema.safeParse({
+      metric: context.req.query('metric'),
+      source: context.req.query('source'),
+      window: context.req.query('window'),
+    });
+    if (!query.success) {
+      return errorResponse(context, 400, 'INVALID_METRIC_QUERY', 'Metric query is invalid');
+    }
+    const { metric: metricId, source: sourceId, window } = query.data;
+    const extensions = (loadPageMetricExtensions?.(page) ?? []).filter(
+      extension => !sourceId || extension.sourceId === sourceId
+    );
+    const candidates = extensions.flatMap(extension =>
+      extension.extension.series
+        .filter(series => series.metricId === metricId && series.window === window)
+        .map(series => ({ extension, series }))
+    );
+    if (candidates.length === 0) {
+      context.header('Cache-Control', 'no-store');
+      return errorResponse(
+        context,
+        404,
+        'METRIC_SERIES_UNAVAILABLE',
+        'The requested metric series is not available in the local cache'
+      );
+    }
+    const stale = candidates.some(candidate => candidate.extension.stale);
+    context.header(
+      'Cache-Control',
+      stale ? 'public, max-age=0, must-revalidate' : 'public, max-age=15, stale-while-revalidate=30'
+    );
+    return context.json({
+      data: candidates.map(({ extension, series }) => ({
+        sourceId: extension.sourceId,
+        pageId: extension.pageId,
+        metricId: series.metricId,
+        unit: series.unit,
+        window: series.window,
+        generatedAt: series.generatedAt,
+        fetchedAt: extension.fetchedAt,
+        staleAfter: extension.staleAfter,
+        stale: extension.stale,
+        points: series.points,
+      })),
+    });
   });
 
   registerAdminRoutes(app, {

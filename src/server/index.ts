@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
+import { getMetricExtensionState } from './adapters/metric-store.js';
 import { startSourcePoller } from './adapters/source-poller.js';
 import { getSourceSnapshotState } from './adapters/source-store.js';
 import { createSourceTestService } from './adapters/source-test.js';
@@ -127,6 +128,15 @@ const app = createApp({
       if (!source) return [];
       return source.pageIds.flatMap(pageId => {
         const state = getSourceSnapshotState(database, sourceId, pageId);
+        return state ? [state] : [];
+      });
+    }),
+  loadPageMetricExtensions: page =>
+    page.sourceRefs.flatMap(sourceId => {
+      const source = runtimeSnapshot.config.sources.find(candidate => candidate.id === sourceId);
+      if (!source) return [];
+      return source.pageIds.flatMap(pageId => {
+        const state = getMetricExtensionState(database, sourceId, pageId);
         return state ? [state] : [];
       });
     }),

@@ -202,10 +202,25 @@ and raw status survive normalization as generic tags or Adapter-owned `extension
 LLM-specific fields to the Kuma Core schema. Missing or stale measurements and unknown future
 status values become `unknown`, never `operational`.
 
-Current status and automatic incidents are available in this slice. Advertised upstream features
-are retained in Adapter-owned metadata, while `nativeMetrics` stays false until MetricSeries queries
-and the Metric Explorer are implemented. Mirrored-event persistence likewise stays disabled until
-its executable contract and storage projection are implemented.
+The adapter follows the frozen LLM-Mieru Public API v1.0 producer shape rather than the earlier
+draft-only Service schema. Current status expands each Provider Route and Requested Model into
+region-scoped generic Services; non-active Coverage, stale evidence, and unknown states fail closed
+to `unknown`. Automatic incidents remain read-only Source evidence and do not enter Kuma's native
+Publication or notification Outbox.
+
+When the Producer advertises both `metric-catalog` and `metric-query`, a five-minute background
+extension refresh reads the generic Catalog and the current five-minute Series for every advertised
+Metric. Migration 8 stores this data separately from the normalized Source snapshot. Public
+Catalog/Query endpoints and the lazy `/status/:pageSlug/metrics` Explorer read only that local
+last-known-good cache, expose Sample Count, Coverage, Freshness, Limitations, Unit and arbitrary
+Dimension Maps, and never fan out to LLM-Mieru from a visitor request. Recharts remains isolated in
+the Metric Explorer chunk; instances without a native Metric Source do not show the route entry or
+download the chart dependency.
+
+Only the current five-minute aggregate window is refreshed in this slice. The API validates the
+versioned `5m | 1h | 1d | 7d | 30d` window enum but returns an explicit local-cache miss until a
+future scheduler adds the longer-window cadence. Mirrored-event ledger persistence likewise stays
+disabled until its executable contract and storage projection are implemented.
 
 ## Authentication and managed revisions
 

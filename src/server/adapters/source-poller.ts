@@ -3,6 +3,8 @@ import type Database from 'better-sqlite3';
 import type { CanonicalConfig } from '../config/schema.js';
 import type { SecretStore } from '../secrets/store.js';
 import { createCachedSourceRequester, createHttpJsonClient } from './http-client.js';
+import { fetchLlmMieruMetrics } from './llm-mieru/adapter.js';
+import { saveMetricExtension } from './metric-store.js';
 import { fetchSourceSnapshot } from './registry.js';
 import { getSourceSnapshot, recordSourceFailure, saveSourceSnapshot } from './source-store.js';
 
@@ -12,6 +14,8 @@ export interface SourcePollerOptions {
   allowPrivateAddresses?: boolean;
   intervalMs?: number;
   staleAfterMs?: number;
+  metricRefreshMs?: number;
+  metricStaleAfterMs?: number;
   secretStore?: SecretStore;
 }
 
@@ -36,6 +40,8 @@ export const startSourcePoller = ({
   allowPrivateAddresses = false,
   intervalMs = 60_000,
   staleAfterMs = 180_000,
+  metricRefreshMs = 5 * 60_000,
+  metricStaleAfterMs = 15 * 60_000,
   secretStore,
 }: SourcePollerOptions) => {
   const timers = new Set<NodeJS.Timeout>();
@@ -48,6 +54,7 @@ export const startSourcePoller = ({
     });
     for (const pageId of source.pageIds) {
       let consecutiveFailures = 0;
+      let lastMetricRefreshAt = 0;
       const requester = createCachedSourceRequester(database, source.id, httpClient);
       const schedule = (callback: () => void, delay: number) => {
         const timer = setTimeout(() => {
@@ -63,6 +70,56 @@ export const startSourcePoller = ({
           const snapshot = await fetchSourceSnapshot(source, pageId, requester, secretStore);
           saveSourceSnapshot(database, snapshot, new Date(Date.now() + staleAfterMs));
           consecutiveFailures = 0;
+          if (
+            source.kind === 'llm-mieru' &&
+            snapshot.capabilities.nativeMetrics &&
+            Date.now() - lastMetricRefreshAt >= metricRefreshMs
+          ) {
+            const llmMetadata = snapshot.extensions['llm-mieru'];
+            const features =
+              typeof llmMetadata === 'object' &&
+              llmMetadata !== null &&
+              'upstreamFeatures' in llmMetadata &&
+              Array.isArray(llmMetadata.upstreamFeatures)
+                ? llmMetadata.upstreamFeatures.filter(
+                    (feature): feature is string => typeof feature === 'string'
+                  )
+                : [];
+            const token = source.secretRef
+              ? secretStore?.resolve(source.secretRef, {
+                  resourceId: source.id,
+                  fieldName: 'apiToken',
+                  purpose: 'source-token',
+                })
+              : undefined;
+            try {
+              const extension = await fetchLlmMieruMetrics(
+                {
+                  sourceId: source.id,
+                  baseUrl: source.baseUrl,
+                  token,
+                  features,
+                },
+                requester
+              );
+              if (extension) {
+                saveMetricExtension(
+                  database,
+                  source.id,
+                  pageId,
+                  extension,
+                  new Date(Date.now() + metricStaleAfterMs)
+                );
+              }
+              lastMetricRefreshAt = Date.now();
+            } catch (metricError) {
+              console.warn('Metric extension refresh failed', {
+                sourceId: source.id,
+                pageId,
+                errorCode: errorCode(metricError),
+              });
+            }
+          }
         } catch (error) {
           consecutiveFailures += 1;
           const backoff = Math.min(intervalMs * 2 ** consecutiveFailures, 15 * 60_000);
