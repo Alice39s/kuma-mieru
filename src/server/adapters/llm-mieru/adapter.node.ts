@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SourceJsonRequester } from '../types.js';
-import { fetchLlmMieruMetrics, fetchLlmMieruSnapshot } from './adapter.js';
+import {
+  fetchLlmMieruMethodology,
+  fetchLlmMieruMetrics,
+  fetchLlmMieruSnapshot,
+} from './adapter.js';
 
 const meta = {
   apiVersion: '1.0',
@@ -111,6 +115,31 @@ const metricQuery = (metric: string) => ({
   ],
 });
 
+const methodology = {
+  methodologyVersion: '1.0',
+  generatedAt: '2026-07-25T00:00:00Z',
+  product: {
+    name: 'LLM-Mieru',
+    measurementKind: 'third_party_synthetic',
+  },
+  sourceKinds: ['synthetic_probe'],
+  statusSemantics: {
+    unknownIsHealthy: false,
+  },
+  freshnessPolicy: {
+    missingEvidence: 'unknown',
+  },
+  protocols: [{ id: 'perf_10', version: '1.0', promptTokens: 10 }],
+  metrics: [{ id: 'ttft_visible_ms', unit: 'milliseconds' }],
+  coverage: [{ observedRegion: 'ap-northeast-tyo', state: 'active' }],
+  performanceBaselines: [],
+  thresholdSet: null,
+  thresholdHistory: [],
+  limitations: ['synthetic_measurement_only'],
+  evidenceLinks: ['docs/contracts/llm-measurement-protocol.md'],
+  futureEvidenceField: { preserved: true },
+};
+
 const fixtureRequester = (
   requested: Array<{ path: string; authorization: string | undefined }>
 ): SourceJsonRequester => ({
@@ -126,6 +155,9 @@ const fixtureRequester = (
     if (url.pathname.endsWith('/metrics/catalog')) return schema.parse(metricCatalog);
     if (url.pathname.endsWith('/metrics/query')) {
       return schema.parse(metricQuery(url.searchParams.get('metric') ?? ''));
+    }
+    if (url.pathname.endsWith('/methodology/protocols')) {
+      return schema.parse(methodology);
     }
     throw new Error(`Unexpected fixture request: ${url.pathname}`);
   },
@@ -201,6 +233,28 @@ test('preserves generic metric dimensions and evidence without LLM fields in the
   ]);
 });
 
+test('preserves the advertised methodology snapshot and forwards the read token', async () => {
+  const requested: Array<{ path: string; authorization: string | undefined }> = [];
+  const snapshot = await fetchLlmMieruMethodology(
+    {
+      baseUrl: 'https://metrics.example.com',
+      token: 'read-methodology-token',
+      features: meta.features,
+    },
+    fixtureRequester(requested)
+  );
+
+  assert.equal(snapshot?.product.name, 'LLM-Mieru');
+  assert.equal(snapshot?.statusSemantics.unknownIsHealthy, false);
+  assert.deepEqual(snapshot?.futureEvidenceField, { preserved: true });
+  assert.deepEqual(requested, [
+    {
+      path: '/api/v1/methodology/protocols',
+      authorization: 'Bearer read-methodology-token',
+    },
+  ]);
+});
+
 test('does not request optional endpoints that the producer did not advertise', async () => {
   const requested: string[] = [];
   const requester: SourceJsonRequester = {
@@ -223,6 +277,16 @@ test('does not request optional endpoints that the producer did not advertise', 
     await fetchLlmMieruMetrics(
       {
         sourceId: 'llm',
+        baseUrl: 'https://metrics.example.com',
+        features: [],
+      },
+      requester
+    ),
+    null
+  );
+  assert.equal(
+    await fetchLlmMieruMethodology(
+      {
         baseUrl: 'https://metrics.example.com',
         features: [],
       },

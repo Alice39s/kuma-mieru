@@ -208,19 +208,27 @@ region-scoped generic Services; non-active Coverage, stale evidence, and unknown
 to `unknown`. Automatic incidents remain read-only Source evidence and do not enter Kuma's native
 Publication or notification Outbox.
 
-When the Producer advertises both `metric-catalog` and `metric-query`, a five-minute background
-extension refresh reads the generic Catalog and the current five-minute Series for every advertised
-Metric. Migration 8 stores this data separately from the normalized Source snapshot. Public
-Catalog/Query endpoints and the lazy `/status/:pageSlug/metrics` Explorer read only that local
-last-known-good cache, expose Sample Count, Coverage, Freshness, Limitations, Unit and arbitrary
-Dimension Maps, and never fan out to LLM-Mieru from a visitor request. Recharts remains isolated in
-the Metric Explorer chunk; instances without a native Metric Source do not show the route entry or
-download the chart dependency.
+When the Producer advertises both `metric-catalog` and `metric-query`, a bounded background
+extension refresh reads the generic Catalog and Series for the versioned
+`5m | 1h | 1d | 7d | 30d` windows. Refresh cadence is tiered at five minutes, fifteen minutes, one
+hour, six hours, and twenty-four hours respectively. Each source poll refreshes at most two due
+windows, preferring missing windows in stable short-to-long order; a failure in one window neither
+blocks another nor replaces its last-known-good cache. Migration 9 preserves the Migration 8 cache
+as the `5m` window while extending the primary key with the window dimension.
 
-Only the current five-minute aggregate window is refreshed in this slice. The API validates the
-versioned `5m | 1h | 1d | 7d | 30d` window enum but returns an explicit local-cache miss until a
-future scheduler adds the longer-window cadence. Mirrored-event ledger persistence likewise stays
-disabled until its executable contract and storage projection are implemented.
+Public Catalog/Query endpoints and the lazy `/status/:pageSlug/metrics` Explorer read only those
+local caches, expose Sample Count, Coverage, Freshness, Limitations, Unit and arbitrary Dimension
+Maps, and never fan out to LLM-Mieru from a visitor request. Recharts remains isolated in the Metric
+Explorer chunk; instances without a native Metric Source do not show the route entry or download
+the chart dependency.
+
+When the Producer advertises `methodology`, the poller separately caches the versioned methodology
+snapshot once per hour with a three-hour freshness boundary. The public
+`/api/v1/public/pages/:slug/methodology` endpoint and lazy
+`/status/:pageSlug/methodology` disclosure page preserve protocol, metric, coverage, limitation,
+and evidence fields from the same local snapshot. Stale disclosure remains visible as explicit
+last-known-good evidence. Mirrored-event ledger persistence stays disabled until its executable
+contract and storage projection are implemented.
 
 ## Authentication and managed revisions
 

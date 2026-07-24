@@ -2,12 +2,14 @@ import {
   metricExtensionSchema,
   normalizedSnapshotSchema,
   type MetricExtension,
+  type MethodologySnapshot,
   type NormalizedStatus,
   type SourceJsonRequester,
 } from '../types.js';
 import {
   llmMieruIncidentsSchema,
   llmMieruMetaSchema,
+  llmMieruMethodologySchema,
   llmMieruMetricCatalogSchema,
   llmMieruMetricQuerySchema,
   llmMieruServicesSchema,
@@ -143,6 +145,19 @@ export const fetchLlmMieruMetrics = async (
       points: query.data,
     })),
   });
+};
+
+export const fetchLlmMieruMethodology = (
+  input: { baseUrl: string; token?: string; features: string[] },
+  requester: SourceJsonRequester
+): Promise<MethodologySnapshot | null> => {
+  if (!input.features.includes('methodology')) return Promise.resolve(null);
+  return requester.request(
+    endpoint(input.baseUrl, '/api/v1/methodology/protocols'),
+    'methodology:protocols',
+    llmMieruMethodologySchema,
+    requestOptions(input.token)
+  );
 };
 
 export const fetchLlmMieruSnapshot = async (

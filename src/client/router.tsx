@@ -23,6 +23,10 @@ export const router = createBrowserRouter([
         path: 'status/:pageSlug/metrics',
         lazy: () => import('./routes/metric-explorer'),
       },
+      {
+        path: 'status/:pageSlug/methodology',
+        lazy: () => import('./routes/methodology'),
+      },
       { path: 'status/:pageSlug/*', loader: loadStatusSnapshot, Component: StatusPage },
     ],
   },

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { methodologySnapshotSchema } from '../types.js';
 
 export const llmMieruMetaSchema = z.object({
   apiVersion: z.string(),
@@ -120,9 +121,12 @@ export const llmMieruMetricQuerySchema = z.object({
     .max(5000),
 });
 
+export const llmMieruMethodologySchema = methodologySnapshotSchema;
+
 export type LlmMieruMeta = z.infer<typeof llmMieruMetaSchema>;
 export type LlmMieruServices = z.infer<typeof llmMieruServicesSchema>;
 export type LlmMieruStatusSnapshot = z.infer<typeof llmMieruStatusSnapshotSchema>;
 export type LlmMieruIncidents = z.infer<typeof llmMieruIncidentsSchema>;
 export type LlmMieruMetricCatalog = z.infer<typeof llmMieruMetricCatalogSchema>;
 export type LlmMieruMetricQuery = z.infer<typeof llmMieruMetricQuerySchema>;
+export type LlmMieruMethodology = z.infer<typeof llmMieruMethodologySchema>;

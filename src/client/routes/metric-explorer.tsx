@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, BarChart3, ChevronLeft, Database } from 'lucide-react';
+import { Activity, AlertTriangle, BarChart3, BookOpen, ChevronLeft, Database } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Link, useLoaderData } from 'react-router';
@@ -15,20 +15,25 @@ export const loader = async ({ params }: { params: Record<string, string | undef
   const catalog = await loadMetricCatalog(slug);
   const firstSource = catalog.data[0];
   const firstMetric = firstSource?.metrics[0];
+  const firstWindow =
+    firstSource?.windows.find(candidate => candidate.window === '5m')?.window ??
+    firstSource?.windows[0]?.window;
   const initialSeries =
-    firstSource && firstMetric
+    firstSource && firstMetric && firstWindow
       ? await loadMetricSeries(slug, {
           sourceId: firstSource.sourceId,
           metricId: firstMetric.id,
+          window: firstWindow,
         })
       : { data: [] };
-  return { slug, catalog: catalog.data, initialSeries: initialSeries.data };
+  return { slug, catalog: catalog.data, initialSeries: initialSeries.data, firstWindow };
 };
 
 interface ExplorerLoaderData {
   slug: string;
   catalog: MetricCatalogSource[];
   initialSeries: MetricSeries[];
+  firstWindow?: string;
 }
 
 const firstNumericValue = (
@@ -53,10 +58,11 @@ const dimensionLabel = (dimensions: Record<string, string | number | boolean | n
 };
 
 export const Component = () => {
-  const { slug, catalog, initialSeries } = useLoaderData() as ExplorerLoaderData;
+  const { slug, catalog, initialSeries, firstWindow } = useLoaderData() as ExplorerLoaderData;
   const [sourceId, setSourceId] = useState(catalog[0]?.sourceId ?? '');
   const source = catalog.find(candidate => candidate.sourceId === sourceId) ?? catalog[0];
   const [metricId, setMetricId] = useState(source?.metrics[0]?.id ?? '');
+  const [window, setWindow] = useState(firstWindow ?? source?.windows[0]?.window ?? '5m');
   const [series, setSeries] = useState(initialSeries);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -66,7 +72,7 @@ export const Component = () => {
     let cancelled = false;
     setLoading(true);
     setFailed(false);
-    void loadMetricSeries(slug, { sourceId, metricId })
+    void loadMetricSeries(slug, { sourceId, metricId, window })
       .then(result => {
         if (!cancelled) setSeries(result.data);
       })
@@ -82,7 +88,7 @@ export const Component = () => {
     return () => {
       cancelled = true;
     };
-  }, [metricId, slug, sourceId]);
+  }, [metricId, slug, sourceId, window]);
 
   const chart = useMemo(
     () =>
@@ -111,12 +117,20 @@ export const Component = () => {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <Link
-        className="mb-8 inline-flex items-center gap-2 text-sm text-black/45 transition hover:text-black"
-        to={`/status/${encodeURIComponent(slug)}`}
-      >
-        <ChevronLeft size={16} /> Back to current status
-      </Link>
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <Link
+          className="inline-flex items-center gap-2 text-sm text-black/45 transition hover:text-black"
+          to={`/status/${encodeURIComponent(slug)}`}
+        >
+          <ChevronLeft size={16} /> Back to current status
+        </Link>
+        <Link
+          className="inline-flex items-center gap-2 text-sm font-medium text-indigo-700"
+          to={`/status/${encodeURIComponent(slug)}/methodology`}
+        >
+          <BookOpen size={16} /> Read methodology
+        </Link>
+      </div>
       <section className="overflow-hidden rounded-[2rem] border border-black/5 bg-white shadow-[0_24px_90px_rgba(23,33,26,0.07)]">
         <div className="border-b border-black/5 p-7 sm:p-10">
           <div className="flex items-center gap-3 text-sm font-semibold text-indigo-700">
@@ -130,7 +144,7 @@ export const Component = () => {
             source. This browser reads Kuma Mieru&apos;s local cache and never queries the upstream
             provider.
           </p>
-          <div className="mt-7 grid gap-4 sm:grid-cols-2">
+          <div className="mt-7 grid gap-4 sm:grid-cols-3">
             <label className="text-xs font-semibold tracking-wide text-black/45 uppercase">
               Source
               <select
@@ -142,11 +156,31 @@ export const Component = () => {
                   );
                   setSourceId(event.target.value);
                   setMetricId(nextSource?.metrics[0]?.id ?? '');
+                  setWindow(
+                    nextSource?.windows.find(candidate => candidate.window === '5m')?.window ??
+                      nextSource?.windows[0]?.window ??
+                      '5m'
+                  );
                 }}
               >
                 {catalog.map(item => (
                   <option key={item.sourceId} value={item.sourceId}>
                     {item.sourceId}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-semibold tracking-wide text-black/45 uppercase">
+              Window
+              <select
+                className="mt-2 block w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-medium text-black"
+                value={window}
+                onChange={event => setWindow(event.target.value)}
+              >
+                {source?.windows.map(candidate => (
+                  <option key={candidate.window} value={candidate.window}>
+                    {candidate.window}
+                    {candidate.stale ? ' · stale' : ''}
                   </option>
                 ))}
               </select>

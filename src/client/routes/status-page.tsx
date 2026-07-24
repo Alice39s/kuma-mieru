@@ -1,4 +1,4 @@
-import { BarChart3, CheckCircle2, ChevronLeft, RadioTower } from 'lucide-react';
+import { BarChart3, BookOpen, CheckCircle2, ChevronLeft, RadioTower } from 'lucide-react';
 import { Link, useLoaderData, useParams, useRouteLoaderData } from 'react-router';
 import type { PublicBootstrap, SourceSnapshotState } from '../api';
 
@@ -13,6 +13,15 @@ export const StatusPage = () => {
   const page = data.pages.find(candidate => candidate.slug === slug || candidate.id === slug);
   const hasNativeMetrics =
     payload?.data.some(item => item.snapshot.capabilities.nativeMetrics) ?? false;
+  const hasMethodology =
+    payload?.data.some(item => {
+      const extension = item.snapshot.extensions['llm-mieru'];
+      if (typeof extension !== 'object' || extension === null || Array.isArray(extension)) {
+        return false;
+      }
+      const features = (extension as Record<string, unknown>).upstreamFeatures;
+      return Array.isArray(features) && features.includes('methodology');
+    }) ?? false;
 
   if (!page) {
     return (
@@ -53,14 +62,24 @@ export const StatusPage = () => {
             Public data is served from the local normalized snapshot. Visitor requests never call
             the upstream source directly.
           </p>
-          {hasNativeMetrics ? (
-            <Link
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#17211a] px-4 py-2.5 text-sm font-medium text-white"
-              to={`/status/${encodeURIComponent(page.slug)}/metrics`}
-            >
-              <BarChart3 size={16} /> Explore native metrics
-            </Link>
-          ) : null}
+          <div className="mt-6 flex flex-wrap gap-3">
+            {hasNativeMetrics ? (
+              <Link
+                className="inline-flex items-center gap-2 rounded-xl bg-[#17211a] px-4 py-2.5 text-sm font-medium text-white"
+                to={`/status/${encodeURIComponent(page.slug)}/metrics`}
+              >
+                <BarChart3 size={16} /> Explore native metrics
+              </Link>
+            ) : null}
+            {hasMethodology ? (
+              <Link
+                className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-black"
+                to={`/status/${encodeURIComponent(page.slug)}/methodology`}
+              >
+                <BookOpen size={16} /> Measurement methodology
+              </Link>
+            ) : null}
+          </div>
         </div>
         <div className="p-7 sm:p-10">
           {payload ? (

@@ -90,6 +90,22 @@ export const metricExtensionSchema = z.object({
   series: z.array(metricSeriesSchema),
 });
 
+export const methodologySnapshotSchema = z
+  .object({
+    methodologyVersion: z.string().min(1).max(64),
+    generatedAt: z.string().datetime({ offset: true }),
+    product: z.record(z.string(), z.unknown()),
+    sourceKinds: z.array(z.string().min(1).max(128)).max(128),
+    statusSemantics: z.record(z.string(), z.unknown()),
+    freshnessPolicy: z.record(z.string(), z.unknown()),
+    protocols: z.array(z.record(z.string(), z.unknown())).max(256),
+    metrics: z.array(z.record(z.string(), z.unknown())).max(256),
+    coverage: z.array(z.record(z.string(), z.unknown())).max(5000),
+    limitations: z.array(z.string().max(512)).max(256),
+    evidenceLinks: z.array(z.string().max(2048)).max(256),
+  })
+  .passthrough();
+
 export const normalizedSnapshotSchema = z.object({
   sourceId: z.string(),
   pageId: z.string(),
@@ -128,3 +144,4 @@ export type NormalizedSnapshot = z.infer<typeof normalizedSnapshotSchema>;
 export type MetricDefinition = z.infer<typeof metricDefinitionSchema>;
 export type MetricSeries = z.infer<typeof metricSeriesSchema>;
 export type MetricExtension = z.infer<typeof metricExtensionSchema>;
+export type MethodologySnapshot = z.infer<typeof methodologySnapshotSchema>;

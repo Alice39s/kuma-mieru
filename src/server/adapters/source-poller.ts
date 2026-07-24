@@ -3,8 +3,14 @@ import type Database from 'better-sqlite3';
 import type { CanonicalConfig } from '../config/schema.js';
 import type { SecretStore } from '../secrets/store.js';
 import { createCachedSourceRequester, createHttpJsonClient } from './http-client.js';
-import { fetchLlmMieruMetrics } from './llm-mieru/adapter.js';
-import { saveMetricExtension } from './metric-store.js';
+import { fetchLlmMieruMethodology, fetchLlmMieruMetrics } from './llm-mieru/adapter.js';
+import { getMethodologyState, saveMethodology } from './methodology-store.js';
+import {
+  dueMetricWindows,
+  getMetricWindowStates,
+  metricWindowRefreshMs,
+  saveMetricWindow,
+} from './metric-store.js';
 import { fetchSourceSnapshot } from './registry.js';
 import { getSourceSnapshot, recordSourceFailure, saveSourceSnapshot } from './source-store.js';
 
@@ -14,8 +20,7 @@ export interface SourcePollerOptions {
   allowPrivateAddresses?: boolean;
   intervalMs?: number;
   staleAfterMs?: number;
-  metricRefreshMs?: number;
-  metricStaleAfterMs?: number;
+  metricStaleMultiplier?: number;
   secretStore?: SecretStore;
 }
 
@@ -34,14 +39,15 @@ const stableJitter = (key: string, intervalMs: number) => {
   return digest.readUInt16BE(0) % Math.max(1, Math.floor(intervalMs / 4));
 };
 
+const methodologyRefreshMs = 60 * 60_000;
+
 export const startSourcePoller = ({
   database,
   config,
   allowPrivateAddresses = false,
   intervalMs = 60_000,
   staleAfterMs = 180_000,
-  metricRefreshMs = 5 * 60_000,
-  metricStaleAfterMs = 15 * 60_000,
+  metricStaleMultiplier = 3,
   secretStore,
 }: SourcePollerOptions) => {
   const timers = new Set<NodeJS.Timeout>();
@@ -54,7 +60,6 @@ export const startSourcePoller = ({
     });
     for (const pageId of source.pageIds) {
       let consecutiveFailures = 0;
-      let lastMetricRefreshAt = 0;
       const requester = createCachedSourceRequester(database, source.id, httpClient);
       const schedule = (callback: () => void, delay: number) => {
         const timer = setTimeout(() => {
@@ -70,11 +75,7 @@ export const startSourcePoller = ({
           const snapshot = await fetchSourceSnapshot(source, pageId, requester, secretStore);
           saveSourceSnapshot(database, snapshot, new Date(Date.now() + staleAfterMs));
           consecutiveFailures = 0;
-          if (
-            source.kind === 'llm-mieru' &&
-            snapshot.capabilities.nativeMetrics &&
-            Date.now() - lastMetricRefreshAt >= metricRefreshMs
-          ) {
+          if (source.kind === 'llm-mieru') {
             const llmMetadata = snapshot.extensions['llm-mieru'];
             const features =
               typeof llmMetadata === 'object' &&
@@ -92,32 +93,69 @@ export const startSourcePoller = ({
                   purpose: 'source-token',
                 })
               : undefined;
-            try {
-              const extension = await fetchLlmMieruMetrics(
-                {
-                  sourceId: source.id,
-                  baseUrl: source.baseUrl,
-                  token,
-                  features,
-                },
-                requester
+            if (snapshot.capabilities.nativeMetrics) {
+              const dueWindows = dueMetricWindows(
+                getMetricWindowStates(database, source.id, pageId)
               );
-              if (extension) {
-                saveMetricExtension(
-                  database,
-                  source.id,
-                  pageId,
-                  extension,
-                  new Date(Date.now() + metricStaleAfterMs)
-                );
+              for (const window of dueWindows) {
+                try {
+                  const extension = await fetchLlmMieruMetrics(
+                    {
+                      sourceId: source.id,
+                      baseUrl: source.baseUrl,
+                      token,
+                      features,
+                      window,
+                    },
+                    requester
+                  );
+                  if (extension) {
+                    saveMetricWindow(
+                      database,
+                      source.id,
+                      pageId,
+                      window,
+                      extension,
+                      new Date(Date.now() + metricWindowRefreshMs[window] * metricStaleMultiplier)
+                    );
+                  }
+                } catch (metricError) {
+                  console.warn('Metric extension refresh failed', {
+                    sourceId: source.id,
+                    pageId,
+                    window,
+                    errorCode: errorCode(metricError),
+                  });
+                }
               }
-              lastMetricRefreshAt = Date.now();
-            } catch (metricError) {
-              console.warn('Metric extension refresh failed', {
-                sourceId: source.id,
-                pageId,
-                errorCode: errorCode(metricError),
-              });
+            }
+            const methodology = getMethodologyState(database, source.id, pageId);
+            const methodologyDue =
+              features.includes('methodology') &&
+              (!methodology ||
+                Date.now() - Date.parse(methodology.fetchedAt) >= methodologyRefreshMs);
+            if (methodologyDue) {
+              try {
+                const nextMethodology = await fetchLlmMieruMethodology(
+                  { baseUrl: source.baseUrl, token, features },
+                  requester
+                );
+                if (nextMethodology) {
+                  saveMethodology(
+                    database,
+                    source.id,
+                    pageId,
+                    nextMethodology,
+                    new Date(Date.now() + methodologyRefreshMs * 3)
+                  );
+                }
+              } catch (methodologyError) {
+                console.warn('Methodology refresh failed', {
+                  sourceId: source.id,
+                  pageId,
+                  errorCode: errorCode(methodologyError),
+                });
+              }
             }
           }
         } catch (error) {

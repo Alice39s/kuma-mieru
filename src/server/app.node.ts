@@ -59,54 +59,90 @@ test('returns a stable JSON error for unknown API routes', async () => {
   assert.equal(typeof body.error.requestId, 'string');
 });
 
-test('serves generic native metrics only from the local extension cache', async () => {
+test('serves generic native metrics and methodology only from local extension caches', async () => {
+  const metricExtension = {
+    catalog: [
+      {
+        id: 'latency',
+        unit: 'milliseconds',
+        minimumSamples: { p50: 10 },
+        presentationHint: 'distribution',
+      },
+    ],
+    series: [
+      {
+        metricId: 'latency',
+        unit: 'milliseconds',
+        window: '5m',
+        generatedAt: '2026-07-25T00:00:00Z',
+        points: [
+          {
+            window: {
+              start: '2026-07-24T23:55:00Z',
+              end: '2026-07-25T00:00:00Z',
+            },
+            dimensions: { region: 'ap-northeast-tyo' },
+            protocolVersion: '1.0',
+            sampleCount: 10,
+            eligibleCount: 10,
+            value: { p50: 420 },
+            freshness: {
+              state: 'fresh',
+              observedAt: '2026-07-24T23:59:00Z',
+            },
+            coverageState: 'active',
+            limitations: [],
+          },
+        ],
+      },
+    ],
+  };
   const app = createApp({
     snapshot,
-    schemaVersion: 8,
+    schemaVersion: 9,
     buildVersion: '2.0.0-test',
-    loadPageMetricExtensions: () => [
+    loadPageMetricWindows: () => [
+      {
+        sourceId: 'llm',
+        pageId: 'default',
+        window: '5m',
+        fetchedAt: '2026-07-25T00:00:00Z',
+        staleAfter: '2026-07-25T00:15:00Z',
+        stale: false,
+        extension: metricExtension,
+      },
+      {
+        sourceId: 'llm',
+        pageId: 'default',
+        window: '1h',
+        fetchedAt: '2026-07-25T00:00:00Z',
+        staleAfter: '2026-07-25T00:45:00Z',
+        stale: true,
+        extension: {
+          ...metricExtension,
+          series: metricExtension.series.map(series => ({ ...series, window: '1h' })),
+        },
+      },
+    ],
+    loadPageMethodologies: () => [
       {
         sourceId: 'llm',
         pageId: 'default',
         fetchedAt: '2026-07-25T00:00:00Z',
-        staleAfter: '2026-07-25T00:15:00Z',
+        staleAfter: '2026-07-25T03:00:00Z',
         stale: false,
-        extension: {
-          catalog: [
-            {
-              id: 'latency',
-              unit: 'milliseconds',
-              minimumSamples: { p50: 10 },
-              presentationHint: 'distribution',
-            },
-          ],
-          series: [
-            {
-              metricId: 'latency',
-              unit: 'milliseconds',
-              window: '5m',
-              generatedAt: '2026-07-25T00:00:00Z',
-              points: [
-                {
-                  window: {
-                    start: '2026-07-24T23:55:00Z',
-                    end: '2026-07-25T00:00:00Z',
-                  },
-                  dimensions: { region: 'ap-northeast-tyo' },
-                  protocolVersion: '1.0',
-                  sampleCount: 10,
-                  eligibleCount: 10,
-                  value: { p50: 420 },
-                  freshness: {
-                    state: 'fresh',
-                    observedAt: '2026-07-24T23:59:00Z',
-                  },
-                  coverageState: 'active',
-                  limitations: [],
-                },
-              ],
-            },
-          ],
+        snapshot: {
+          methodologyVersion: '1.0',
+          generatedAt: '2026-07-25T00:00:00Z',
+          product: { name: 'LLM-Mieru', measurementKind: 'third_party_synthetic' },
+          sourceKinds: ['synthetic_probe'],
+          statusSemantics: { unknownIsHealthy: false },
+          freshnessPolicy: { missingEvidence: 'unknown' },
+          protocols: [{ id: 'perf_10', version: '1.0' }],
+          metrics: [{ id: 'latency', unit: 'milliseconds' }],
+          coverage: [],
+          limitations: ['synthetic_measurement_only'],
+          evidenceLinks: ['docs/contracts/llm-measurement-protocol.md'],
         },
       },
     ],
@@ -115,10 +151,28 @@ test('serves generic native metrics only from the local extension cache', async 
   const catalog = await app.request('/api/v1/public/pages/main/metrics/catalog');
   assert.equal(catalog.status, 200);
   const catalogBody = (await catalog.json()) as {
-    data: Array<{ sourceId: string; metrics: Array<{ id: string }> }>;
+    data: Array<{
+      sourceId: string;
+      metrics: Array<{ id: string }>;
+      windows: Array<{ window: string; stale: boolean }>;
+    }>;
   };
   assert.equal(catalogBody.data[0]?.sourceId, 'llm');
   assert.equal(catalogBody.data[0]?.metrics[0]?.id, 'latency');
+  assert.deepEqual(catalogBody.data[0]?.windows, [
+    {
+      window: '5m',
+      fetchedAt: '2026-07-25T00:00:00Z',
+      staleAfter: '2026-07-25T00:15:00Z',
+      stale: false,
+    },
+    {
+      window: '1h',
+      fetchedAt: '2026-07-25T00:00:00Z',
+      staleAfter: '2026-07-25T00:45:00Z',
+      stale: true,
+    },
+  ]);
 
   const query = await app.request(
     '/api/v1/public/pages/main/metrics/query?source=llm&metric=latency&window=5m'
@@ -128,6 +182,16 @@ test('serves generic native metrics only from the local extension cache', async 
     data: Array<{ points: Array<{ dimensions: Record<string, string> }> }>;
   };
   assert.equal(queryBody.data[0]?.points[0]?.dimensions.region, 'ap-northeast-tyo');
+
+  const hourly = await app.request(
+    '/api/v1/public/pages/main/metrics/query?source=llm&metric=latency&window=1h'
+  );
+  assert.equal(hourly.status, 200);
+  const hourlyBody = (await hourly.json()) as {
+    data: Array<{ window: string; stale: boolean }>;
+  };
+  assert.equal(hourlyBody.data[0]?.window, '1h');
+  assert.equal(hourlyBody.data[0]?.stale, true);
 
   const unsupportedWindow = await app.request(
     '/api/v1/public/pages/main/metrics/query?source=llm&metric=latency&window=2m'
@@ -147,6 +211,20 @@ test('serves generic native metrics only from the local extension cache', async 
   );
   assert.equal(unavailable.status, 404);
   assert.equal(unavailable.headers.get('cache-control'), 'no-store');
+
+  const methodology = await app.request('/api/v1/public/pages/main/methodology');
+  assert.equal(methodology.status, 200);
+  const methodologyBody = (await methodology.json()) as {
+    data: Array<{
+      sourceId: string;
+      stale: boolean;
+      snapshot: { methodologyVersion: string; product: { name: string } };
+    }>;
+  };
+  assert.equal(methodologyBody.data[0]?.sourceId, 'llm');
+  assert.equal(methodologyBody.data[0]?.stale, false);
+  assert.equal(methodologyBody.data[0]?.snapshot.methodologyVersion, '1.0');
+  assert.equal(methodologyBody.data[0]?.snapshot.product.name, 'LLM-Mieru');
 });
 
 test('returns 503 instead of fetching upstream when no local snapshot exists', async () => {

@@ -107,10 +107,13 @@ export interface MetricDefinition {
 export interface MetricCatalogSource {
   sourceId: string;
   pageId: string;
-  fetchedAt: string;
-  staleAfter: string;
-  stale: boolean;
   metrics: MetricDefinition[];
+  windows: Array<{
+    window: '5m' | '1h' | '1d' | '7d' | '30d';
+    fetchedAt: string;
+    staleAfter: string;
+    stale: boolean;
+  }>;
 }
 
 export interface MetricPoint {
@@ -142,6 +145,30 @@ export interface MetricSeries {
   points: MetricPoint[];
 }
 
+export interface MethodologySnapshot {
+  methodologyVersion: string;
+  generatedAt: string;
+  product: Record<string, unknown>;
+  sourceKinds: string[];
+  statusSemantics: Record<string, unknown>;
+  freshnessPolicy: Record<string, unknown>;
+  protocols: Array<Record<string, unknown>>;
+  metrics: Array<Record<string, unknown>>;
+  coverage: Array<Record<string, unknown>>;
+  limitations: string[];
+  evidenceLinks: string[];
+  [key: string]: unknown;
+}
+
+export interface MethodologySource {
+  sourceId: string;
+  pageId: string;
+  fetchedAt: string;
+  staleAfter: string;
+  stale: boolean;
+  snapshot: MethodologySnapshot;
+}
+
 export const loadMetricCatalog = async (slug: string) =>
   getJson<{ data: MetricCatalogSource[] }>(
     `/api/v1/public/pages/${encodeURIComponent(slug)}/metrics/catalog`
@@ -160,3 +187,8 @@ export const loadMetricSeries = async (
     `/api/v1/public/pages/${encodeURIComponent(slug)}/metrics/query?${query}`
   );
 };
+
+export const loadMethodology = async (slug: string) =>
+  getJson<{ data: MethodologySource[]; meta: { status: 'ok' | 'stale' } }>(
+    `/api/v1/public/pages/${encodeURIComponent(slug)}/methodology`
+  );

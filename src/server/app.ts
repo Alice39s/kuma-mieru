@@ -8,7 +8,8 @@ import { bodyLimit } from 'hono/body-limit';
 import { secureHeaders } from 'hono/secure-headers';
 import { z } from 'zod';
 import type { SourceSnapshotState } from './adapters/source-store.js';
-import type { MetricExtensionState } from './adapters/metric-store.js';
+import type { MetricWindowState } from './adapters/metric-store.js';
+import type { MethodologyState } from './adapters/methodology-store.js';
 import type { SourceTestService } from './adapters/source-test.js';
 import { registerAdminRoutes } from './admin/routes.js';
 import { errorResponse, type AppEnvironment } from './api/errors.js';
@@ -55,7 +56,8 @@ export interface AppOptions {
   publicDirectory?: string;
   startedAt?: number;
   loadPageSnapshots?: (page: CanonicalConfig['pages'][number]) => SourceSnapshotState[];
-  loadPageMetricExtensions?: (page: CanonicalConfig['pages'][number]) => MetricExtensionState[];
+  loadPageMetricWindows?: (page: CanonicalConfig['pages'][number]) => MetricWindowState[];
+  loadPageMethodologies?: (page: CanonicalConfig['pages'][number]) => MethodologyState[];
   getRuntimeSnapshot?: () => RuntimeConfigSnapshot;
   database?: Database.Database;
   auth?: KumaAuth;
@@ -76,7 +78,8 @@ export const createApp = ({
   publicDirectory,
   startedAt = Date.now(),
   loadPageSnapshots,
-  loadPageMetricExtensions,
+  loadPageMetricWindows,
+  loadPageMethodologies,
   getRuntimeSnapshot,
   database,
   auth,
@@ -660,8 +663,8 @@ export const createApp = ({
   app.get('/api/v1/public/pages/:slug/metrics/catalog', context => {
     const page = findPage(context.req.param('slug'));
     if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
-    const extensions = loadPageMetricExtensions?.(page) ?? [];
-    if (extensions.length === 0) {
+    const windows = loadPageMetricWindows?.(page) ?? [];
+    if (windows.length === 0) {
       context.header('Cache-Control', 'no-store');
       return errorResponse(
         context,
@@ -670,7 +673,12 @@ export const createApp = ({
         'No native metric extension is available for this page'
       );
     }
-    const stale = extensions.some(extension => extension.stale);
+    const grouped = new Map<string, MetricWindowState[]>();
+    for (const window of windows) {
+      const key = `${window.sourceId}\u0000${window.pageId}`;
+      grouped.set(key, [...(grouped.get(key) ?? []), window]);
+    }
+    const stale = windows.every(window => window.stale);
     context.header(
       'Cache-Control',
       stale
@@ -678,14 +686,22 @@ export const createApp = ({
         : 'public, max-age=300, stale-while-revalidate=600'
     );
     return context.json({
-      data: extensions.map(extension => ({
-        sourceId: extension.sourceId,
-        pageId: extension.pageId,
-        fetchedAt: extension.fetchedAt,
-        staleAfter: extension.staleAfter,
-        stale: extension.stale,
-        metrics: extension.extension.catalog,
-      })),
+      data: [...grouped.values()].map(sourceWindows => {
+        const latest = sourceWindows.reduce((candidate, window) =>
+          Date.parse(window.fetchedAt) > Date.parse(candidate.fetchedAt) ? window : candidate
+        );
+        return {
+          sourceId: latest.sourceId,
+          pageId: latest.pageId,
+          metrics: latest.extension.catalog,
+          windows: sourceWindows.map(window => ({
+            window: window.window,
+            fetchedAt: window.fetchedAt,
+            staleAfter: window.staleAfter,
+            stale: window.stale,
+          })),
+        };
+      }),
     });
   });
 
@@ -710,13 +726,13 @@ export const createApp = ({
       return errorResponse(context, 400, 'INVALID_METRIC_QUERY', 'Metric query is invalid');
     }
     const { metric: metricId, source: sourceId, window } = query.data;
-    const extensions = (loadPageMetricExtensions?.(page) ?? []).filter(
-      extension => !sourceId || extension.sourceId === sourceId
+    const windows = (loadPageMetricWindows?.(page) ?? []).filter(
+      candidate => candidate.window === window && (!sourceId || candidate.sourceId === sourceId)
     );
-    const candidates = extensions.flatMap(extension =>
-      extension.extension.series
+    const candidates = windows.flatMap(candidate =>
+      candidate.extension.series
         .filter(series => series.metricId === metricId && series.window === window)
-        .map(series => ({ extension, series }))
+        .map(series => ({ window: candidate, series }))
     );
     if (candidates.length === 0) {
       context.header('Cache-Control', 'no-store');
@@ -727,24 +743,57 @@ export const createApp = ({
         'The requested metric series is not available in the local cache'
       );
     }
-    const stale = candidates.some(candidate => candidate.extension.stale);
+    const stale = candidates.some(candidate => candidate.window.stale);
     context.header(
       'Cache-Control',
       stale ? 'public, max-age=0, must-revalidate' : 'public, max-age=15, stale-while-revalidate=30'
     );
     return context.json({
-      data: candidates.map(({ extension, series }) => ({
-        sourceId: extension.sourceId,
-        pageId: extension.pageId,
+      data: candidates.map(({ window: cachedWindow, series }) => ({
+        sourceId: cachedWindow.sourceId,
+        pageId: cachedWindow.pageId,
         metricId: series.metricId,
         unit: series.unit,
         window: series.window,
         generatedAt: series.generatedAt,
-        fetchedAt: extension.fetchedAt,
-        staleAfter: extension.staleAfter,
-        stale: extension.stale,
+        fetchedAt: cachedWindow.fetchedAt,
+        staleAfter: cachedWindow.staleAfter,
+        stale: cachedWindow.stale,
         points: series.points,
       })),
+    });
+  });
+
+  app.get('/api/v1/public/pages/:slug/methodology', context => {
+    const page = findPage(context.req.param('slug'));
+    if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+    const methodologies = loadPageMethodologies?.(page) ?? [];
+    if (methodologies.length === 0) {
+      context.header('Cache-Control', 'no-store');
+      return errorResponse(
+        context,
+        404,
+        'METHODOLOGY_UNAVAILABLE',
+        'No methodology snapshot is available for this page'
+      );
+    }
+    const stale = methodologies.every(methodology => methodology.stale);
+    context.header(
+      'Cache-Control',
+      stale
+        ? 'public, max-age=0, must-revalidate'
+        : 'public, max-age=300, stale-while-revalidate=600'
+    );
+    return context.json({
+      data: methodologies.map(methodology => ({
+        sourceId: methodology.sourceId,
+        pageId: methodology.pageId,
+        fetchedAt: methodology.fetchedAt,
+        staleAfter: methodology.staleAfter,
+        stale: methodology.stale,
+        snapshot: methodology.snapshot,
+      })),
+      meta: { status: stale ? 'stale' : 'ok' },
     });
   });
 
