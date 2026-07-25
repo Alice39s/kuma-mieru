@@ -387,17 +387,20 @@ export const Workbench = ({
 
   return (
     <div className="workbench-shell">
+      <a className="admin-skip-link" href="#admin-main">
+        Skip to control-plane content
+      </a>
       <aside className="workbench-nav">
-        <Link className="workbench-brand" to="/">
+        <Link aria-label="Public status" className="workbench-brand" to="/">
           <span>
-            <Activity size={19} />
+            <Activity aria-hidden="true" size={19} />
           </span>
           <div>
             <strong>Kuma Mieru</strong>
             <small>Control plane</small>
           </div>
         </Link>
-        <nav>
+        <nav aria-label="Control plane">
           {navigation
             .filter(
               item =>
@@ -409,12 +412,14 @@ export const Workbench = ({
               const Icon = item.icon;
               return (
                 <button
+                  aria-current={panel === item.id ? 'page' : undefined}
+                  aria-label={item.label}
                   className={panel === item.id ? 'is-active' : ''}
                   key={item.id}
                   onClick={() => setPanel(item.id)}
                   type="button"
                 >
-                  <Icon size={17} />
+                  <Icon aria-hidden="true" size={17} />
                   <span>{item.label}</span>
                 </button>
               );
@@ -428,14 +433,26 @@ export const Workbench = ({
           </button>
         </div>
       </aside>
-      <main className="workbench-main">
+      <main className="workbench-main" id="admin-main" tabIndex={-1}>
         <div className="workbench-topline">
           <span>
-            <Boxes size={16} /> Runtime configuration
+            <Boxes aria-hidden="true" size={16} /> Runtime configuration
           </span>
-          <button onClick={() => void reload()} type="button">
-            <RefreshCw className={loading ? 'is-spinning' : ''} size={15} /> Refresh
-          </button>
+          <div className="workbench-topline-actions">
+            <button
+              aria-label="Sign out"
+              className="workbench-mobile-signout"
+              onClick={leave}
+              type="button"
+            >
+              <LogOut aria-hidden="true" size={15} />
+              <span>Sign out</span>
+            </button>
+            <button onClick={() => void reload()} type="button">
+              <RefreshCw aria-hidden="true" className={loading ? 'is-spinning' : ''} size={15} />{' '}
+              Refresh
+            </button>
+          </div>
         </div>
         {!data ? (
           <div className="workbench-loading">Reading the active revision…</div>

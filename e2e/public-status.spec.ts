@@ -1,23 +1,6 @@
-import { default as AxeBuilder } from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { assertAccessible, waitForFonts } from './fixtures/accessibility';
 import { installPublicApi } from './fixtures/public-api';
-
-const assertAccessible = async (page: Page) => {
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  const summary = results.violations
-    .map(
-      violation =>
-        `${violation.id} (${violation.impact ?? 'unknown'}): ${violation.nodes
-          .map(node => node.target.join(' '))
-          .join(', ')}`
-    )
-    .join('\n');
-  expect(results.violations, summary).toEqual([]);
-};
-
-const waitForFonts = (page: Page) => page.evaluate(() => document.fonts.ready);
 
 test('renders a truthful public overview with a stable responsive reference', async ({ page }) => {
   await installPublicApi(page);
