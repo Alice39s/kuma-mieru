@@ -1,15 +1,17 @@
 import {
   BarChart3,
+  BellRing,
   BookOpen,
   ChevronLeft,
   Clock3,
-  ExternalLink,
   History,
+  Megaphone,
   RadioTower,
 } from 'lucide-react';
 import { Link, useLoaderData, useParams, useRouteLoaderData } from 'react-router';
 import type { PublicBootstrap, StatusPagePayload } from '../api';
 import { PublicEventTimeline } from '../public-event-timeline';
+import { PublicMirroredEvents } from '../public-mirrored-events';
 import { PublicSubscription } from '../public-subscription';
 import {
   presentationForStatus,
@@ -128,6 +130,24 @@ export const StatusPage = () => {
             </div>
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-black"
+              to={`/status/${encodeURIComponent(page.slug)}/history/`}
+            >
+              <History aria-hidden="true" size={16} /> Public history
+            </Link>
+            <Link
+              className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-black"
+              to={`/status/${encodeURIComponent(page.slug)}/notices/`}
+            >
+              <Megaphone aria-hidden="true" size={16} /> Notices
+            </Link>
+            <Link
+              className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-black"
+              to={`/status/${encodeURIComponent(page.slug)}/subscribe/`}
+            >
+              <BellRing aria-hidden="true" size={16} /> Subscribe
+            </Link>
             {hasNativeMetrics ? (
               <Link
                 className="inline-flex items-center gap-2 rounded-xl bg-[#17211a] px-4 py-2.5 text-sm font-medium text-white"
@@ -159,9 +179,12 @@ export const StatusPage = () => {
                       className="flex flex-col gap-4 rounded-2xl border border-black/[0.045] bg-[#f7f8f6] p-5 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div>
-                        <span className="flex items-center gap-3 font-medium">
+                        <Link
+                          className="flex items-center gap-3 font-medium transition hover:text-emerald-800"
+                          to={`/status/${encodeURIComponent(page.slug)}/service/${encodeURIComponent(service.id)}/`}
+                        >
                           <RadioTower aria-hidden="true" size={18} /> {service.name}
-                        </span>
+                        </Link>
                         <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-black/40">
                           <span>
                             {service.latencyMs === null
@@ -202,62 +225,7 @@ export const StatusPage = () => {
             </div>
           )}
           <PublicEventTimeline pageSlug={page.slug} publications={payload.publications} />
-          {payload.mirroredEvents.length > 0 ? (
-            <section className="mt-10 border-t border-black/5 pt-8">
-              <div className="flex items-start justify-between gap-5">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">
-                    Read-only source history
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold tracking-[-0.025em]">
-                    Mirrored events
-                  </h2>
-                </div>
-                <span className="inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-3 py-1.5 text-xs font-medium text-black/55">
-                  <History size={14} /> No secondary notifications
-                </span>
-              </div>
-              <div className="mt-5 space-y-3">
-                {payload.mirroredEvents.map(event => (
-                  <article
-                    className="rounded-2xl border border-black/5 bg-[#f7f8f6] p-5"
-                    key={event.id}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-black/35">
-                          {event.type} · {event.presence} · v{event.version}
-                        </span>
-                        <h3 className="mt-1 font-semibold">{event.title}</h3>
-                      </div>
-                      {event.source.url ? (
-                        <a
-                          className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-800"
-                          href={event.source.url}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          Original source <ExternalLink size={13} />
-                        </a>
-                      ) : (
-                        <span className="text-xs text-black/35">
-                          Source {event.source.id} · upstream ID retained
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-black/55">
-                      {event.content || 'The source did not provide a public update body.'}
-                    </p>
-                    <p className="mt-3 text-xs text-black/35">
-                      {event.presence === 'absent'
-                        ? `No longer advertised by the source since ${new Date(event.absentAt ?? event.updatedAt).toLocaleString()}; this is not presented as a resolved native incident.`
-                        : `Last observed ${new Date(event.lastSeenAt).toLocaleString()} · upstream status ${event.rawStatus}`}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
+          <PublicMirroredEvents events={payload.mirroredEvents} />
           {data.meta.capabilities.emailSubscriptions ? (
             <PublicSubscription pageSlug={page.slug} services={publicServices} />
           ) : null}

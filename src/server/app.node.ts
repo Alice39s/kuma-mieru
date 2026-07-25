@@ -159,6 +159,17 @@ test('canonicalizes public page paths and serves cacheable page-specific OG imag
   const maintenanceDetail = await app.request('/status/main/maintenance/window-1');
   assert.equal(maintenanceDetail.status, 308);
   assert.equal(maintenanceDetail.headers.get('location'), '/status/main/maintenance/window-1/');
+  for (const view of ['history', 'notices', 'subscribe']) {
+    const response = await app.request(`/status/main/${view}`);
+    assert.equal(response.status, 308);
+    assert.equal(response.headers.get('location'), `/status/main/${view}/`);
+  }
+  const serviceDetail = await app.request('/status/main/service/api%2Fgateway?window=24h');
+  assert.equal(serviceDetail.status, 308);
+  assert.equal(
+    serviceDetail.headers.get('location'),
+    '/status/main/service/api%2Fgateway/?window=24h'
+  );
 
   const image = await app.request('/status/main/metrics/opengraph.png');
   assert.equal(image.status, 200);

@@ -3,6 +3,10 @@ import { AppShell, RootErrorBoundary } from './app-shell';
 import {
   loadPublicBootstrap,
   loadPublicEventDetail,
+  loadPublicHistory,
+  loadPublicNotices,
+  loadPublicServiceDetail,
+  loadPublicSubscribe,
   loadStatusPage,
   loadSubscriptionAction,
 } from './api';
@@ -39,6 +43,34 @@ export const router = createBrowserRouter([
       {
         path: 'status/:pageSlug/methodology',
         lazy: () => import('./routes/methodology'),
+      },
+      {
+        path: 'status/:pageSlug/history',
+        loader: loadPublicHistory,
+        lazy: async () => ({
+          Component: (await import('./routes/public-history')).PublicHistory,
+        }),
+      },
+      {
+        path: 'status/:pageSlug/notices',
+        loader: loadPublicNotices,
+        lazy: async () => ({
+          Component: (await import('./routes/public-notices')).PublicNotices,
+        }),
+      },
+      {
+        path: 'status/:pageSlug/subscribe',
+        loader: loadPublicSubscribe,
+        lazy: async () => ({
+          Component: (await import('./routes/public-subscribe')).PublicSubscribe,
+        }),
+      },
+      {
+        path: 'status/:pageSlug/service/:serviceId',
+        loader: loadPublicServiceDetail,
+        lazy: async () => ({
+          Component: (await import('./routes/public-service-detail')).PublicServiceDetail,
+        }),
       },
       {
         path: 'status/:pageSlug/incidents/:eventId',

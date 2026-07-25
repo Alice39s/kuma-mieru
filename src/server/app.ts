@@ -292,6 +292,23 @@ export const createApp = ({
       ? canonicalRedirect(context, `/status/${encodeURIComponent(page.slug)}/methodology/`)
       : context.notFound();
   });
+  for (const view of ['history', 'notices', 'subscribe'] as const) {
+    app.get(`/status/:slug/${view}`, context => {
+      const page = findPage(context.req.param('slug'));
+      return page
+        ? canonicalRedirect(context, `/status/${encodeURIComponent(page.slug)}/${view}/`)
+        : context.notFound();
+    });
+  }
+  app.get('/status/:slug/service/:serviceId', context => {
+    const page = findPage(context.req.param('slug'));
+    return page
+      ? canonicalRedirect(
+          context,
+          `/status/${encodeURIComponent(page.slug)}/service/${encodeURIComponent(context.req.param('serviceId'))}/`
+        )
+      : context.notFound();
+  });
   app.get('/status/:slug/incidents/:eventId', context => {
     const page = findPage(context.req.param('slug'));
     return page

@@ -41,13 +41,27 @@ export interface SourceSnapshotState {
     fetchedAt: string;
     extensions: Record<string, unknown>;
     capabilities: {
+      currentStatus: boolean;
+      heartbeatSeries: boolean;
+      latencySeries: boolean;
+      uptimeWindows: string[];
+      incidents: 'none' | 'current' | 'history';
+      maintenance: boolean;
+      groups: boolean;
+      tags: boolean;
       nativeMetrics: boolean;
+      historicalDays: number | null;
     };
     groups: Array<{ id: string; name: string; position: number; serviceIds: string[] }>;
     services: Array<{
       id: string;
+      sourceId: string;
+      upstreamId: string;
       name: string;
+      groupId: string;
+      tags: Array<{ name: string; value?: string; color: string }>;
       status: PublicStatus;
+      rawStatus: string | number;
       latencyMs: number | null;
       observedAt: string | null;
       uptime24h: number | null;
@@ -203,6 +217,77 @@ export const loadStatusPage = async (input: { params: Record<string, string | un
 export type StatusPagePayload = Awaited<ReturnType<typeof loadStatusPage>>;
 
 export type PublicBootstrap = Awaited<ReturnType<typeof loadPublicBootstrap>>;
+
+const publicPageSlug = (params: Record<string, string | undefined>) => {
+  const slug = params.pageSlug ?? params.pageId;
+  if (!slug) throw new Error('Status page route is incomplete');
+  return slug;
+};
+
+export const loadPublicHistory = async (input: { params: Record<string, string | undefined> }) => {
+  const slug = publicPageSlug(input.params);
+  const [publications, mirrored] = await Promise.all([
+    getJson<{ data: PublicPublication[] }>(
+      `/api/v1/public/pages/${encodeURIComponent(slug)}/events`
+    ),
+    getJson<{ data: PublicMirroredEvent[] }>(
+      `/api/v1/public/pages/${encodeURIComponent(slug)}/mirrored-events`
+    ),
+  ]);
+  return { publications: publications.data, mirroredEvents: mirrored.data };
+};
+
+export const loadPublicNotices = async (input: { params: Record<string, string | undefined> }) => {
+  const slug = publicPageSlug(input.params);
+  const notices = await getJson<{ data: PublicPublication[] }>(
+    `/api/v1/public/pages/${encodeURIComponent(slug)}/notices`
+  );
+  return {
+    publications: notices.data.filter(
+      (publication): publication is Extract<PublicPublication, { type: 'notice' }> =>
+        publication.type === 'notice'
+    ),
+  };
+};
+
+export const loadPublicSubscribe = async (input: {
+  params: Record<string, string | undefined>;
+}) => {
+  const pageSlug = publicPageSlug(input.params);
+  return {
+    pageSlug,
+    snapshot: await loadStatusSnapshot({ params: { pageSlug } }),
+  };
+};
+
+export const loadPublicServiceDetail = async (input: {
+  params: Record<string, string | undefined>;
+}) => {
+  const pageSlug = publicPageSlug(input.params);
+  const serviceId = input.params.serviceId;
+  if (!serviceId) throw new Error('Service route is incomplete');
+  const [snapshot, publications] = await Promise.all([
+    loadStatusSnapshot({ params: { pageSlug } }),
+    getJson<{ data: PublicPublication[] }>(
+      `/api/v1/public/pages/${encodeURIComponent(pageSlug)}/events`
+    ),
+  ]);
+  const matches =
+    snapshot?.data.flatMap(source =>
+      source.snapshot.services
+        .filter(service => service.id === serviceId)
+        .map(service => ({ service, source }))
+    ) ?? [];
+  if (matches.length === 0) throw new Error('Public service not found');
+  return {
+    pageSlug,
+    serviceId,
+    matches,
+    publications: publications.data.filter(publication =>
+      publication.affectedComponentIds.includes(serviceId)
+    ),
+  };
+};
 
 export const loadPublicEventDetail = async (input: {
   params: Record<string, string | undefined>;

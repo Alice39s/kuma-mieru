@@ -17,9 +17,21 @@ const EventTime = ({ label, value }: { label: string; value: string }) => (
 export const PublicEventTimeline = ({
   pageSlug,
   publications,
+  eyebrow = 'Published record',
+  title = 'Event chronicle',
+  description = 'Every card is an immutable publication. Corrections appear as a later entry rather than silently replacing what visitors previously saw.',
+  showFeeds = true,
+  emptyTitle = 'No native events have been published.',
+  emptyDescription = 'Live monitor evidence remains visible above. Drafts and admin activity never appear here.',
 }: {
   pageSlug: string;
   publications: PublicPublication[];
+  eyebrow?: string;
+  title?: string;
+  description?: string;
+  showFeeds?: boolean;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }) => {
   const ordered = sortPublicationsNewestFirst(publications);
   return (
@@ -27,33 +39,32 @@ export const PublicEventTimeline = ({
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold tracking-[0.18em] text-black/35 uppercase">
-            Published record
+            {eyebrow}
           </p>
           <h2
             className="mt-2 font-serif text-3xl font-medium tracking-[-0.025em]"
             id="public-timeline-title"
           >
-            Event chronicle
+            {title}
           </h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-black/50">
-            Every card is an immutable publication. Corrections appear as a later entry rather than
-            silently replacing what visitors previously saw.
-          </p>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-black/50">{description}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <a
-            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3.5 py-2 text-xs font-semibold text-black/60 transition hover:border-black/20 hover:text-black"
-            href={`/status/${encodeURIComponent(pageSlug)}/rss.xml`}
-          >
-            <Rss aria-hidden="true" size={14} /> RSS
-          </a>
-          <a
-            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3.5 py-2 text-xs font-semibold text-black/60 transition hover:border-black/20 hover:text-black"
-            href={`/status/${encodeURIComponent(pageSlug)}/atom.xml`}
-          >
-            <Rss aria-hidden="true" size={14} /> Atom
-          </a>
-        </div>
+        {showFeeds ? (
+          <div className="flex flex-wrap gap-2">
+            <a
+              className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3.5 py-2 text-xs font-semibold text-black/60 transition hover:border-black/20 hover:text-black"
+              href={`/status/${encodeURIComponent(pageSlug)}/rss.xml`}
+            >
+              <Rss aria-hidden="true" size={14} /> RSS
+            </a>
+            <a
+              className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3.5 py-2 text-xs font-semibold text-black/60 transition hover:border-black/20 hover:text-black"
+              href={`/status/${encodeURIComponent(pageSlug)}/atom.xml`}
+            >
+              <Rss aria-hidden="true" size={14} /> Atom
+            </a>
+          </div>
+        ) : null}
       </div>
       {ordered.length > 0 ? (
         <ol className="relative mt-7 space-y-4 before:absolute before:top-6 before:bottom-6 before:left-[1.45rem] before:w-px before:bg-black/10">
@@ -122,11 +133,8 @@ export const PublicEventTimeline = ({
       ) : (
         <div className="mt-7 rounded-3xl border border-dashed border-black/10 bg-[#fafbf9] px-6 py-8">
           <Clock3 aria-hidden="true" className="text-black/30" size={20} />
-          <p className="mt-3 text-sm font-medium">No native events have been published.</p>
-          <p className="mt-1 text-xs leading-5 text-black/45">
-            Live monitor evidence remains visible above. Drafts and admin activity never appear
-            here.
-          </p>
+          <p className="mt-3 text-sm font-medium">{emptyTitle}</p>
+          <p className="mt-1 text-xs leading-5 text-black/45">{emptyDescription}</p>
         </div>
       )}
     </section>
