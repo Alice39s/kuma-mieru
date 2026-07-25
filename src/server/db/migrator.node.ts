@@ -20,8 +20,17 @@ const createFixture = async () => {
 test('applies migrations once and records the checksum ledger', async () => {
   const directory = await createFixture();
   const { database } = openDatabase(':memory:');
+  const measurements: Array<{
+    version: number;
+    name: string;
+    writeLockMilliseconds: number;
+  }> = [];
   try {
-    const first = await migrateDatabase(database, { directory, appBuild: 'test' });
+    const first = await migrateDatabase(database, {
+      directory,
+      appBuild: 'test',
+      onMigrationApplied: measurement => measurements.push(measurement),
+    });
     const second = await migrateDatabase(database, { directory, appBuild: 'test' });
     assert.deepEqual(first.applied, [1]);
     assert.deepEqual(second.applied, []);
@@ -34,6 +43,10 @@ test('applies migrations once and records the checksum ledger', async () => {
       ).count,
       1
     );
+    assert.equal(measurements.length, 1);
+    assert.equal(measurements[0]?.version, 1);
+    assert.equal(measurements[0]?.name, 'foundation');
+    assert.equal((measurements[0]?.writeLockMilliseconds ?? -1) >= 0, true);
   } finally {
     database.close();
     await rm(directory, { recursive: true, force: true });

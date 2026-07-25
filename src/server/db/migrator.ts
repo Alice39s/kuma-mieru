@@ -45,6 +45,11 @@ export interface MigrationOptions {
   now?: () => Date;
   availableBytes?: (path: string) => Promise<number>;
   backupDatabase?: (targetPath: string) => Promise<void>;
+  onMigrationApplied?: (measurement: {
+    version: number;
+    name: string;
+    writeLockMilliseconds: number;
+  }) => void;
 }
 
 const migrationFileName = /^([0-9]{6})_([a-z0-9_]+)\.up\.sql$/;
@@ -472,7 +477,13 @@ export const migrateDatabase = async (
   });
 
   for (const migration of pending) {
+    const writeLockStartedAt = performance.now();
     applyMigration(migration);
+    options.onMigrationApplied?.({
+      version: migration.version,
+      name: migration.name,
+      writeLockMilliseconds: Math.max(0, performance.now() - writeLockStartedAt),
+    });
     registerSchemaUpgradeBackup(database, backup);
   }
 
