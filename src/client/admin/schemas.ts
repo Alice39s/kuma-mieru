@@ -187,6 +187,28 @@ export const secondaryEventUpdateDraftSchema = z
     }
   });
 
+export const retentionPolicyDraftSchema = z.object({
+  eventDraftDays: z.number().int().min(30).max(3650),
+  adminAuditDays: z.number().int().min(30).max(3650),
+  deliveryAttemptDays: z.number().int().min(30).max(3650),
+  backupDays: z.number().int().min(30).max(3650),
+});
+
+export const backupDeleteConfirmationSchema = z.object({
+  confirmation: z.string().min(1, 'Enter the complete backup ID.'),
+});
+
+export const retentionRunConfirmationSchema = z.object({
+  confirmation: z.string().superRefine((value, context) => {
+    if (value !== 'RUN RETENTION') {
+      context.addIssue({
+        code: 'custom',
+        message: 'Enter RUN RETENTION exactly.',
+      });
+    }
+  }),
+});
+
 export type OwnerSetupInput = z.infer<typeof ownerSetupSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SourceDraftInput = z.infer<typeof sourceDraftSchema>;
@@ -197,3 +219,6 @@ export type IncidentDraftInput = z.infer<typeof incidentDraftSchema>;
 export type IncidentUpdateDraftInput = z.infer<typeof incidentUpdateDraftSchema>;
 export type SecondaryEventDraftInput = z.infer<typeof secondaryEventDraftSchema>;
 export type SecondaryEventUpdateDraftInput = z.infer<typeof secondaryEventUpdateDraftSchema>;
+export type RetentionPolicyDraftInput = z.infer<typeof retentionPolicyDraftSchema>;
+export type BackupDeleteConfirmationInput = z.infer<typeof backupDeleteConfirmationSchema>;
+export type RetentionRunConfirmationInput = z.infer<typeof retentionRunConfirmationSchema>;

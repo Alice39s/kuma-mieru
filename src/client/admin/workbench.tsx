@@ -4,6 +4,7 @@ import {
   BookOpenCheck,
   Boxes,
   CircleGauge,
+  DatabaseBackup,
   FileClock,
   LayoutTemplate,
   LogOut,
@@ -28,8 +29,17 @@ import { PageForm } from './page-form';
 import { SourceWizard } from './source-wizard';
 import { EventWorkspace } from './event-workspace';
 import { SubscriberDelivery } from './subscriber-delivery';
+import { BackupRetention } from './backup-retention';
+import { canAccessLifecycle } from './backup-retention-model';
 
-type Panel = 'overview' | 'sources' | 'pages' | 'events' | 'subscribers' | 'revisions';
+type Panel =
+  | 'overview'
+  | 'sources'
+  | 'pages'
+  | 'events'
+  | 'subscribers'
+  | 'revisions'
+  | 'lifecycle';
 type WorkbenchData = Awaited<ReturnType<typeof getWorkbenchData>>;
 
 const navigation: Array<{ id: Panel; label: string; icon: typeof Activity }> = [
@@ -39,6 +49,7 @@ const navigation: Array<{ id: Panel; label: string; icon: typeof Activity }> = [
   { id: 'events', label: 'Events', icon: Siren },
   { id: 'subscribers', label: 'Subscribers', icon: UsersRound },
   { id: 'revisions', label: 'Revisions', icon: FileClock },
+  { id: 'lifecycle', label: 'Lifecycle', icon: DatabaseBackup },
 ];
 
 const Overview = ({
@@ -404,9 +415,10 @@ export const Workbench = ({
           {navigation
             .filter(
               item =>
-                item.id !== 'subscribers' ||
-                session.role === 'owner' ||
-                session.role === 'publisher'
+                (item.id !== 'subscribers' ||
+                  session.role === 'owner' ||
+                  session.role === 'publisher') &&
+                (item.id !== 'lifecycle' || canAccessLifecycle(session.role))
             )
             .map(item => {
               const Icon = item.icon;
@@ -516,6 +528,14 @@ export const Workbench = ({
             ) : null}
             {panel === 'revisions' ? (
               <RevisionLedger data={data} session={session} onCommitted={reload} />
+            ) : null}
+            {panel === 'lifecycle' && canAccessLifecycle(session.role) ? (
+              <BackupRetention
+                mode={data.meta.config.mode}
+                onCommitted={reload}
+                revision={data.meta.config.revision ?? 0}
+                session={session}
+              />
             ) : null}
           </>
         )}

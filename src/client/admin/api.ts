@@ -230,6 +230,100 @@ export interface AdminSmtpCandidate {
   passwordRef?: string;
 }
 
+export interface AdminBackupManifest {
+  formatVersion: 1;
+  backupId: string;
+  createdAt: string;
+  appBuild: string;
+  schemaVersion: number;
+  fileName: string;
+  sizeBytes: number;
+  sha256: string;
+  purpose?: 'runtime-backup' | 'schema-upgrade';
+  targetSchemaVersion?: number;
+  migrationChecksums?: Array<{
+    version: number;
+    name: string;
+    checksumSha256: string;
+  }>;
+}
+
+export interface AdminBackupArtifact {
+  id: string;
+  state: 'creating' | 'ready' | 'failed';
+  fileName: string;
+  manifest: AdminBackupManifest | null;
+  createdBy: string;
+  createdAt: string;
+  completedAt: string | null;
+  errorCode: string | null;
+  retentionState: 'current' | 'eligible' | 'hold';
+  retentionDecidedAt: string | null;
+  manifestSha256: string | null;
+  deletionState: 'staging' | 'staged' | 'completed' | null;
+  deletedAt: string | null;
+}
+
+export interface AdminBackupValidation {
+  backupId: string;
+  valid: true;
+  schemaVersion: number;
+  sizeBytes: number;
+  sha256: string;
+  createdAt: string;
+}
+
+export interface AdminRetentionPolicy {
+  eventDraftDays: number;
+  adminAuditDays: number;
+  deliveryAttemptDays: number;
+  backupDays: number;
+}
+
+export interface AdminRetentionCutoffs {
+  eventDraftBefore: string;
+  adminAuditBefore: string;
+  deliveryAttemptBefore: string;
+  backupBefore: string;
+  pendingConfirmationBefore: string;
+  abuseHashBefore: string;
+  expiredTokenBefore: string;
+}
+
+export interface AdminRetentionSummary {
+  subscriberTombstonesApplied: number;
+  pendingSubscriptionsExpired: number;
+  terminalSubscriptionsRedacted: number;
+  terminalDeliveryPayloadsRedacted: number;
+  expiredSubscriptionTokensDeleted: number;
+  deliveryAttemptsDeleted: number;
+  abuseRateLimitBucketsDeleted: number;
+  unpublishedTerminalEventsDeleted: number;
+  adminAuditRowsDeleted: number;
+  backupArtifactsMarkedEligible: number;
+  backupArtifactsMarkedCurrent: number;
+}
+
+export interface AdminRetentionPreview {
+  policyVersion: number;
+  policy: AdminRetentionPolicy;
+  cutoffs: AdminRetentionCutoffs;
+  candidates: Omit<AdminRetentionSummary, 'subscriberTombstonesApplied'>;
+}
+
+export interface AdminRetentionRun {
+  id: string;
+  trigger: 'admin' | 'scheduler' | 'restore';
+  actorId: string;
+  state: 'running' | 'completed' | 'failed';
+  policyVersion: number;
+  cutoffs: AdminRetentionCutoffs;
+  summary: AdminRetentionSummary | null;
+  errorCode: string | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
 interface ReloadStatus {
   state: 'ready' | 'checking' | 'failed';
   lastAttemptAt: string | null;
@@ -682,3 +776,73 @@ export const reloadFileConfig = (session: AdminSession) =>
     headers: mutationHeaders(session),
     body: '{}',
   });
+
+export const getBackupRetentionData = async () => {
+  const [backups, retention] = await Promise.all([
+    request<{ data: AdminBackupArtifact[] }>('/api/v1/admin/backups'),
+    request<{ data: { policy: AdminRetentionPolicy; runs: AdminRetentionRun[] } }>(
+      '/api/v1/admin/retention'
+    ),
+  ]);
+  return {
+    backups: backups.data,
+    policy: retention.data.policy,
+    runs: retention.data.runs,
+  };
+};
+
+export const createBackup = (session: AdminSession) =>
+  request<{ data: AdminBackupValidation }>('/api/v1/admin/backups', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: '{}',
+  });
+
+export const validateBackup = (session: AdminSession, backupId: string) =>
+  request<{ data: AdminBackupValidation }>('/api/v1/admin/backups/restore/validate', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify({ backupId }),
+  });
+
+export const deleteEligibleBackup = (
+  session: AdminSession,
+  backupId: string,
+  expectedManifestSha256: string
+) =>
+  request<{ data: { backupId: string; deletedAt: string } }>(
+    `/api/v1/admin/backups/${encodeURIComponent(backupId)}`,
+    {
+      method: 'DELETE',
+      headers: mutationHeaders(session),
+      body: JSON.stringify({ expectedManifestSha256 }),
+    }
+  );
+
+export const previewRetention = (session: AdminSession) =>
+  request<{ data: AdminRetentionPreview }>('/api/v1/admin/retention/preview', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: '{}',
+  });
+
+export const runRetention = (session: AdminSession) =>
+  request<{ data: AdminRetentionRun }>('/api/v1/admin/retention/run', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: '{}',
+  });
+
+export const updateRetentionPolicy = (
+  session: AdminSession,
+  expectedRevision: number,
+  policy: AdminRetentionPolicy
+) =>
+  request<{ data: { revision: number; policy: AdminRetentionPolicy } }>(
+    '/api/v1/admin/retention/policy',
+    {
+      method: 'PUT',
+      headers: mutationHeaders(session),
+      body: JSON.stringify({ expectedRevision, policy }),
+    }
+  );
