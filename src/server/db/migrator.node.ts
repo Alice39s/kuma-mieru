@@ -347,3 +347,115 @@ test('registers a schema-upgrade artifact in an existing backup catalog', async 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('upgrades every historical schema to latest with a restorable backup and identical schema', async () => {
+  const migrationDirectory = resolve(process.cwd(), 'migrations');
+  const migrationFiles = (await readdir(migrationDirectory))
+    .filter(fileName => fileName.endsWith('.up.sql'))
+    .sort();
+  const latestVersion = migrationFiles.length;
+  const latestDatabase = openDatabase(':memory:');
+  try {
+    await migrateDatabase(latestDatabase.database, {
+      directory: migrationDirectory,
+      appBuild: 'matrix-latest',
+    });
+    const expectedSchema = latestDatabase.database
+      .prepare(
+        `SELECT type, name, tbl_name, sql
+         FROM sqlite_master
+         WHERE name NOT LIKE 'sqlite_%'
+         ORDER BY type, name`
+      )
+      .all();
+
+    for (let sourceVersion = 1; sourceVersion <= latestVersion; sourceVersion += 1) {
+      const root = await mkdtemp(resolve(tmpdir(), `kuma-mieru-upgrade-v${sourceVersion}-`));
+      const sourceMigrations = resolve(root, 'source-migrations');
+      const dataDirectory = resolve(root, 'data');
+      const databasePath = resolve(dataDirectory, 'kuma-mieru.sqlite3');
+      await cp(migrationDirectory, sourceMigrations, {
+        recursive: true,
+        filter: source =>
+          source === migrationDirectory ||
+          migrationFiles
+            .slice(0, sourceVersion)
+            .some(fileName => source === resolve(migrationDirectory, fileName)),
+      });
+      const opened = openDatabase(databasePath);
+      try {
+        const source = await migrateDatabase(opened.database, {
+          directory: sourceMigrations,
+          databasePath,
+          appBuild: `matrix-v${sourceVersion}`,
+        });
+        assert.equal(source.currentVersion, sourceVersion);
+        opened.database
+          .prepare(
+            `INSERT INTO runtime_state (key, value, updated_at)
+             VALUES (?, ?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+          )
+          .run('upgrade-matrix-sentinel', `from-v${sourceVersion}`, new Date().toISOString());
+
+        const upgraded = await migrateDatabase(opened.database, {
+          directory: migrationDirectory,
+          databasePath,
+          appBuild: 'matrix-latest',
+        });
+        assert.equal(upgraded.currentVersion, latestVersion);
+        assert.deepEqual(
+          upgraded.applied,
+          Array.from(
+            { length: latestVersion - sourceVersion },
+            (_value, index) => sourceVersion + index + 1
+          )
+        );
+        assert.equal(
+          (
+            opened.database
+              .prepare("SELECT value FROM runtime_state WHERE key = 'upgrade-matrix-sentinel'")
+              .get() as { value: string }
+          ).value,
+          `from-v${sourceVersion}`
+        );
+        assert.deepEqual(
+          opened.database
+            .prepare(
+              `SELECT type, name, tbl_name, sql
+               FROM sqlite_master
+               WHERE name NOT LIKE 'sqlite_%'
+               ORDER BY type, name`
+            )
+            .all(),
+          expectedSchema
+        );
+
+        if (sourceVersion === latestVersion) {
+          assert.equal(upgraded.backupArtifactId, null);
+        } else {
+          assert.ok(upgraded.backupArtifactId);
+          const backup = await validateBackupArtifact({
+            backupId: upgraded.backupArtifactId,
+            dataDirectory,
+            migrationDirectory,
+          });
+          assert.equal(backup.schemaVersion, sourceVersion);
+        }
+
+        const repeated = await migrateDatabase(opened.database, {
+          directory: migrationDirectory,
+          databasePath,
+          appBuild: 'matrix-latest',
+        });
+        assert.deepEqual(repeated.applied, []);
+        assert.equal(repeated.backupArtifactId, null);
+      } finally {
+        opened.database.close();
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  } finally {
+    latestDatabase.database.close();
+  }
+});
