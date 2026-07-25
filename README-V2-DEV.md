@@ -48,6 +48,8 @@ bun run test
 bun run build
 bun run verify:v2:bundle
 bun run release:v2:manifest
+bun run benchmark:v2:migrations -- --profile smoke
+bun run benchmark:v2:migrations -- --target-version 17
 bun run start
 ```
 
@@ -65,6 +67,11 @@ budget and proves that the Admin chunk is not eagerly referenced. `release:v2:ma
 `dist/v2/release-manifest.json` with the source state, runtime contract, compatibility inventory,
 Migration checksums, artifact hashes, and the explicit non-stable release channel. CI uses strict
 mode, which refuses to create release evidence from a dirty checkout.
+
+The migration benchmark defaults to the latest Previous → Latest pair. `--target-version <n>`
+replays the same production Node migration path against Schema `n - 1 → n` without deleting newer
+migration files or checking out an older tree. Release evidence still requires the default 20
+independent trials and 128 MiB fixture; `--profile smoke` is only a fast harness check.
 
 ## Configuration modes
 

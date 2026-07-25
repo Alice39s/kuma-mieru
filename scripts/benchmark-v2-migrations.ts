@@ -15,6 +15,7 @@ const positiveInteger = z.coerce.number().int().positive();
 const nonnegativeNumber = z.coerce.number().nonnegative();
 const optionsSchema = z.object({
   profile: z.enum(['release', 'smoke']),
+  targetVersion: positiveInteger.min(2).optional(),
   runs: positiveInteger,
   auditRows: nonnegativeNumber.int(),
   signalRows: nonnegativeNumber.int(),
@@ -29,6 +30,7 @@ const optionsSchema = z.object({
 const { values } = parseArgs({
   options: {
     profile: { type: 'string', default: 'release' },
+    'target-version': { type: 'string' },
     runs: { type: 'string', default: '20' },
     'audit-rows': { type: 'string', default: '50000' },
     'signal-rows': { type: 'string', default: '100000' },
@@ -44,6 +46,7 @@ const { values } = parseArgs({
 
 const options = optionsSchema.parse({
   profile: values.profile,
+  targetVersion: values['target-version'],
   runs: values.runs,
   auditRows: values['audit-rows'],
   signalRows: values['signal-rows'],
@@ -147,12 +150,24 @@ const run = async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-migration-benchmark-'));
   try {
     const migrationDirectory = resolve(process.cwd(), 'migrations');
-    const migrationNames = (await readdir(migrationDirectory))
+    const availableMigrationNames = (await readdir(migrationDirectory))
       .filter(name => name.endsWith('.up.sql'))
       .sort();
+    const targetVersion = options.targetVersion ?? availableMigrationNames.length;
+    if (targetVersion > availableMigrationNames.length) {
+      throw new Error(
+        `Target migration ${targetVersion} exceeds latest migration ${availableMigrationNames.length}`
+      );
+    }
+    const migrationNames = availableMigrationNames.slice(0, targetVersion);
     if (migrationNames.length < 2) throw new Error('At least two migrations are required');
+    const targetMigrationDirectory = resolve(root, 'target-migrations');
     const previousMigrationDirectory = resolve(root, 'previous-migrations');
+    await mkdir(targetMigrationDirectory, { recursive: true });
     await mkdir(previousMigrationDirectory, { recursive: true });
+    for (const name of migrationNames) {
+      await copyFile(resolve(migrationDirectory, name), resolve(targetMigrationDirectory, name));
+    }
     for (const name of migrationNames.slice(0, -1)) {
       await copyFile(resolve(migrationDirectory, name), resolve(previousMigrationDirectory, name));
     }
@@ -200,7 +215,7 @@ const run = async () => {
       let result;
       try {
         result = await migrateDatabase(database.database, {
-          directory: migrationDirectory,
+          directory: targetMigrationDirectory,
           databasePath,
           appBuild: 'migration-benchmark',
           onMigrationApplied: measurement =>
