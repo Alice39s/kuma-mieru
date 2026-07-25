@@ -38,6 +38,17 @@ export const backupManifestSchema = z.object({
     ),
   sizeBytes: z.number().int().positive(),
   sha256: z.string().regex(/^[0-9a-f]{64}$/u),
+  purpose: z.enum(['runtime-backup', 'schema-upgrade']).optional(),
+  targetSchemaVersion: z.number().int().positive().optional(),
+  migrationChecksums: z
+    .array(
+      z.object({
+        version: z.number().int().positive(),
+        name: z.string().min(1).max(200),
+        checksumSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+      })
+    )
+    .optional(),
 });
 
 export type BackupManifest = z.infer<typeof backupManifestSchema>;
@@ -92,7 +103,12 @@ export const runBackupScheduleOnce = async ({
 }) => {
   const latest = service
     .list()
-    .find(artifact => artifact.state === 'ready' && artifact.completedAt !== null);
+    .find(
+      artifact =>
+        artifact.state === 'ready' &&
+        artifact.completedAt !== null &&
+        artifact.manifest?.purpose !== 'schema-upgrade'
+    );
   if (
     latest?.completedAt &&
     now().getTime() - new Date(latest.completedAt).getTime() < backupScheduleMaximumAgeMs
@@ -502,6 +518,7 @@ export const createBackupService = (options: CreateBackupServiceOptions): Backup
         fileName,
         sizeBytes,
         sha256,
+        purpose: 'runtime-backup',
       };
       await writeFile(manifestPartialPath, `${JSON.stringify(manifest, null, 2)}\n`, {
         encoding: 'utf8',

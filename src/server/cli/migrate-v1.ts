@@ -125,6 +125,8 @@ if (dryRun) {
             sqliteBackupPath,
             generatedConfigBackupPath,
             schemaBackupPath: migration.backupPath,
+            schemaBackupManifestPath: migration.backupManifestPath,
+            schemaBackupArtifactId: migration.backupArtifactId,
             conflicts: plan.conflicts,
             ignoredFields: plan.ignoredFields,
             decisions: plan.decisions,
@@ -143,6 +145,7 @@ if (dryRun) {
             sqliteBackupPath,
             generatedConfigBackupPath,
             manifestPath,
+            schemaBackupArtifactId: migration.backupArtifactId,
             nextStep:
               'Set KUMA_MIERU_CONFIG_MODE=managed, restart, verify /health/ready, and retain the backup for rollback.',
           },

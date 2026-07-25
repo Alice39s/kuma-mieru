@@ -108,9 +108,10 @@ weakening the v2 security baseline.
 environment and optional `config/generated-config.json`, then reports Source/Page/Slug metadata,
 precedence conflicts, ignored fields, Content Hash, parent Revision, and target Revision. Explicit
 `--execute` runs checked SQLite migrations, creates a pre-import SQLite backup, preserves the v1
-generated JSON, writes a migration manifest, and atomically activates a Managed Revision. The
-operator then sets `KUMA_MIERU_CONFIG_MODE=managed`; keeping the old environment continues to select
-the read-only Compatibility Profile until that explicit cutover.
+generated JSON, records any Schema Upgrade Backup ID and Manifest, writes a migration manifest, and
+atomically activates a Managed Revision. The operator then sets
+`KUMA_MIERU_CONFIG_MODE=managed`; keeping the old environment continues to select the read-only
+Compatibility Profile until that explicit cutover.
 
 The compatibility surface also preserves the v1 read routes `/api/config`, `/api/monitor`,
 `/api/icon`, `/api/manage-status-page`, `/about`, and `/monitor/:monitorId`. Config and monitor
@@ -150,6 +151,13 @@ jobs through the catalog, validates the SQLite header, integrity, foreign keys, 
 size, and checksum, then atomically publishes the artifact. Interrupted `creating` rows are marked
 failed at startup and only their exact `.partial` files are removed. Ready or failed backups are
 never deleted automatically.
+
+When an existing database has pending migrations, startup creates the same restore-compatible
+Artifact before applying the first migration. Its Manifest uses `purpose: "schema-upgrade"`, records
+the source and target Schema versions plus every pending Migration checksum, and is registered in
+the backup catalog as soon as that table exists. Backup space, Header, Integrity, Foreign Keys,
+Ledger, size, and SHA-256 must all pass before the Ledger can advance. A Schema Upgrade Artifact
+does not satisfy the separate daily runtime-backup schedule.
 
 Restore is an explicit offline operator workflow:
 

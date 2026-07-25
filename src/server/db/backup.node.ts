@@ -306,3 +306,63 @@ test('scheduled backup only creates an artifact when the latest is older than on
     await rm(fixture.dataDirectory, { recursive: true, force: true });
   }
 });
+
+test('does not treat a schema-upgrade artifact as the daily runtime backup', async () => {
+  let creates = 0;
+  const completedAt = '2026-07-25T11:00:00.000Z';
+  const service = {
+    list: () => [
+      {
+        id: 'bkp_00000000-0000-4000-8000-000000000001',
+        state: 'ready' as const,
+        fileName: 'bkp_00000000-0000-4000-8000-000000000001.sqlite3',
+        manifest: {
+          formatVersion: 1 as const,
+          backupId: 'bkp_00000000-0000-4000-8000-000000000001',
+          createdAt: completedAt,
+          appBuild: 'test',
+          schemaVersion: 12,
+          fileName: 'bkp_00000000-0000-4000-8000-000000000001.sqlite3',
+          sizeBytes: 4096,
+          sha256: 'a'.repeat(64),
+          purpose: 'schema-upgrade' as const,
+          targetSchemaVersion: 13,
+          migrationChecksums: [
+            {
+              version: 13,
+              name: 'fixture',
+              checksumSha256: 'b'.repeat(64),
+            },
+          ],
+        },
+        createdBy: 'system:schema-migration',
+        createdAt: completedAt,
+        completedAt,
+        errorCode: null,
+      },
+    ],
+    create: async () => {
+      creates += 1;
+      return {
+        backupId: 'bkp_00000000-0000-4000-8000-000000000002',
+        valid: true as const,
+        schemaVersion: 13,
+        sizeBytes: 4096,
+        sha256: 'c'.repeat(64),
+        createdAt: '2026-07-25T12:00:00.000Z',
+      };
+    },
+    validate: async () => {
+      throw new Error('not used');
+    },
+    recoverInterrupted: async () => 0,
+  };
+  assert.equal(
+    await runBackupScheduleOnce({
+      service,
+      now: () => new Date('2026-07-25T12:00:00.000Z'),
+    }),
+    'created'
+  );
+  assert.equal(creates, 1);
+});
