@@ -25,6 +25,7 @@ export interface RuntimeMeta {
     fileConfig: boolean;
     legacyEnvironment: boolean;
     sourceAdapters: string[];
+    emailSubscriptions: boolean;
   };
 }
 

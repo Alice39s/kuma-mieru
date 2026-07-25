@@ -27,9 +27,12 @@ import {
 import {
   sourcePatchSchema as sourcePatchValueSchema,
   sourceSchema,
+  smtpDeliverySchema,
   statusPageSchema,
 } from '../config/schema.js';
 import type { RuntimeConfigSnapshot } from '../config/runtime-config.js';
+import type { DeliveryRuntimeStatus } from '../delivery/runtime.js';
+import type { SmtpTestService } from '../delivery/smtp-config.js';
 import type { SecretStore } from '../secrets/store.js';
 import {
   appendIncidentUpdate,
@@ -101,6 +104,17 @@ const sourceTokenSecretSchema = z.object({
   resourceId: z.string().min(1).max(200),
   value: z.string().min(1).max(16_384),
 });
+const smtpCredentialSecretSchema = z.object({
+  username: z.string().min(1).max(1_024),
+  password: z.string().min(1).max(16_384),
+});
+const smtpTestSchema = z.object({ smtp: smtpDeliverySchema });
+const smtpTestMessageSchema = z.object({ recipient: z.email().max(320) });
+const smtpUpdateSchema = z.object({
+  expectedRevision: z.number().int().positive(),
+  smtp: smtpDeliverySchema,
+  testToken: z.string().min(1).optional(),
+});
 const idempotencyKeySchema = z.string().min(8).max(200);
 const adminListLimitSchema = z.coerce.number().int().min(1).max(500).default(200);
 const deliveryRetrySchema = z.object({ expectedState: z.enum(['failed', 'dead_letter']) });
@@ -112,6 +126,8 @@ export interface AdminRouteOptions {
   authSecret?: string;
   trustedOrigins: string[];
   sourceTest?: SourceTestService;
+  smtpTest?: SmtpTestService;
+  getDeliveryRuntimeStatus?: () => DeliveryRuntimeStatus;
   secretStore?: SecretStore;
   currentSnapshot: () => RuntimeConfigSnapshot;
   onManagedRevision?: (revision: ConfigRevision) => void | Promise<void>;
@@ -127,6 +143,8 @@ export const registerAdminRoutes = (
     authSecret,
     trustedOrigins,
     sourceTest,
+    smtpTest,
+    getDeliveryRuntimeStatus,
     secretStore,
     currentSnapshot,
     onManagedRevision,
@@ -356,6 +374,192 @@ export const registerAdminRoutes = (
         code,
         error instanceof z.ZodError ? 'Secret input is invalid' : 'Secret could not be stored'
       );
+    }
+  });
+
+  app.post('/api/v1/admin/secrets/smtp-credentials', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!secretStore || !database) {
+      return errorResponse(context, 503, 'SECRET_STORE_NOT_READY', 'Secret storage is unavailable');
+    }
+    try {
+      const input = smtpCredentialSecretSchema.parse(await context.req.json());
+      const credentialSetId = `smtp_${randomUUID()}`;
+      const resourceId = `delivery.smtp:${credentialSetId}`;
+      const stored = database.transaction(() => {
+        const username = secretStore.put(
+          { resourceId, fieldName: 'username', purpose: 'smtp-credential' },
+          input.username
+        );
+        const password = secretStore.put(
+          { resourceId, fieldName: 'password', purpose: 'smtp-credential' },
+          input.password
+        );
+        database
+          .prepare(
+            `INSERT INTO admin_audit
+              (id, occurred_at, actor_id, action, target_type, target_id, request_id,
+               user_agent, result, error_code)
+             VALUES (?, ?, ?, 'smtp.credentials.stage', 'secret_set', ?, ?, ?, 'success', NULL)`
+          )
+          .run(
+            randomUUID(),
+            new Date().toISOString(),
+            authorization.principal.userId,
+            credentialSetId,
+            context.get('requestId'),
+            context.req.header('user-agent') ?? null
+          );
+        return {
+          credentialSetId,
+          usernameRef: username.secretRef,
+          passwordRef: password.secretRef,
+        };
+      })();
+      return context.json({ data: stored }, 201);
+    } catch (error) {
+      const code = error instanceof z.ZodError ? 'VALIDATION_FAILED' : 'SECRET_WRITE_FAILED';
+      writeRouteAudit(context, authorization.principal.userId, 'failed', code);
+      return errorResponse(
+        context,
+        400,
+        code,
+        error instanceof z.ZodError
+          ? 'SMTP credential input is invalid'
+          : 'SMTP credentials could not be stored'
+      );
+    }
+  });
+
+  app.get('/api/v1/admin/delivery/smtp', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher']);
+    if (!authorization.ok) return authorization.response;
+    const smtp = currentSnapshot().config.delivery?.smtp;
+    const configuration = smtp?.enabled
+      ? {
+          enabled: true,
+          host: smtp.host,
+          port: smtp.port,
+          tls: smtp.tls,
+          from: smtp.from,
+          replyTo: smtp.replyTo ?? null,
+          authenticated: Boolean(smtp.credentialSetId),
+        }
+      : { enabled: false };
+    context.header('Cache-Control', 'no-store');
+    return context.json({
+      data: {
+        runtime: getDeliveryRuntimeStatus?.() ?? {
+          state: 'disabled',
+          configured: Boolean(smtp),
+          appliedAt: currentSnapshot().loadedAt,
+          lastErrorCode: null,
+        },
+        configuration,
+      },
+    });
+  });
+
+  app.post('/api/v1/admin/delivery/smtp/test', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!smtpTest) {
+      return errorResponse(context, 503, 'SMTP_TEST_NOT_READY', 'SMTP testing is unavailable');
+    }
+    try {
+      const input = smtpTestSchema.parse(await context.req.json());
+      const result = await smtpTest.test(input.smtp);
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: result });
+    } catch (error) {
+      const code = error instanceof z.ZodError ? 'VALIDATION_FAILED' : 'SMTP_TEST_FAILED';
+      writeRouteAudit(context, authorization.principal.userId, 'failed', code);
+      return errorResponse(
+        context,
+        400,
+        code,
+        error instanceof z.ZodError
+          ? 'SMTP configuration is invalid'
+          : 'SMTP connection verification failed'
+      );
+    }
+  });
+
+  app.post('/api/v1/admin/delivery/smtp/send-test', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!smtpTest) {
+      return errorResponse(context, 503, 'SMTP_TEST_NOT_READY', 'SMTP testing is unavailable');
+    }
+    const smtp = currentSnapshot().config.delivery?.smtp;
+    if (!smtp?.enabled) {
+      return errorResponse(context, 409, 'SMTP_DISABLED', 'SMTP delivery is not active');
+    }
+    try {
+      const input = smtpTestMessageSchema.parse(await context.req.json());
+      const result = await smtpTest.sendTest(smtp, input.recipient);
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: result });
+    } catch (error) {
+      const code = error instanceof z.ZodError ? 'VALIDATION_FAILED' : 'SMTP_TEST_SEND_FAILED';
+      writeRouteAudit(context, authorization.principal.userId, 'failed', code);
+      return errorResponse(
+        context,
+        400,
+        code,
+        error instanceof z.ZodError ? 'Test recipient is invalid' : 'SMTP test message failed'
+      );
+    }
+  });
+
+  app.put('/api/v1/admin/delivery/smtp', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(
+        context,
+        503,
+        'DATABASE_NOT_READY',
+        'Configuration database is unavailable'
+      );
+    }
+    if (currentSnapshot().mode !== 'managed') {
+      return errorResponse(
+        context,
+        409,
+        'CONFIG_MODE_READ_ONLY',
+        'SMTP is writable only in managed mode'
+      );
+    }
+    try {
+      const input = smtpUpdateSchema.parse(await context.req.json());
+      if (
+        input.smtp.enabled &&
+        (!smtpTest || !input.testToken || !smtpTest.validate(input.smtp, input.testToken))
+      ) {
+        return errorResponse(
+          context,
+          400,
+          'SMTP_TEST_TOKEN_INVALID',
+          'SMTP test token is invalid or expired'
+        );
+      }
+      const revision = mutateManagedConfig(database, {
+        expectedRevision: input.expectedRevision,
+        audit: auditContext(context, authorization.principal),
+        action: input.smtp.enabled ? 'smtp.enable' : 'smtp.disable',
+        targetType: 'delivery_transport',
+        targetId: 'smtp',
+        mutate: config => ({
+          ...config,
+          delivery: { ...config.delivery, smtp: input.smtp },
+        }),
+      });
+      await onManagedRevision?.(revision);
+      return context.json({ data: { revision: revision.revision, applyStatus: 'active' } });
+    } catch (error) {
+      return handleManagedError(context, error, authorization.principal);
     }
   });
 

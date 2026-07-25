@@ -67,6 +67,52 @@ export const statusPageSchema = z.object({
   sourceRefs: z.array(z.string().min(1)).min(1),
 });
 
+const smtpAddressSchema = z.object({
+  address: z.email().max(320),
+  name: z.string().trim().min(1).max(200).optional(),
+});
+
+const disabledSmtpDeliverySchema = z.object({
+  enabled: z.literal(false),
+});
+
+const enabledSmtpDeliverySchema = z
+  .object({
+    enabled: z.literal(true),
+    host: z.string().trim().min(1).max(253),
+    port: z.number().int().min(1).max(65_535),
+    tls: z.enum(['implicit', 'starttls']),
+    from: smtpAddressSchema,
+    replyTo: z.email().max(320).optional(),
+    credentialSetId: z.string().startsWith('smtp_').max(200).optional(),
+    usernameRef: z.string().startsWith('sec_').optional(),
+    passwordRef: z.string().startsWith('sec_').optional(),
+  })
+  .superRefine((smtp, context) => {
+    const authenticationFields = [smtp.credentialSetId, smtp.usernameRef, smtp.passwordRef].filter(
+      Boolean
+    );
+    if (authenticationFields.length !== 0 && authenticationFields.length !== 3) {
+      context.addIssue({
+        code: 'custom',
+        path: ['credentialSetId'],
+        message: 'SMTP authentication requires one complete staged credential set',
+      });
+    }
+    if (smtp.tls === 'implicit' && smtp.port !== 465) {
+      context.addIssue({
+        code: 'custom',
+        path: ['port'],
+        message: 'Implicit TLS SMTP must use port 465',
+      });
+    }
+  });
+
+export const smtpDeliverySchema = z.discriminatedUnion('enabled', [
+  disabledSmtpDeliverySchema,
+  enabledSmtpDeliverySchema,
+]);
+
 export const canonicalConfigSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -75,10 +121,22 @@ export const canonicalConfigSchema = z
         publicBaseUrl: z.string().url().optional(),
       })
       .default({}),
+    delivery: z
+      .object({
+        smtp: smtpDeliverySchema.optional(),
+      })
+      .optional(),
     sources: z.array(sourceSchema),
     pages: z.array(statusPageSchema),
   })
   .superRefine((config, context) => {
+    if (config.delivery?.smtp?.enabled && !config.server.publicBaseUrl) {
+      context.addIssue({
+        code: 'custom',
+        path: ['server', 'publicBaseUrl'],
+        message: 'SMTP delivery requires an explicit publicBaseUrl',
+      });
+    }
     const sourceIds = new Set<string>();
     config.sources.forEach((source, index) => {
       if (sourceIds.has(source.id)) {
@@ -124,3 +182,5 @@ export const canonicalConfigSchema = z
 
 export type ConfigMode = z.infer<typeof configModeSchema>;
 export type CanonicalConfig = z.infer<typeof canonicalConfigSchema>;
+export type SmtpDeliveryConfig = z.infer<typeof smtpDeliverySchema>;
+export type EnabledSmtpDeliveryConfig = z.infer<typeof enabledSmtpDeliverySchema>;

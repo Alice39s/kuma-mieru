@@ -59,6 +59,25 @@ test('returns a stable JSON error for unknown API routes', async () => {
   assert.equal(typeof body.error.requestId, 'string');
 });
 
+test('keeps public email subscription disabled until a verified runtime is active', async () => {
+  const app = createApp({
+    snapshot,
+    schemaVersion: 9,
+    buildVersion: '2.0.0-test',
+    authSecret: 'subscription-capability-secret-with-sufficient-entropy',
+    isEmailDeliveryEnabled: () => false,
+  });
+  const meta = await app.request('/api/v1/meta');
+  const metaBody = (await meta.json()) as {
+    capabilities: { emailSubscriptions: boolean };
+  };
+  assert.equal(metaBody.capabilities.emailSubscriptions, false);
+  const nonce = await app.request('/api/v1/public/pages/main/subscriptions/email/nonce');
+  assert.equal(nonce.status, 503);
+  const nonceBody = (await nonce.json()) as { error: { code: string } };
+  assert.equal(nonceBody.error.code, 'SUBSCRIPTIONS_NOT_READY');
+});
+
 test('serves generic native metrics and methodology only from local extension caches', async () => {
   const metricExtension = {
     catalog: [

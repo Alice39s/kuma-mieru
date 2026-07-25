@@ -913,6 +913,82 @@
   cursor: wait;
   opacity: 0.5;
 }
+.smtp-control {
+  margin-top: 2rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 0.8rem;
+  background: rgba(249, 249, 244, 0.82);
+}
+.smtp-control.is-running {
+  border-color: rgba(30, 110, 70, 0.3);
+}
+.smtp-control.is-failed {
+  border-color: rgba(157, 48, 45, 0.3);
+}
+.smtp-control > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--admin-line);
+}
+.smtp-control h2,
+.smtp-control header p {
+  margin: 0;
+}
+.smtp-control h2 {
+  font-size: 2rem;
+}
+.smtp-control header div > p:last-child,
+.smtp-read-only {
+  margin-top: 0.5rem;
+  color: var(--admin-muted);
+  font-size: 0.72rem;
+  line-height: 1.65;
+}
+.smtp-control-grid {
+  display: grid;
+  grid-template-columns: minmax(28rem, 1.2fr) minmax(18rem, 0.8fr);
+}
+.smtp-config-form {
+  padding: 1.5rem;
+  border-right: 1px solid var(--admin-line);
+}
+.smtp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+.smtp-test-form {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+.smtp-test-form > svg {
+  color: var(--admin-green);
+}
+.smtp-test-form strong,
+.smtp-test-form p {
+  margin: 0;
+}
+.smtp-test-form p {
+  margin-top: 0.4rem;
+  color: var(--admin-muted);
+  font-size: 0.7rem;
+  line-height: 1.65;
+}
+.smtp-read-only {
+  margin: 0;
+  padding: 1.5rem;
+}
+.delivery-state.is-running {
+  color: var(--admin-green);
+}
+.delivery-state.is-failed {
+  color: var(--admin-red, #9d302d);
+}
 .inline-confirmation {
   display: flex;
   gap: 0.35rem;
@@ -1026,8 +1102,13 @@
   .workbench-split,
   .event-workspace,
   .delivery-columns,
+  .smtp-control-grid,
   .attention-queue {
     grid-template-columns: 1fr;
+  }
+  .smtp-config-form {
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-line);
   }
   .file-reload-card,
   .compatibility-card {

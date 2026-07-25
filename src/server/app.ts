@@ -20,6 +20,8 @@ import type { FileReloadResult, FileReloadStatus } from './config/file-reloader.
 import type { CanonicalConfig } from './config/schema.js';
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 import type { SecretStore } from './secrets/store.js';
+import type { DeliveryRuntimeStatus } from './delivery/runtime.js';
+import type { SmtpTestService } from './delivery/smtp-config.js';
 import {
   getPublishedIncident,
   listPublishedEvents,
@@ -68,6 +70,9 @@ export interface AppOptions {
   reloadFileConfig?: () => Promise<FileReloadResult>;
   bootstrap?: BootstrapService;
   sourceTest?: SourceTestService;
+  smtpTest?: SmtpTestService;
+  getDeliveryRuntimeStatus?: () => DeliveryRuntimeStatus;
+  isEmailDeliveryEnabled?: () => boolean;
   secretStore?: SecretStore;
 }
 
@@ -90,6 +95,9 @@ export const createApp = ({
   reloadFileConfig,
   bootstrap,
   sourceTest,
+  smtpTest,
+  getDeliveryRuntimeStatus,
+  isEmailDeliveryEnabled = () => false,
   secretStore,
 }: AppOptions) => {
   const app = new Hono<AppEnvironment>();
@@ -367,6 +375,7 @@ export const createApp = ({
         fileConfig: runtime.mode === 'file',
         legacyEnvironment: runtime.mode === 'compatibility',
         sourceAdapters: ['uptime-kuma', 'better-stack', 'uptime-robot', 'incident-io', 'llm-mieru'],
+        emailSubscriptions: isEmailDeliveryEnabled(),
       },
     });
   });
@@ -498,7 +507,7 @@ export const createApp = ({
   app.get('/api/v1/public/pages/:slug/subscriptions/email/nonce', context => {
     const page = findPage(context.req.param('slug'));
     if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
-    if (!subscriptionNonce) {
+    if (!subscriptionNonce || !isEmailDeliveryEnabled()) {
       return errorResponse(
         context,
         503,
@@ -513,7 +522,7 @@ export const createApp = ({
   app.post('/api/v1/public/pages/:slug/subscriptions/email', async context => {
     const page = findPage(context.req.param('slug'));
     if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
-    if (!database || !piiProtector || !subscriptionNonce) {
+    if (!database || !piiProtector || !subscriptionNonce || !isEmailDeliveryEnabled()) {
       return errorResponse(
         context,
         503,
@@ -803,6 +812,8 @@ export const createApp = ({
     authSecret,
     trustedOrigins,
     sourceTest,
+    smtpTest,
+    getDeliveryRuntimeStatus,
     secretStore,
     currentSnapshot,
     onManagedRevision,

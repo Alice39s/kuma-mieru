@@ -137,6 +137,38 @@ export interface AdminDelivery {
   sentAt: string | null;
 }
 
+export interface AdminSmtpConfiguration {
+  enabled: boolean;
+  host?: string;
+  port?: number;
+  tls?: 'implicit' | 'starttls';
+  from?: { address: string; name?: string };
+  replyTo?: string | null;
+  authenticated?: boolean;
+}
+
+export interface AdminSmtpStatus {
+  runtime: {
+    state: 'disabled' | 'running' | 'failed';
+    configured: boolean;
+    appliedAt: string;
+    lastErrorCode: string | null;
+  };
+  configuration: AdminSmtpConfiguration;
+}
+
+export interface AdminSmtpCandidate {
+  enabled: true;
+  host: string;
+  port: number;
+  tls: 'implicit' | 'starttls';
+  from: { address: string; name?: string };
+  replyTo?: string;
+  credentialSetId?: string;
+  usernameRef?: string;
+  passwordRef?: string;
+}
+
 interface ReloadStatus {
   state: 'ready' | 'checking' | 'failed';
   lastAttemptAt: string | null;
@@ -407,12 +439,53 @@ export const publishSecondaryEvent = (
   );
 
 export const getSubscriberDeliveryData = async () => {
-  const [subscribers, deliveries] = await Promise.all([
+  const [subscribers, deliveries, smtp] = await Promise.all([
     request<{ data: AdminSubscriber[] }>('/api/v1/admin/subscribers'),
     request<{ data: AdminDelivery[] }>('/api/v1/admin/deliveries'),
+    request<{ data: AdminSmtpStatus }>('/api/v1/admin/delivery/smtp'),
   ]);
-  return { subscribers: subscribers.data, deliveries: deliveries.data };
+  return { subscribers: subscribers.data, deliveries: deliveries.data, smtp: smtp.data };
 };
+
+export const stageSmtpCredentials = (
+  session: AdminSession,
+  input: { username: string; password: string }
+) =>
+  request<{
+    data: { credentialSetId: string; usernameRef: string; passwordRef: string };
+  }>('/api/v1/admin/secrets/smtp-credentials', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
+
+export const testSmtpConfiguration = (session: AdminSession, smtp: AdminSmtpCandidate) =>
+  request<{ data: { token: string; expiresAt: string } }>('/api/v1/admin/delivery/smtp/test', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify({ smtp }),
+  });
+
+export const activateSmtpConfiguration = (
+  session: AdminSession,
+  input: {
+    expectedRevision: number;
+    smtp: AdminSmtpCandidate | { enabled: false };
+    testToken?: string;
+  }
+) =>
+  request<{ data: { revision: number; applyStatus: string } }>('/api/v1/admin/delivery/smtp', {
+    method: 'PUT',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
+
+export const sendSmtpTestMessage = (session: AdminSession, recipient: string) =>
+  request<{ data: { messageId: string } }>('/api/v1/admin/delivery/smtp/send-test', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify({ recipient }),
+  });
 
 export const retryDelivery = (
   session: AdminSession,

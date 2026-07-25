@@ -294,8 +294,46 @@ The transactional delivery worker claims bounded batches, recovers stale locks, 
 IDs, adds one-click unsubscribe headers, retries transient SMTP failures with bounded exponential
 backoff, and moves permanent or exhausted work to Dead-letter. Nodemailer is isolated behind a
 functional transport interface; SMTP connection verification and TLS 1.2 minimums are implemented.
-The worker is not started until a future structured Mail Transport plus Secret Reference is
-validated, so adding the transport does not reintroduce flat credential environment variables.
+The worker starts only after a structured SMTP configuration and its bound Secret References resolve
+successfully. Reconfiguration starts the replacement worker before closing the previous pool; a
+failed active configuration stops delivery and exposes only a low-cardinality error code.
+
+Managed mode gives the Owner a stage → verify → activate workflow. Credentials are encrypted as a
+new immutable credential set, SMTP `verify()` returns a five-minute token bound to the complete
+candidate, and only that exact candidate can create the next Config Revision. The Admin API and UI
+never return credential values; the staging response returns new opaque Secret References once so
+the caller can bind that candidate. Persisted configuration reads redact those references.
+Publisher can inspect the redacted transport and runtime state, while only Owner with recent
+authentication can stage credentials, verify, activate, disable, or send an explicit real test
+message.
+
+File mode accepts the same canonical shape and verifies enabled SMTP during dry-run before a hot
+reload can replace the last-known-good snapshot. Both modes require an explicit
+`server.publicBaseUrl`, use STARTTLS or implicit TLS, reject invalid certificates, require TLS 1.2 or
+newer, and keep public email subscription endpoints disabled unless the delivery runtime is
+actually running. SMTP authentication is optional; when used, the credential set ID and its two
+bound Secret References must be present together. A File Mode operator stages a credential set
+through the Owner API, copies the one-time returned references into the protected YAML, and then
+reloads; credentials themselves never enter that file.
+
+```yaml
+schemaVersion: 1
+server:
+  publicBaseUrl: https://status.example.com
+delivery:
+  smtp:
+    enabled: true
+    host: smtp.example.com
+    port: 587
+    tls: starttls
+    from:
+      address: status@example.com
+      name: Example Status
+    replyTo: support@example.com
+    credentialSetId: smtp_example
+    usernameRef: sec_example_username
+    passwordRef: sec_example_password
+```
 
 The Subscriber dashboard is available only to Owner and Publisher. Its API returns a one-way
 private recipient fingerprint instead of an address, hash, ciphertext, token, or message payload.
@@ -347,6 +385,5 @@ historical files, changed checksums, failed integrity checks, and failed foreign
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
 The current implementation does not yet provide passkey enrollment UI, identity administration,
-automatic Maintenance/Notice schedulers, or SMTP Secret Store configuration and activation. Their
-control-plane capabilities must remain disabled until the corresponding contracts and security
-gates are implemented.
+or automatic Maintenance/Notice schedulers. Their control-plane capabilities must remain disabled
+until the corresponding contracts and security gates are implemented.

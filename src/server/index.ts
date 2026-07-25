@@ -15,8 +15,11 @@ import { loadRuntimeConfig } from './config/runtime-config.js';
 import { createFileConfigReloader } from './config/file-reloader.js';
 import { openDatabase } from './db/database.js';
 import { migrateDatabase } from './db/migrator.js';
+import { createDeliveryRuntime } from './delivery/runtime.js';
+import { createSmtpTestService } from './delivery/smtp-config.js';
 import { loadOrCreateSecretKeyring } from './secrets/keyring.js';
 import { createSecretStore } from './secrets/store.js';
+import { createPiiProtector } from './subscriptions/crypto.js';
 
 const currentDirectory = fileURLToPath(new URL('.', import.meta.url));
 const dataDirectory = resolve(process.env.KUMA_MIERU_DATA_DIR ?? './data');
@@ -48,6 +51,16 @@ const secretStore = createSecretStore(database, secretKeyring);
 let runtimeSnapshot = await loadRuntimeConfig({ database });
 const authSecret = await loadOrCreateAuthSecret(dataDirectory);
 const auth = createAuth({ database, baseURL, secret: authSecret, trustedOrigins });
+const piiProtector = createPiiProtector(authSecret);
+const smtpTest = createSmtpTestService({
+  secret: authSecret,
+  secretStore,
+});
+const deliveryRuntime = createDeliveryRuntime({
+  database,
+  protector: piiProtector,
+  secretStore,
+});
 const sourceTest = createSourceTestService({
   secret: authSecret,
   allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
@@ -62,6 +75,7 @@ let stopSourcePoller = startSourcePoller({
   secretStore,
   allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
 });
+deliveryRuntime.apply(runtimeSnapshot.config);
 const applyRuntimeSnapshot = (nextSnapshot: typeof runtimeSnapshot) => {
   const stopNextPoller = startSourcePoller({
     database,
@@ -70,6 +84,7 @@ const applyRuntimeSnapshot = (nextSnapshot: typeof runtimeSnapshot) => {
     allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
   });
   const stopPreviousPoller = stopSourcePoller;
+  deliveryRuntime.apply(nextSnapshot.config);
   runtimeSnapshot = nextSnapshot;
   stopSourcePoller = stopNextPoller;
   stopPreviousPoller();
@@ -81,6 +96,7 @@ const fileReloader =
         initialSnapshot: runtimeSnapshot,
         validateConfig: async config => {
           for (const source of config.sources) await sourceTest.test(source);
+          if (config.delivery?.smtp?.enabled) await smtpTest.test(config.delivery.smtp);
         },
         applySnapshot: applyRuntimeSnapshot,
       })
@@ -121,6 +137,9 @@ const app = createApp({
   trustedOrigins,
   bootstrap,
   sourceTest,
+  smtpTest,
+  getDeliveryRuntimeStatus: deliveryRuntime.status,
+  isEmailDeliveryEnabled: () => deliveryRuntime.status().state === 'running',
   secretStore,
   publicDirectory: process.env.NODE_ENV === 'development' ? undefined : clientDirectory,
   loadPageSnapshots: page =>
@@ -168,6 +187,7 @@ const shutdown = (signal: NodeJS.Signals) => {
     process.removeListener('SIGHUP', reloadOnSighup);
     stopFileReloader();
     stopSourcePoller();
+    deliveryRuntime.stop();
     database.close();
     process.exit(0);
   });

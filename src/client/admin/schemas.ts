@@ -37,6 +37,31 @@ export const pageDraftSchema = z.object({
   sourceRef: z.string().min(1, 'Choose a source.'),
 });
 
+export const smtpDraftSchema = z
+  .object({
+    host: z.string().trim().min(1, 'SMTP host is required.').max(253),
+    port: z.number().int().min(1).max(65_535),
+    tls: z.enum(['starttls', 'implicit']),
+    fromName: z.string().trim().max(200),
+    fromAddress: z.email('Enter a valid sender address.').max(320),
+    replyTo: z.union([z.literal(''), z.email('Enter a valid reply-to address.').max(320)]),
+    username: z.string().max(1_024),
+    password: z.string().max(16_384),
+  })
+  .superRefine((input, context) => {
+    if (Boolean(input.username) !== Boolean(input.password)) {
+      context.addIssue({
+        code: 'custom',
+        path: [input.username ? 'password' : 'username'],
+        message: 'Provide both SMTP username and password, or leave both empty.',
+      });
+    }
+  });
+
+export const smtpTestMessageSchema = z.object({
+  recipient: z.email('Enter a valid test recipient.').max(320),
+});
+
 export const incidentDraftSchema = z.object({
   pageId: z.string().min(1, 'Choose a status page.'),
   title: z.string().min(1, 'Title is required.').max(200),
@@ -166,6 +191,8 @@ export type OwnerSetupInput = z.infer<typeof ownerSetupSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SourceDraftInput = z.infer<typeof sourceDraftSchema>;
 export type PageDraftInput = z.infer<typeof pageDraftSchema>;
+export type SmtpDraftInput = z.infer<typeof smtpDraftSchema>;
+export type SmtpTestMessageInput = z.infer<typeof smtpTestMessageSchema>;
 export type IncidentDraftInput = z.infer<typeof incidentDraftSchema>;
 export type IncidentUpdateDraftInput = z.infer<typeof incidentUpdateDraftSchema>;
 export type SecondaryEventDraftInput = z.infer<typeof secondaryEventDraftSchema>;

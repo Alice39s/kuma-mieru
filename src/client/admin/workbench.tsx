@@ -487,7 +487,14 @@ export const Workbench = ({
                 onCommitted={reload}
               />
             ) : null}
-            {panel === 'subscribers' ? <SubscriberDelivery session={session} /> : null}
+            {panel === 'subscribers' ? (
+              <SubscriberDelivery
+                session={session}
+                revision={data.meta.config.revision ?? 0}
+                mode={data.meta.config.mode}
+                onCommitted={reload}
+              />
+            ) : null}
             {panel === 'revisions' ? (
               <RevisionLedger data={data} session={session} onCommitted={reload} />
             ) : null}

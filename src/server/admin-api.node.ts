@@ -10,6 +10,7 @@ import { createManagedRevision, type ConfigRevision } from './config/repository.
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 import { openDatabase } from './db/database.js';
 import { migrateDatabase } from './db/migrator.js';
+import { createSmtpTestService } from './delivery/smtp-config.js';
 import { createSecretStore } from './secrets/store.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
 
@@ -26,7 +27,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       database,
       {
         schemaVersion: 1,
-        server: {},
+        server: { publicBaseUrl: 'https://status.example.com' },
         sources: [
           {
             id: 'primary',
@@ -52,6 +53,15 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     const secretStore = createSecretStore(database, {
       currentKeyId: 'test-key',
       keys: new Map([['test-key', Buffer.alloc(32, 11)]]),
+    });
+    const smtpTest = createSmtpTestService({
+      secret,
+      secretStore,
+      createTransport: () => ({
+        verify: async () => undefined,
+        send: async message => ({ messageId: message.messageId }),
+        close: () => undefined,
+      }),
     });
     const bootstrap = createBootstrapService({
       database,
@@ -88,6 +98,8 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       authSecret: secret,
       trustedOrigins: [baseURL],
       secretStore,
+      smtpTest,
+      isEmailDeliveryEnabled: () => true,
       onManagedRevision: apply,
       getFileReloadStatus: () => ({
         state: 'failed',
@@ -224,6 +236,87 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       'Sec-Fetch-Site': 'same-origin',
       'X-Kuma-CSRF': sessionBody.data.csrfToken,
     };
+    const smtpCredentials = await app.request('/api/v1/admin/secrets/smtp-credentials', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({
+        username: 'mailer@example.com',
+        password: 'smtp-password-must-not-be-returned',
+      }),
+    });
+    assert.equal(smtpCredentials.status, 201);
+    const smtpCredentialBody = (await smtpCredentials.json()) as {
+      data: { credentialSetId: string; usernameRef: string; passwordRef: string };
+    };
+    assert.equal(
+      JSON.stringify(smtpCredentialBody).includes('smtp-password-must-not-be-returned'),
+      false
+    );
+    const smtp = {
+      enabled: true as const,
+      host: 'smtp.example.com',
+      port: 587,
+      tls: 'starttls' as const,
+      from: { address: 'status@example.com', name: 'Example Status' },
+      replyTo: 'support@example.com',
+      ...smtpCredentialBody.data,
+    };
+    const smtpVerified = await app.request('/api/v1/admin/delivery/smtp/test', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({ smtp }),
+    });
+    assert.equal(smtpVerified.status, 200);
+    const smtpVerification = (await smtpVerified.json()) as {
+      data: { token: string; expiresAt: string };
+    };
+    assert.ok(smtpVerification.data.token);
+    const smtpEnabled = await app.request('/api/v1/admin/delivery/smtp', {
+      method: 'PUT',
+      headers: mutationHeaders,
+      body: JSON.stringify({
+        expectedRevision: runtime.revision,
+        smtp,
+        testToken: smtpVerification.data.token,
+      }),
+    });
+    assert.equal(smtpEnabled.status, 200);
+    assert.equal(runtime.config.delivery?.smtp?.enabled, true);
+    const smtpStatus = await app.request('/api/v1/admin/delivery/smtp', {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(smtpStatus.status, 200);
+    const smtpStatusBody = (await smtpStatus.json()) as {
+      data: {
+        configuration: {
+          enabled: boolean;
+          host: string;
+          authenticated: boolean;
+          passwordRef?: string;
+        };
+      };
+    };
+    assert.deepEqual(smtpStatusBody.data.configuration, {
+      enabled: true,
+      host: 'smtp.example.com',
+      port: 587,
+      tls: 'starttls',
+      from: { address: 'status@example.com', name: 'Example Status' },
+      replyTo: 'support@example.com',
+      authenticated: true,
+    });
+    assert.equal('passwordRef' in smtpStatusBody.data.configuration, false);
+    const smtpTestMessage = await app.request('/api/v1/admin/delivery/smtp/send-test', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({ recipient: 'owner@example.com' }),
+    });
+    assert.equal(smtpTestMessage.status, 200);
+    const smtpTestMessageBody = (await smtpTestMessage.json()) as {
+      data: { messageId: string };
+    };
+    assert.match(smtpTestMessageBody.data.messageId, /^<smtp-test-.+@example\.com>$/u);
+
     const nonceResponse = await app.request('/api/v1/public/pages/main/subscriptions/email/nonce');
     assert.equal(nonceResponse.status, 200);
     const nonce = (await nonceResponse.json()) as { data: { nonce: string } };
