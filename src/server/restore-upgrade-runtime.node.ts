@@ -50,16 +50,16 @@ const stopChild = async (child: ChildProcessWithoutNullStreams) => {
   ]);
 };
 
-test('restores schema 15, reapplies tombstones, and reaches readiness on schema 16', async () => {
+test('restores schema 16, reapplies tombstones, and reaches readiness on schema 17', async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-restore-upgrade-runtime-'));
   const dataDirectory = resolve(root, 'data');
   const databasePath = resolve(dataDirectory, 'kuma-mieru.sqlite3');
-  const previousMigrationDirectory = resolve(root, 'schema-15-migrations');
+  const previousMigrationDirectory = resolve(root, 'schema-16-migrations');
   const configPath = resolve(root, 'config.json');
   const migrationNames = (await readdir(migrationDirectory))
     .filter(name => name.endsWith('.up.sql'))
     .sort();
-  assert.equal(migrationNames.length, 16);
+  assert.equal(migrationNames.length, 17);
   await mkdir(previousMigrationDirectory, { recursive: true });
   for (const name of migrationNames.slice(0, -1)) {
     await copyFile(resolve(migrationDirectory, name), resolve(previousMigrationDirectory, name));
@@ -80,12 +80,12 @@ test('restores schema 15, reapplies tombstones, and reaches readiness on schema 
   const initial = openDatabase(databasePath);
   const tombstones = createSubscriberTombstoneStore(dataDirectory);
   try {
-    const schema15 = await migrateDatabase(initial.database, {
+    const schema16 = await migrateDatabase(initial.database, {
       directory: previousMigrationDirectory,
       databasePath,
       appBuild: '2.0.0-previous',
     });
-    assert.equal(schema15.currentVersion, 15);
+    assert.equal(schema16.currentVersion, 16);
     initial.database
       .prepare(
         `INSERT INTO email_subscriptions
@@ -100,14 +100,63 @@ test('restores schema 15, reapplies tombstones, and reaches readiness on schema 
         '2026-01-01T00:00:00.000Z',
         '2026-01-01T00:00:00.000Z'
       );
+    const maintenanceDetails = JSON.stringify({
+      scheduledStartAt: '2000-01-02T01:00:00+00:00',
+      scheduledEndAt: '2000-01-02T02:00:00+00:00',
+    });
+    initial.database
+      .prepare(
+        `INSERT INTO native_events
+          (id, type, page_id, title, state, version, created_by, idempotency_key,
+           request_hash, created_at, updated_at, details_json)
+         VALUES ('restore-upgrade-maintenance', 'maintenance', 'page', 'Upgrade maintenance',
+                 'scheduled', 2, 'owner-1', 'restore-upgrade-maintenance', 'request-hash',
+                 '2000-01-01T00:00:00.000Z', '2000-01-01T00:00:01.000Z', ?)`
+      )
+      .run(maintenanceDetails);
+    initial.database
+      .prepare(
+        `INSERT INTO native_event_entries
+          (id, event_id, sequence, kind, state, title, body, affected_components_json,
+           occurred_at, recorded_at, actor_id, details_json)
+         VALUES
+          ('restore-upgrade-maintenance-entry-1', 'restore-upgrade-maintenance', 1, 'created',
+           'draft', 'Upgrade maintenance', 'Initial draft.', '["api"]',
+           '2000-01-01T00:00:00.000Z', '2000-01-01T00:00:00.000Z', 'owner-1', ?),
+          ('restore-upgrade-maintenance-entry-2', 'restore-upgrade-maintenance', 2, 'update',
+           'scheduled', 'Upgrade maintenance', 'Reviewed schedule.', '["api"]',
+           '2000-01-01T00:00:01.000Z', '2000-01-01T00:00:01.000Z', 'owner-1', ?)`
+      )
+      .run(maintenanceDetails, maintenanceDetails);
+    initial.database
+      .prepare(
+        `INSERT INTO event_publications
+          (id, event_id, event_sequence, page_id, content_json, notify_subscribers,
+           subscriber_scope_json, estimated_recipients, actor_id, published_at)
+         VALUES ('restore-upgrade-maintenance-publication-2', 'restore-upgrade-maintenance', 2,
+                 'page', '{}', 1, '{"kind":"page","componentIds":[]}', 0, 'owner-1',
+                 '2000-01-01T00:00:02.000Z')`
+      )
+      .run();
 
     const firstUpgrade = await migrateDatabase(initial.database, {
       directory: migrationDirectory,
       databasePath,
       appBuild: '2.0.0-current',
     });
-    assert.equal(firstUpgrade.currentVersion, 16);
+    assert.equal(firstUpgrade.currentVersion, 17);
     assert.ok(firstUpgrade.backupArtifactId);
+    assert.equal(
+      (
+        initial.database
+          .prepare(
+            `SELECT lifecycle_due_at FROM native_events
+             WHERE id = 'restore-upgrade-maintenance'`
+          )
+          .get() as { lifecycle_due_at: string }
+      ).lifecycle_due_at,
+      '2000-01-02T01:00:00.000Z'
+    );
     tombstones.record({
       pageId: 'page',
       scopeKey: 'components:api',
@@ -134,25 +183,25 @@ test('restores schema 15, reapplies tombstones, and reaches readiness on schema 
       migrationDirectory,
       now: () => new Date('2026-07-25T08:00:00.000Z'),
     });
-    assert.equal(restored.schemaVersion, 15);
+    assert.equal(restored.schemaVersion, 16);
     assert.ok(restored.rollbackFileName);
     assert.equal(
       (await readPostRestoreRetentionMarker(dataDirectory))?.backupId,
       firstUpgrade.backupArtifactId
     );
-    const restoredSchema15 = openDatabase(databasePath);
+    const restoredSchema16 = openDatabase(databasePath);
     try {
       assert.equal(
         (
-          restoredSchema15.database
+          restoredSchema16.database
             .prepare('SELECT MAX(version) AS version FROM schema_migrations')
             .get() as { version: number }
         ).version,
-        15
+        16
       );
       assert.equal(
         (
-          restoredSchema15.database
+          restoredSchema16.database
             .prepare(
               "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'backup_deletions'"
             )
@@ -161,7 +210,7 @@ test('restores schema 15, reapplies tombstones, and reaches readiness on schema 
         1
       );
       assert.deepEqual(
-        restoredSchema15.database
+        restoredSchema16.database
           .prepare(
             `SELECT state, email_ciphertext, pii_deleted_at
              FROM email_subscriptions WHERE id = 'restore-upgrade-subscriber'`
@@ -173,9 +222,9 @@ test('restores schema 15, reapplies tombstones, and reaches readiness on schema 
           pii_deleted_at: null,
         }
       );
-      restoredSchema15.database.pragma('wal_checkpoint(TRUNCATE)');
+      restoredSchema16.database.pragma('wal_checkpoint(TRUNCATE)');
     } finally {
-      restoredSchema15.database.close();
+      restoredSchema16.database.close();
     }
     await rm(`${databasePath}-wal`, { force: true });
     await rm(`${databasePath}-shm`, { force: true });
@@ -225,6 +274,11 @@ test('restores schema 15, reapplies tombstones, and reaches readiness on schema 
     const retentionLog = combinedOutput.indexOf('Post-restore retention completed');
     const listenerLog = combinedOutput.indexOf('Kuma Mieru v2 listening');
     assert.equal(retentionLog >= 0, true, combinedOutput);
+    assert.equal(
+      combinedOutput.indexOf('Recovered scheduled event lifecycle transitions') >= 0,
+      true,
+      combinedOutput
+    );
     assert.equal(listenerLog > retentionLog, true, combinedOutput);
 
     const readyDatabase = openDatabase(databasePath);
@@ -235,7 +289,7 @@ test('restores schema 15, reapplies tombstones, and reaches readiness on schema 
             .prepare('SELECT MAX(version) AS version FROM schema_migrations')
             .get() as { version: number }
         ).version,
-        16
+        17
       );
       assert.deepEqual(
         readyDatabase.database
@@ -260,6 +314,42 @@ test('restores schema 15, reapplies tombstones, and reaches readiness on schema 
             .get() as { count: number }
         ).count,
         1
+      );
+      assert.deepEqual(
+        readyDatabase.database
+          .prepare(
+            `SELECT state, version, lifecycle_due_at
+             FROM native_events WHERE id = 'restore-upgrade-maintenance'`
+          )
+          .get(),
+        {
+          state: 'completed',
+          version: 4,
+          lifecycle_due_at: null,
+        }
+      );
+      assert.deepEqual(
+        readyDatabase.database
+          .prepare(
+            `SELECT event_sequence, notify_subscribers, actor_id
+             FROM event_publications
+             WHERE event_id = 'restore-upgrade-maintenance'
+             ORDER BY event_sequence`
+          )
+          .all(),
+        [
+          { event_sequence: 2, notify_subscribers: 1, actor_id: 'owner-1' },
+          {
+            event_sequence: 3,
+            notify_subscribers: 0,
+            actor_id: 'system:event-lifecycle',
+          },
+          {
+            event_sequence: 4,
+            notify_subscribers: 0,
+            actor_id: 'system:event-lifecycle',
+          },
+        ]
       );
     } finally {
       readyDatabase.database.close();

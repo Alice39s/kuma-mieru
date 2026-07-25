@@ -74,6 +74,12 @@ export interface MaintenanceRecord extends PublishableEventRecord {
 const parseDetails = (value: string): MaintenanceDetails =>
   maintenanceWindowSchema.parse(JSON.parse(value));
 
+const lifecycleDueAt = (state: MaintenanceState, details: MaintenanceDetails) => {
+  if (state === 'scheduled') return new Date(details.scheduledStartAt).toISOString();
+  if (state === 'in_progress') return new Date(details.scheduledEndAt).toISOString();
+  return null;
+};
+
 const getMaintenanceEntry = (
   database: Database.Database,
   eventId: string,
@@ -285,9 +291,17 @@ export const appendMaintenanceUpdate = (
     database
       .prepare(
         `UPDATE native_events
-         SET state = ?, version = ?, updated_at = ?, details_json = ? WHERE id = ?`
+         SET state = ?, version = ?, updated_at = ?, details_json = ?, lifecycle_due_at = ?
+         WHERE id = ?`
       )
-      .run(input.state, sequence, recordedAt, JSON.stringify(details), eventId);
+      .run(
+        input.state,
+        sequence,
+        recordedAt,
+        JSON.stringify(details),
+        lifecycleDueAt(input.state, details),
+        eventId
+      );
     writeEventAudit(database, audit, 'maintenance.update', eventId, {
       version: sequence,
       state: input.state,

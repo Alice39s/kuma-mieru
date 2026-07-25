@@ -487,8 +487,15 @@ Each version retains its scheduled start/end, affected components, occurrence ti
 and actor. Published maintenance appears in the page RSS/Atom feed and the dedicated public
 maintenance API. Email remains an explicit Boolean on every reviewed publication; no state change
 inherits a previous notification choice. The backend Admin API is available in this slice, while
-the unified Event Workbench now provides the dedicated Maintenance editor. Automatic start/end
-scheduling remains disabled.
+the unified Event Workbench provides the dedicated Maintenance editor.
+
+The lifecycle scheduler records the next due boundary in SQLite, catches up before the public
+listener opens, and then checks every 30 seconds. A currently reviewed `scheduled` version moves to
+`in_progress` at its exact start boundary and a currently reviewed `in_progress` version moves to
+`completed` at its exact end boundary. A delayed or restarted process can apply both transitions in
+one per-event transaction. Each automatic version is published to the page and feeds with
+`notifySubscribers: false`; it never inherits a prior email decision. A newer private edit pauses
+automation until that exact version has passed Publication Review.
 
 ## Native notices
 
@@ -499,7 +506,9 @@ Overall Status and cannot masquerade as Incident history.
 
 Notice creation, update, review, explicit notification choice, public read API, and RSS/Atom
 projection use the shared native-event transaction core. The unified Event Workbench now provides
-the dedicated Notice editor. Automatic expiry scheduling remains disabled.
+the dedicated Notice editor. The same durable lifecycle scheduler expires a currently reviewed
+published Notice at its exact configured end time, publishes the expired version without email,
+and remains idempotent across restart.
 
 ## Postmortem core
 
@@ -517,6 +526,7 @@ Migration files use the form `000001_name.up.sql`. Startup rejects gaps, invalid
 historical files, changed checksums, failed integrity checks, and failed foreign-key checks. Each
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
-The current implementation does not yet provide passkey enrollment UI, identity administration,
-or automatic Maintenance/Notice schedulers. Their control-plane capabilities must remain disabled
-until the corresponding contracts and security gates are implemented.
+The current implementation includes the passkey enrollment workbench, owner-scoped user/session
+administration, Generic OIDC access mapping, and automatic one-shot Maintenance/Notice lifecycle
+scheduling. Recurring maintenance remains outside this slice and must stay disabled until its
+separate scheduling and review contract is implemented.

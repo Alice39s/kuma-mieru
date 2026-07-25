@@ -81,6 +81,9 @@ const columns = `
 
 const parseDetails = (value: string): NoticeDetails => noticeWindowSchema.parse(JSON.parse(value));
 
+const lifecycleDueAt = (state: NoticeState, details: NoticeDetails) =>
+  state === 'published' && details.endsAt ? new Date(details.endsAt).toISOString() : null;
+
 const getEntry = (
   database: Database.Database,
   eventId: string,
@@ -276,9 +279,17 @@ export const appendNoticeUpdate = (
     database
       .prepare(
         `UPDATE native_events
-         SET state = ?, version = ?, updated_at = ?, details_json = ? WHERE id = ?`
+         SET state = ?, version = ?, updated_at = ?, details_json = ?, lifecycle_due_at = ?
+         WHERE id = ?`
       )
-      .run(input.state, sequence, recordedAt, JSON.stringify(details), eventId);
+      .run(
+        input.state,
+        sequence,
+        recordedAt,
+        JSON.stringify(details),
+        lifecycleDueAt(input.state, details),
+        eventId
+      );
     writeEventAudit(database, audit, 'notice.update', eventId, {
       version: sequence,
       state: input.state,

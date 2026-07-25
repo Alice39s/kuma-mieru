@@ -22,6 +22,7 @@ import { migrateDatabase } from './db/migrator.js';
 import { acquireRuntimeLock } from './db/runtime-lock.js';
 import { createDeliveryRuntime } from './delivery/runtime.js';
 import { createSmtpTestService } from './delivery/smtp-config.js';
+import { createEventLifecycleService, startEventLifecycleScheduler } from './events/lifecycle.js';
 import { loadOrCreateSecretKeyring } from './secrets/keyring.js';
 import { createSecretStore } from './secrets/store.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
@@ -81,6 +82,20 @@ const migration = await migrateDatabase(database, {
 });
 if (releaseManifest) {
   assertReleaseSchema(releaseManifest, migration.currentVersion);
+}
+const eventLifecycleService = createEventLifecycleService({ database });
+const initialEventLifecycleRun = eventLifecycleService.run();
+if (initialEventLifecycleRun.failures.length > 0) {
+  throw new Error(
+    `${initialEventLifecycleRun.failures.length} event lifecycle transitions failed during startup`
+  );
+}
+if (initialEventLifecycleRun.transitions > 0) {
+  console.info('Recovered scheduled event lifecycle transitions', {
+    transitions: initialEventLifecycleRun.transitions,
+    events: initialEventLifecycleRun.transitionedEvents,
+    hasMore: initialEventLifecycleRun.hasMore,
+  });
 }
 const backupService = createBackupService({
   database,
@@ -284,6 +299,18 @@ const app = createApp({
   },
 });
 
+const stopEventLifecycleScheduler = startEventLifecycleScheduler({
+  service: eventLifecycleService,
+  onRun: result => {
+    if (result.transitions > 0) {
+      console.info('Scheduled event lifecycle transitions completed', {
+        transitions: result.transitions,
+        events: result.transitionedEvents,
+        hasMore: result.hasMore,
+      });
+    }
+  },
+});
 const server = serve({ fetch: app.fetch, port, hostname });
 console.info(`Kuma Mieru v2 listening on http://${hostname}:${port}`);
 
@@ -293,6 +320,7 @@ const shutdown = (signal: NodeJS.Signals) => {
     process.removeListener('SIGHUP', reloadOnSighup);
     stopFileReloader();
     stopSourcePoller();
+    stopEventLifecycleScheduler();
     stopBackupScheduler();
     stopRetentionScheduler();
     deliveryRuntime.stop();
