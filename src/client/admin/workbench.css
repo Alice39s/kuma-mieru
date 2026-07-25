@@ -1520,6 +1520,222 @@
 .audit-principal-note code {
   font-family: ui-monospace, monospace;
 }
+.access-workspace {
+  display: grid;
+  gap: 1.25rem;
+  padding-bottom: 4rem;
+}
+.access-heading {
+  align-items: end;
+}
+.access-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(19rem, 0.75fr);
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: 1.2rem;
+  background: var(--admin-surface);
+}
+.access-user-ledger,
+.access-create-card,
+.access-session-card {
+  min-width: 0;
+}
+.access-user-ledger {
+  border-right: 1px solid var(--admin-line);
+}
+.access-create-card {
+  padding-bottom: 1.25rem;
+}
+.access-create-card .admin-form {
+  padding: 0 1.25rem;
+}
+.access-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem;
+  border-bottom: 1px solid var(--admin-line);
+}
+.access-section-heading p {
+  margin: 0 0 0.2rem;
+}
+.access-section-heading h2 {
+  margin: 0;
+  font:
+    600 1.65rem 'Newsreader Variable',
+    serif;
+}
+.access-section-heading > span {
+  display: grid;
+  min-width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid var(--admin-line);
+  border-radius: 999px;
+  color: var(--admin-muted);
+  font-size: 0.72rem;
+}
+.access-user-list {
+  display: grid;
+}
+.access-user-list article {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1.25fr) minmax(8rem, 0.65fr) minmax(12rem, 0.8fr);
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--admin-line);
+}
+.access-user-list article:last-child {
+  border-bottom: 0;
+}
+.access-user-list article.is-selected {
+  background: color-mix(in srgb, var(--admin-accent) 5%, transparent);
+  box-shadow: inset 3px 0 var(--admin-accent);
+}
+.access-user-summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  text-align: left;
+}
+.access-user-summary > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 0.16rem;
+}
+.access-user-summary strong,
+.access-session-list strong {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.access-user-summary small,
+.access-session-list small {
+  overflow: hidden;
+  color: var(--admin-muted);
+  font-size: 0.67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.access-user-summary em,
+.access-session-list em {
+  padding: 0.12rem 0.38rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--admin-accent) 12%, transparent);
+  color: var(--admin-accent);
+  font-size: 0.55rem;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.access-avatar {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.7rem;
+  background: var(--admin-ink);
+  color: var(--admin-canvas);
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+.access-user-facts {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--admin-muted);
+  font-size: 0.65rem;
+}
+.access-user-facts span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.access-role-control {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.access-role-control select {
+  min-width: 7rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 0.6rem;
+  background: var(--admin-canvas);
+  color: var(--admin-ink);
+}
+.access-session-card {
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: 1.2rem;
+  background: var(--admin-surface);
+}
+.access-session-list {
+  display: grid;
+}
+.access-session-list article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.95rem 1.25rem;
+  border-bottom: 1px solid var(--admin-line);
+}
+.access-session-list article:last-child {
+  border-bottom: 0;
+}
+.access-session-icon {
+  display: grid;
+  width: 2.2rem;
+  height: 2.2rem;
+  place-items: center;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--admin-accent) 9%, transparent);
+  color: var(--admin-accent);
+}
+.access-session-list article > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+.access-risk-review {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1.2rem;
+  border: 1px solid color-mix(in srgb, var(--admin-red, #9d302d) 40%, var(--admin-line));
+  border-radius: 1.2rem;
+  background: color-mix(in srgb, var(--admin-red, #9d302d) 4%, var(--admin-surface));
+}
+.access-risk-review > svg {
+  color: var(--admin-red, #9d302d);
+}
+.access-risk-review h2 {
+  margin: 0.15rem 0 0.35rem;
+  font:
+    600 1.65rem 'Newsreader Variable',
+    serif;
+}
+.access-risk-review p {
+  margin: 0 0 1rem;
+  color: var(--admin-muted);
+  font-size: 0.72rem;
+}
+.access-risk-review code {
+  font-family: ui-monospace, monospace;
+}
+.access-review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
 .workbench-loading {
   padding: 6rem 0;
   color: var(--admin-muted);
@@ -1577,8 +1793,19 @@
   .delivery-columns,
   .smtp-control-grid,
   .lifecycle-grid,
+  .access-grid,
   .attention-queue {
     grid-template-columns: 1fr;
+  }
+  .access-user-ledger {
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-line);
+  }
+  .access-user-list article {
+    grid-template-columns: minmax(0, 1fr) minmax(8rem, auto);
+  }
+  .access-user-facts {
+    display: none;
   }
   .lifecycle-backup-row {
     grid-template-columns: auto minmax(0, 1fr);
@@ -1681,6 +1908,26 @@
   .audit-entry-actor {
     grid-column: 2;
     text-align: left;
+  }
+  .access-user-list article {
+    grid-template-columns: 1fr;
+  }
+  .access-role-control {
+    justify-content: stretch;
+  }
+  .access-role-control select,
+  .access-role-control button {
+    flex: 1 1 0;
+  }
+  .access-session-list article {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .access-session-list article > button {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .access-review-actions {
+    flex-direction: column;
   }
 }
 

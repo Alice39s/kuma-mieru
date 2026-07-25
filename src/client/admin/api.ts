@@ -342,6 +342,29 @@ export interface AdminAuditPage {
   nextCursor: string | null;
 }
 
+export type AdminRole = AdminSession['role'];
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  role: AdminRole;
+  createdAt: string;
+  updatedAt: string;
+  activeSessionCount: number;
+  passkeyCount: number;
+}
+
+export interface AdminUserSession {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  current: boolean;
+}
+
 interface ReloadStatus {
   state: 'ready' | 'checking' | 'failed';
   lastAttemptAt: string | null;
@@ -878,3 +901,52 @@ export const getAdminAudit = (input: {
   if (input.result) query.set('result', input.result);
   return request<{ data: AdminAuditPage }>(`/api/v1/admin/audit?${query.toString()}`);
 };
+
+export const getAdminUsers = async () =>
+  (await request<{ data: AdminUser[] }>('/api/v1/admin/users')).data;
+
+export const createAdminUser = (
+  session: AdminSession,
+  input: {
+    name: string;
+    email: string;
+    password: string;
+    role: Exclude<AdminRole, 'owner'>;
+  }
+) =>
+  request<{ data: AdminUser }>('/api/v1/admin/users', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
+
+export const changeAdminUserRole = (
+  session: AdminSession,
+  userId: string,
+  input: { expectedRole: AdminRole; role: AdminRole }
+) =>
+  request<{ data: { user: AdminUser; revokedSessions: number } }>(
+    `/api/v1/admin/users/${encodeURIComponent(userId)}/role`,
+    {
+      method: 'PUT',
+      headers: mutationHeaders(session),
+      body: JSON.stringify(input),
+    }
+  );
+
+export const getAdminUserSessions = async (userId: string) =>
+  (
+    await request<{ data: AdminUserSession[] }>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/sessions`
+    )
+  ).data;
+
+export const revokeAdminUserSession = (session: AdminSession, userId: string, sessionId: string) =>
+  request<{ data: { userId: string; sessionId: string; revoked: true } }>(
+    `/api/v1/admin/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}`,
+    {
+      method: 'DELETE',
+      headers: mutationHeaders(session),
+      body: '{}',
+    }
+  );

@@ -14,6 +14,7 @@ import {
   ScrollText,
   ShieldCheck,
   Siren,
+  UserCog,
   UsersRound,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -34,6 +35,8 @@ import { BackupRetention } from './backup-retention';
 import { canAccessLifecycle } from './backup-retention-model';
 import { AuditWorkbench } from './audit-workbench';
 import { canAccessAdminAudit } from './audit-model';
+import { UsersSessions } from './users-sessions';
+import { canAccessUsers } from './users-model';
 
 type Panel =
   | 'overview'
@@ -43,6 +46,7 @@ type Panel =
   | 'subscribers'
   | 'revisions'
   | 'lifecycle'
+  | 'access'
   | 'audit';
 type WorkbenchData = Awaited<ReturnType<typeof getWorkbenchData>>;
 
@@ -54,6 +58,7 @@ const navigation: Array<{ id: Panel; label: string; icon: typeof Activity }> = [
   { id: 'subscribers', label: 'Subscribers', icon: UsersRound },
   { id: 'revisions', label: 'Revisions', icon: FileClock },
   { id: 'lifecycle', label: 'Lifecycle', icon: DatabaseBackup },
+  { id: 'access', label: 'Access', icon: UserCog },
   { id: 'audit', label: 'Audit', icon: ScrollText },
 ];
 
@@ -424,6 +429,7 @@ export const Workbench = ({
                   session.role === 'owner' ||
                   session.role === 'publisher') &&
                 (item.id !== 'lifecycle' || canAccessLifecycle(session.role)) &&
+                (item.id !== 'access' || canAccessUsers(session.role)) &&
                 (item.id !== 'audit' || canAccessAdminAudit(session.role))
             )
             .map(item => {
@@ -542,6 +548,9 @@ export const Workbench = ({
                 revision={data.meta.config.revision ?? 0}
                 session={session}
               />
+            ) : null}
+            {panel === 'access' && canAccessUsers(session.role) ? (
+              <UsersSessions session={session} />
             ) : null}
             {panel === 'audit' && canAccessAdminAudit(session.role) ? (
               <AuditWorkbench session={session} />

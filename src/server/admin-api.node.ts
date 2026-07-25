@@ -169,7 +169,9 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
 
     const session = await app.request('/api/v1/admin/session', { headers: { Cookie: cookie } });
     assert.equal(session.status, 200);
-    const sessionBody = (await session.json()) as { data: { csrfToken: string } };
+    const sessionBody = (await session.json()) as {
+      data: { userId: string; csrfToken: string };
+    };
     assert.ok(sessionBody.data.csrfToken);
 
     const sources = await app.request('/api/v1/admin/sources', {
@@ -1109,6 +1111,120 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     };
     assert.equal(invalidAuditCursorBody.error.code, 'ADMIN_AUDIT_CURSOR_INVALID');
 
+    const createdOperator = await app.request('/api/v1/admin/users', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({
+        name: 'Release Publisher',
+        email: 'publisher@example.com',
+        password: 'publisher-password-secure',
+        role: 'publisher',
+      }),
+    });
+    assert.equal(createdOperator.status, 201);
+    assert.equal(createdOperator.headers.get('cache-control'), 'no-store');
+    const createdOperatorBody = (await createdOperator.json()) as {
+      data: { id: string; email: string; role: string };
+    };
+    assert.equal(createdOperatorBody.data.role, 'publisher');
+    assert.equal(JSON.stringify(createdOperatorBody).includes('password'), false);
+
+    const publisherSignIn = await app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: baseURL },
+      body: JSON.stringify({
+        email: 'publisher@example.com',
+        password: 'publisher-password-secure',
+      }),
+    });
+    assert.equal(publisherSignIn.status, 200);
+    const publisherSetCookie = publisherSignIn.headers.get('set-cookie');
+    assert.ok(publisherSetCookie);
+    const publisherCookie = publisherSetCookie.split(';')[0];
+    const publisherToken = publisherCookie.slice(publisherCookie.indexOf('=') + 1);
+
+    const publisherUsers = await app.request('/api/v1/admin/users', {
+      headers: { Cookie: publisherCookie },
+    });
+    assert.equal(publisherUsers.status, 403);
+
+    const users = await app.request('/api/v1/admin/users', {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(users.status, 200);
+    const usersBody = (await users.json()) as {
+      data: Array<{
+        id: string;
+        email: string;
+        role: string;
+        activeSessionCount: number;
+      }>;
+    };
+    assert.equal(usersBody.data.length, 2);
+    assert.deepEqual(
+      usersBody.data.map(user => ({
+        email: user.email,
+        role: user.role,
+        activeSessionCount: user.activeSessionCount,
+      })),
+      [
+        { email: 'owner@example.com', role: 'owner', activeSessionCount: 1 },
+        { email: 'publisher@example.com', role: 'publisher', activeSessionCount: 1 },
+      ]
+    );
+
+    const publisherSessions = await app.request(
+      `/api/v1/admin/users/${createdOperatorBody.data.id}/sessions`,
+      { headers: { Cookie: cookie } }
+    );
+    assert.equal(publisherSessions.status, 200);
+    const publisherSessionsBody = (await publisherSessions.json()) as {
+      data: Array<{ id: string; current: boolean }>;
+    };
+    assert.equal(publisherSessionsBody.data.length, 1);
+    assert.equal(publisherSessionsBody.data[0]?.current, false);
+    assert.equal(JSON.stringify(publisherSessionsBody).includes(publisherToken), false);
+    assert.equal(JSON.stringify(publisherSessionsBody).includes('ipAddress'), false);
+    assert.equal(JSON.stringify(publisherSessionsBody).includes('userAgent'), false);
+
+    const ownerSessions = await app.request(
+      `/api/v1/admin/users/${sessionBody.data.userId}/sessions`,
+      { headers: { Cookie: cookie } }
+    );
+    const ownerSessionsBody = (await ownerSessions.json()) as {
+      data: Array<{ id: string; current: boolean }>;
+    };
+    const currentOwnerSession = ownerSessionsBody.data.find(candidate => candidate.current);
+    assert.ok(currentOwnerSession);
+    const currentSessionRevocation = await app.request(
+      `/api/v1/admin/users/${sessionBody.data.userId}/sessions/${currentOwnerSession.id}`,
+      {
+        method: 'DELETE',
+        headers: mutationHeaders,
+        body: '{}',
+      }
+    );
+    assert.equal(currentSessionRevocation.status, 409);
+
+    const changedOperatorRole = await app.request(
+      `/api/v1/admin/users/${createdOperatorBody.data.id}/role`,
+      {
+        method: 'PUT',
+        headers: mutationHeaders,
+        body: JSON.stringify({ expectedRole: 'publisher', role: 'editor' }),
+      }
+    );
+    assert.equal(changedOperatorRole.status, 200);
+    const changedOperatorRoleBody = (await changedOperatorRole.json()) as {
+      data: { user: { role: string }; revokedSessions: number };
+    };
+    assert.equal(changedOperatorRoleBody.data.user.role, 'editor');
+    assert.equal(changedOperatorRoleBody.data.revokedSessions, 1);
+    const revokedPublisherSession = await app.request('/api/v1/admin/session', {
+      headers: { Cookie: publisherCookie },
+    });
+    assert.equal(revokedPublisherSession.status, 401);
+
     database
       .prepare(`UPDATE "user" SET role = 'publisher' WHERE email = 'owner@example.com'`)
       .run();
@@ -1140,6 +1256,8 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       { result: 'failed', error_code: 'CONFIG_REVISION_CONFLICT' },
       { result: 'failed', error_code: 'BACKUP_NOT_ELIGIBLE' },
       { result: 'failed', error_code: 'PUBLICATION_REVIEW_INVALID' },
+      { result: 'denied', error_code: 'FORBIDDEN' },
+      { result: 'failed', error_code: 'ADMIN_CURRENT_SESSION_REVOKE_FORBIDDEN' },
       { result: 'denied', error_code: 'FORBIDDEN' },
     ]);
   } finally {

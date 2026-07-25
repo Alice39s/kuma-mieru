@@ -41,6 +41,14 @@ import { backupErrorCode, type BackupService } from '../db/backup.js';
 import { retentionErrorCode, type RetentionService } from '../retention/service.js';
 import type { SubscriberTombstoneStore } from '../retention/tombstone-store.js';
 import {
+  adminAuthErrorCode,
+  changeAdminUserRole,
+  createAdminUser,
+  listAdminUsers,
+  listAdminUserSessions,
+  revokeAdminUserSession,
+} from '../auth/admin-repository.js';
+import {
   appendIncidentUpdate,
   createIncident,
   getPublicationReview,
@@ -174,6 +182,21 @@ const adminAuditQuerySchema = z
     cursor: z.string().min(1).max(1_024).optional(),
     action: z.string().trim().min(1).max(200).optional(),
     result: z.enum(['success', 'denied', 'failed']).optional(),
+  })
+  .strict();
+const adminRoleSchema = z.enum(['owner', 'publisher', 'editor', 'viewer']);
+const adminUserCreateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100),
+    email: z.email().max(320),
+    password: z.string().min(12).max(200),
+    role: z.enum(['publisher', 'editor', 'viewer']),
+  })
+  .strict();
+const adminUserRoleSchema = z
+  .object({
+    expectedRole: adminRoleSchema,
+    role: adminRoleSchema,
   })
   .strict();
 
@@ -363,6 +386,8 @@ export const registerAdminRoutes = (
   app.use('/api/v1/admin/retention', noStore);
   app.use('/api/v1/admin/retention/*', noStore);
   app.use('/api/v1/admin/audit', noStore);
+  app.use('/api/v1/admin/users', noStore);
+  app.use('/api/v1/admin/users/*', noStore);
 
   app.get('/api/v1/admin/session', async context => {
     const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
@@ -416,6 +441,150 @@ export const registerAdminRoutes = (
           ? 'Admin audit cursor is invalid'
           : 'Admin audit query is invalid'
       );
+    }
+  });
+
+  const handleAdminAuthError = (
+    context: Context<AppEnvironment>,
+    error: unknown,
+    principal: AdminPrincipal
+  ) => {
+    const code = error instanceof z.ZodError ? 'validation_failed' : adminAuthErrorCode(error);
+    const status =
+      code === 'admin_user_not_found' || code === 'admin_session_not_found'
+        ? 404
+        : code === 'admin_auth_failed' ||
+            code === 'admin_auth_date_invalid' ||
+            code === 'admin_user_create_failed'
+          ? 500
+          : code === 'validation_failed'
+            ? 400
+            : 409;
+    const message =
+      code === 'admin_auth_failed' ||
+      code === 'admin_auth_date_invalid' ||
+      code === 'admin_user_create_failed'
+        ? 'Authentication administration failed'
+        : error instanceof Error
+          ? error.message
+          : 'Authentication administration failed';
+    writeRouteAudit(context, principal.userId, 'failed', code.toUpperCase());
+    return errorResponse(
+      context,
+      status,
+      code.toUpperCase(),
+      message,
+      error instanceof z.ZodError ? error.issues : undefined
+    );
+  };
+
+  app.get('/api/v1/admin/users', async context => {
+    const authorization = await requireAdmin(context, ['owner']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(
+        context,
+        503,
+        'DATABASE_NOT_READY',
+        'Authentication database is unavailable'
+      );
+    }
+    try {
+      return context.json({ data: listAdminUsers(database) });
+    } catch (error) {
+      return handleAdminAuthError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/users', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!database || !auth) {
+      return errorResponse(context, 503, 'AUTH_NOT_READY', 'Authentication service is unavailable');
+    }
+    try {
+      const input = adminUserCreateSchema.parse(await context.req.json());
+      const user = await createAdminUser(database, auth, {
+        ...input,
+        audit: auditContext(context, authorization.principal),
+      });
+      return context.json({ data: user }, 201);
+    } catch (error) {
+      return handleAdminAuthError(context, error, authorization.principal);
+    }
+  });
+
+  app.put('/api/v1/admin/users/:userId/role', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(
+        context,
+        503,
+        'DATABASE_NOT_READY',
+        'Authentication database is unavailable'
+      );
+    }
+    try {
+      const input = adminUserRoleSchema.parse(await context.req.json());
+      const data = changeAdminUserRole(database, {
+        actorUserId: authorization.principal.userId,
+        userId: context.req.param('userId'),
+        ...input,
+        audit: auditContext(context, authorization.principal),
+      });
+      return context.json({ data });
+    } catch (error) {
+      return handleAdminAuthError(context, error, authorization.principal);
+    }
+  });
+
+  app.get('/api/v1/admin/users/:userId/sessions', async context => {
+    const authorization = await requireAdmin(context, ['owner']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(
+        context,
+        503,
+        'DATABASE_NOT_READY',
+        'Authentication database is unavailable'
+      );
+    }
+    try {
+      return context.json({
+        data: listAdminUserSessions(
+          database,
+          context.req.param('userId'),
+          authorization.principal.sessionId
+        ),
+      });
+    } catch (error) {
+      return handleAdminAuthError(context, error, authorization.principal);
+    }
+  });
+
+  app.delete('/api/v1/admin/users/:userId/sessions/:sessionId', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(
+        context,
+        503,
+        'DATABASE_NOT_READY',
+        'Authentication database is unavailable'
+      );
+    }
+    try {
+      emptyMutationSchema.parse(await context.req.json());
+      const data = revokeAdminUserSession(database, {
+        currentSessionId: authorization.principal.sessionId,
+        userId: context.req.param('userId'),
+        sessionId: context.req.param('sessionId'),
+        audit: auditContext(context, authorization.principal),
+      });
+      return context.json({ data });
+    } catch (error) {
+      return handleAdminAuthError(context, error, authorization.principal);
     }
   });
 
