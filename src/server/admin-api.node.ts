@@ -1111,6 +1111,80 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     };
     assert.equal(invalidAuditCursorBody.error.code, 'ADMIN_AUDIT_CURSOR_INVALID');
 
+    database
+      .prepare(
+        `INSERT INTO "passkey"
+          (id, name, publicKey, userId, credentialID, counter, deviceType, backedUp,
+           transports, createdAt, aaguid)
+         VALUES ('owner-passkey', 'Owner laptop', 'private-public-key', ?, 'private-credential-id',
+           0, 'multiDevice', 1, 'internal', ?, 'private-aaguid')`
+      )
+      .run(sessionBody.data.userId, new Date().toISOString());
+    const passkeys = await app.request('/api/v1/admin/security/passkeys', {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(passkeys.status, 200);
+    assert.equal(passkeys.headers.get('cache-control'), 'no-store');
+    const passkeysBody = (await passkeys.json()) as {
+      data: Array<{
+        id: string;
+        name: string;
+        deviceType: string;
+        backedUp: boolean;
+        createdAt: string;
+      }>;
+    };
+    assert.deepEqual(passkeysBody.data, [
+      {
+        id: 'owner-passkey',
+        name: 'Owner laptop',
+        deviceType: 'multiDevice',
+        backedUp: true,
+        createdAt: passkeysBody.data[0]?.createdAt,
+      },
+    ]);
+    assert.doesNotMatch(
+      JSON.stringify(passkeysBody),
+      /private-public-key|private-credential-id|private-aaguid|internal/u
+    );
+    const disabledRawPasskeyList = await app.request('/api/auth/passkey/list-user-passkeys', {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(disabledRawPasskeyList.status, 404);
+    const disabledRawPasskeyOptions = await app.request(
+      '/api/auth/passkey/generate-register-options?name=Bypass',
+      { headers: { Cookie: cookie, Origin: baseURL } }
+    );
+    assert.equal(disabledRawPasskeyOptions.status, 404);
+    const passkeyOptions = await app.request('/api/v1/admin/security/passkeys/register/options', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({
+        name: 'Security key',
+        authenticatorAttachment: 'cross-platform',
+      }),
+    });
+    assert.equal(passkeyOptions.status, 200);
+    assert.ok(passkeyOptions.headers.get('set-cookie'));
+    const passkeyOptionsBody = (await passkeyOptions.json()) as {
+      data: { options: { challenge: string }; name: string };
+    };
+    assert.ok(passkeyOptionsBody.data.options.challenge);
+    assert.equal(passkeyOptionsBody.data.name, 'Security key');
+    assert.doesNotMatch(JSON.stringify(passkeyOptionsBody), /publicKey|credentialID/u);
+    const renamedPasskey = await app.request('/api/v1/admin/security/passkeys/owner-passkey', {
+      method: 'PUT',
+      headers: mutationHeaders,
+      body: JSON.stringify({ expectedName: 'Owner laptop', name: 'Primary laptop' }),
+    });
+    assert.equal(renamedPasskey.status, 200);
+    const deletedPasskey = await app.request('/api/v1/admin/security/passkeys/owner-passkey', {
+      method: 'DELETE',
+      headers: mutationHeaders,
+      body: JSON.stringify({ expectedName: 'Primary laptop' }),
+    });
+    assert.equal(deletedPasskey.status, 200);
+
     const createdOperator = await app.request('/api/v1/admin/users', {
       method: 'POST',
       headers: mutationHeaders,
@@ -1147,6 +1221,10 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       headers: { Cookie: publisherCookie },
     });
     assert.equal(publisherUsers.status, 403);
+    const publisherPasskeys = await app.request('/api/v1/admin/security/passkeys', {
+      headers: { Cookie: publisherCookie },
+    });
+    assert.equal(publisherPasskeys.status, 200);
 
     const users = await app.request('/api/v1/admin/users', {
       headers: { Cookie: cookie },

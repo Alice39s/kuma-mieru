@@ -29,6 +29,13 @@ export const createAuth = ({
       disableSignUp: true,
       minPasswordLength: 12,
     },
+    disabledPaths: [
+      '/passkey/list-user-passkeys',
+      '/passkey/delete-passkey',
+      '/passkey/update-passkey',
+      '/passkey/generate-register-options',
+      '/passkey/verify-registration',
+    ],
     user: {
       additionalFields: {
         role: {

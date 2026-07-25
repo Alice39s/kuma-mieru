@@ -6,6 +6,7 @@ import {
   CircleGauge,
   DatabaseBackup,
   FileClock,
+  KeyRound,
   LayoutTemplate,
   LogOut,
   RadioTower,
@@ -37,6 +38,7 @@ import { AuditWorkbench } from './audit-workbench';
 import { canAccessAdminAudit } from './audit-model';
 import { UsersSessions } from './users-sessions';
 import { canAccessUsers } from './users-model';
+import { SecurityWorkbench } from './security-workbench';
 
 type Panel =
   | 'overview'
@@ -47,6 +49,7 @@ type Panel =
   | 'revisions'
   | 'lifecycle'
   | 'access'
+  | 'security'
   | 'audit';
 type WorkbenchData = Awaited<ReturnType<typeof getWorkbenchData>>;
 
@@ -59,6 +62,7 @@ const navigation: Array<{ id: Panel; label: string; icon: typeof Activity }> = [
   { id: 'revisions', label: 'Revisions', icon: FileClock },
   { id: 'lifecycle', label: 'Lifecycle', icon: DatabaseBackup },
   { id: 'access', label: 'Access', icon: UserCog },
+  { id: 'security', label: 'Security', icon: KeyRound },
   { id: 'audit', label: 'Audit', icon: ScrollText },
 ];
 
@@ -552,6 +556,7 @@ export const Workbench = ({
             {panel === 'access' && canAccessUsers(session.role) ? (
               <UsersSessions session={session} />
             ) : null}
+            {panel === 'security' ? <SecurityWorkbench session={session} /> : null}
             {panel === 'audit' && canAccessAdminAudit(session.role) ? (
               <AuditWorkbench session={session} />
             ) : null}

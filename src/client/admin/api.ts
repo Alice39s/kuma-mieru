@@ -1,3 +1,8 @@
+import type {
+  PublicKeyCredentialCreationOptionsJSON,
+  RegistrationResponseJSON,
+} from '@simplewebauthn/browser';
+
 export interface AdminSession {
   userId: string;
   role: 'owner' | 'publisher' | 'editor' | 'viewer';
@@ -363,6 +368,14 @@ export interface AdminUserSession {
   updatedAt: string;
   expiresAt: string;
   current: boolean;
+}
+
+export interface AdminPasskey {
+  id: string;
+  name: string | null;
+  deviceType: string;
+  backedUp: boolean;
+  createdAt: string | null;
 }
 
 interface ReloadStatus {
@@ -948,5 +961,64 @@ export const revokeAdminUserSession = (session: AdminSession, userId: string, se
       method: 'DELETE',
       headers: mutationHeaders(session),
       body: '{}',
+    }
+  );
+
+export const getAdminPasskeys = async () =>
+  (await request<{ data: AdminPasskey[] }>('/api/v1/admin/security/passkeys')).data;
+
+export const beginPasskeyRegistration = (
+  session: AdminSession,
+  input: {
+    name: string;
+    authenticatorAttachment?: 'platform' | 'cross-platform';
+  }
+) =>
+  request<{
+    data: { options: PublicKeyCredentialCreationOptionsJSON; name: string };
+  }>('/api/v1/admin/security/passkeys/register/options', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
+
+export const completePasskeyRegistration = (
+  session: AdminSession,
+  input: {
+    name: string;
+    response: Omit<RegistrationResponseJSON, 'clientExtensionResults'>;
+  }
+) =>
+  request<{ data: AdminPasskey }>('/api/v1/admin/security/passkeys/register/verify', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
+
+export const renameAdminPasskey = (
+  session: AdminSession,
+  passkeyId: string,
+  input: { expectedName: string | null; name: string }
+) =>
+  request<{ data: AdminPasskey }>(
+    `/api/v1/admin/security/passkeys/${encodeURIComponent(passkeyId)}`,
+    {
+      method: 'PUT',
+      headers: mutationHeaders(session),
+      body: JSON.stringify(input),
+    }
+  );
+
+export const deleteAdminPasskey = (
+  session: AdminSession,
+  passkeyId: string,
+  expectedName: string | null
+) =>
+  request<{ data: { passkeyId: string; deleted: true } }>(
+    `/api/v1/admin/security/passkeys/${encodeURIComponent(passkeyId)}`,
+    {
+      method: 'DELETE',
+      headers: mutationHeaders(session),
+      body: JSON.stringify({ expectedName }),
     }
   );

@@ -21,6 +21,7 @@
         "@react-aria/ssr": "3.10.1",
         "@react-aria/visually-hidden": "3.9.1",
         "@sankyu/react-circle-flags": "^1.6.7",
+        "@simplewebauthn/browser": "13.3.0",
         "@tailwindcss/postcss": "^4.3.2",
         "better-auth": "1.6.23",
         "better-sqlite3": "^13.0.1",

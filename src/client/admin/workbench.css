@@ -1736,6 +1736,115 @@
   gap: 0.65rem;
   margin-top: 0.85rem;
 }
+.security-workspace {
+  display: grid;
+  gap: 1.25rem;
+  padding-bottom: 4rem;
+}
+.security-heading {
+  align-items: end;
+}
+.security-unavailable {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--admin-red, #9d302d) 35%, var(--admin-line));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--admin-red, #9d302d) 4%, var(--admin-surface));
+  color: var(--admin-red, #9d302d);
+}
+.security-unavailable strong {
+  font-size: 0.76rem;
+}
+.security-unavailable p {
+  margin: 0.25rem 0 0;
+  color: var(--admin-muted);
+  font-size: 0.7rem;
+}
+.security-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(19rem, 0.75fr);
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: 1.2rem;
+  background: var(--admin-surface);
+}
+.security-passkey-card {
+  min-width: 0;
+  border-right: 1px solid var(--admin-line);
+}
+.security-register-card {
+  min-width: 0;
+  padding-bottom: 1.2rem;
+}
+.security-register-card .admin-form {
+  padding: 0 1.25rem;
+}
+.security-passkey-list {
+  display: grid;
+}
+.security-passkey-list article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--admin-line);
+}
+.security-passkey-list article:last-child {
+  border-bottom: 0;
+}
+.security-passkey-icon {
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--admin-accent) 9%, transparent);
+  color: var(--admin-accent);
+}
+.security-passkey-list article > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+.security-passkey-list small {
+  overflow: hidden;
+  color: var(--admin-muted);
+  font-size: 0.67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.security-passkey-actions {
+  display: flex !important;
+  grid-auto-flow: column;
+  gap: 0.45rem !important;
+}
+.security-recent-note {
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 0.64rem;
+  line-height: 1.65;
+}
+.security-review-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1.2rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 1.2rem;
+  background: var(--admin-surface);
+}
+.security-review-card > svg {
+  color: var(--admin-accent);
+}
+.security-review-card h2 {
+  margin: 0.15rem 0 0.8rem;
+  font:
+    600 1.65rem 'Newsreader Variable',
+    serif;
+}
 .workbench-loading {
   padding: 6rem 0;
   color: var(--admin-muted);
@@ -1794,10 +1903,15 @@
   .smtp-control-grid,
   .lifecycle-grid,
   .access-grid,
+  .security-grid,
   .attention-queue {
     grid-template-columns: 1fr;
   }
   .access-user-ledger {
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-line);
+  }
+  .security-passkey-card {
     border-right: 0;
     border-bottom: 1px solid var(--admin-line);
   }
@@ -1928,6 +2042,13 @@
   }
   .access-review-actions {
     flex-direction: column;
+  }
+  .security-passkey-list article {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .security-passkey-actions {
+    grid-column: 2;
+    justify-content: flex-start;
   }
 }
 

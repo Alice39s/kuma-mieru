@@ -49,6 +49,13 @@ import {
   revokeAdminUserSession,
 } from '../auth/admin-repository.js';
 import {
+  deleteAdminPasskey,
+  listAdminPasskeys,
+  passkeyAdminErrorCode,
+  recordAdminPasskeyRegistration,
+  renameAdminPasskey,
+} from '../auth/passkey-repository.js';
+import {
   appendIncidentUpdate,
   createIncident,
   getPublicationReview,
@@ -197,6 +204,30 @@ const adminUserRoleSchema = z
   .object({
     expectedRole: adminRoleSchema,
     role: adminRoleSchema,
+  })
+  .strict();
+const passkeyNameSchema = z.string().trim().min(1).max(100);
+const passkeyRegisterOptionsSchema = z
+  .object({
+    name: passkeyNameSchema,
+    authenticatorAttachment: z.enum(['platform', 'cross-platform']).optional(),
+  })
+  .strict();
+const passkeyRegisterVerifySchema = z
+  .object({
+    name: passkeyNameSchema,
+    response: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+const passkeyRenameSchema = z
+  .object({
+    expectedName: z.string().max(100).nullable(),
+    name: passkeyNameSchema,
+  })
+  .strict();
+const passkeyDeleteSchema = z
+  .object({
+    expectedName: z.string().max(100).nullable(),
   })
   .strict();
 
@@ -388,6 +419,8 @@ export const registerAdminRoutes = (
   app.use('/api/v1/admin/audit', noStore);
   app.use('/api/v1/admin/users', noStore);
   app.use('/api/v1/admin/users/*', noStore);
+  app.use('/api/v1/admin/security', noStore);
+  app.use('/api/v1/admin/security/*', noStore);
 
   app.get('/api/v1/admin/session', async context => {
     const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
@@ -585,6 +618,224 @@ export const registerAdminRoutes = (
       return context.json({ data });
     } catch (error) {
       return handleAdminAuthError(context, error, authorization.principal);
+    }
+  });
+
+  const handlePasskeyError = (
+    context: Context<AppEnvironment>,
+    error: unknown,
+    principal: AdminPrincipal
+  ) => {
+    const code = error instanceof z.ZodError ? 'validation_failed' : passkeyAdminErrorCode(error);
+    const status =
+      code === 'passkey_not_found'
+        ? 404
+        : code === 'validation_failed'
+          ? 400
+          : code === 'passkey_admin_failed' || code === 'passkey_date_invalid'
+            ? 500
+            : 409;
+    const message =
+      status === 500
+        ? 'Passkey administration failed'
+        : error instanceof Error
+          ? error.message
+          : 'Passkey administration failed';
+    writeRouteAudit(context, principal.userId, 'failed', code.toUpperCase());
+    return errorResponse(
+      context,
+      status,
+      code.toUpperCase(),
+      message,
+      error instanceof z.ZodError ? error.issues : undefined
+    );
+  };
+
+  const forwardPasskeyCookies = (
+    context: Context<AppEnvironment>,
+    headers: Headers | undefined
+  ) => {
+    for (const cookie of headers?.getSetCookie() ?? []) {
+      context.header('Set-Cookie', cookie, { append: true });
+    }
+  };
+
+  app.get('/api/v1/admin/security/passkeys', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(
+        context,
+        503,
+        'DATABASE_NOT_READY',
+        'Authentication database is unavailable'
+      );
+    }
+    try {
+      return context.json({
+        data: listAdminPasskeys(database, authorization.principal.userId),
+      });
+    } catch (error) {
+      return handlePasskeyError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/security/passkeys/register/options', async context => {
+    const authorization = await requireAdmin(
+      context,
+      ['owner', 'publisher', 'editor', 'viewer'],
+      true,
+      true
+    );
+    if (!authorization.ok) return authorization.response;
+    if (!auth) {
+      return errorResponse(context, 503, 'AUTH_NOT_READY', 'Authentication service is unavailable');
+    }
+    try {
+      const input = passkeyRegisterOptionsSchema.parse(await context.req.json());
+      const generated = await auth.api.generatePasskeyRegistrationOptions({
+        headers: context.req.raw.headers,
+        query: input,
+        returnHeaders: true,
+      });
+      forwardPasskeyCookies(context, generated.headers);
+      return context.json({ data: { options: generated.response, name: input.name } });
+    } catch (error) {
+      if (!(error instanceof z.ZodError)) {
+        writeRouteAudit(
+          context,
+          authorization.principal.userId,
+          'failed',
+          'PASSKEY_OPTIONS_FAILED'
+        );
+        return errorResponse(
+          context,
+          400,
+          'PASSKEY_OPTIONS_FAILED',
+          'Passkey registration could not be started'
+        );
+      }
+      return handlePasskeyError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/security/passkeys/register/verify', async context => {
+    const authorization = await requireAdmin(
+      context,
+      ['owner', 'publisher', 'editor', 'viewer'],
+      true,
+      true
+    );
+    if (!authorization.ok) return authorization.response;
+    if (!database || !auth) {
+      return errorResponse(context, 503, 'AUTH_NOT_READY', 'Authentication service is unavailable');
+    }
+    try {
+      const input = passkeyRegisterVerifySchema.parse(await context.req.json());
+      const verified = await auth.api.verifyPasskeyRegistration({
+        headers: context.req.raw.headers,
+        body: input,
+        returnHeaders: true,
+      });
+      const registered = verified.response as { id?: unknown };
+      if (typeof registered.id !== 'string') {
+        throw Object.assign(new Error('Passkey registration response is invalid'), {
+          code: 'passkey_admin_failed',
+        });
+      }
+      try {
+        const passkey = recordAdminPasskeyRegistration(
+          database,
+          authorization.principal.userId,
+          registered.id,
+          auditContext(context, authorization.principal)
+        );
+        forwardPasskeyCookies(context, verified.headers);
+        return context.json({ data: passkey }, 201);
+      } catch (error) {
+        database
+          .prepare('DELETE FROM "passkey" WHERE id = ? AND userId = ?')
+          .run(registered.id, authorization.principal.userId);
+        throw error;
+      }
+    } catch (error) {
+      const code = passkeyAdminErrorCode(error);
+      if (!(error instanceof z.ZodError) && !code.startsWith('passkey_')) {
+        writeRouteAudit(
+          context,
+          authorization.principal.userId,
+          'failed',
+          'PASSKEY_VERIFICATION_FAILED'
+        );
+        return errorResponse(
+          context,
+          400,
+          'PASSKEY_VERIFICATION_FAILED',
+          'Passkey registration could not be verified'
+        );
+      }
+      return handlePasskeyError(context, error, authorization.principal);
+    }
+  });
+
+  app.put('/api/v1/admin/security/passkeys/:passkeyId', async context => {
+    const authorization = await requireAdmin(
+      context,
+      ['owner', 'publisher', 'editor', 'viewer'],
+      true
+    );
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(
+        context,
+        503,
+        'DATABASE_NOT_READY',
+        'Authentication database is unavailable'
+      );
+    }
+    try {
+      const input = passkeyRenameSchema.parse(await context.req.json());
+      return context.json({
+        data: renameAdminPasskey(database, {
+          userId: authorization.principal.userId,
+          passkeyId: context.req.param('passkeyId'),
+          ...input,
+          audit: auditContext(context, authorization.principal),
+        }),
+      });
+    } catch (error) {
+      return handlePasskeyError(context, error, authorization.principal);
+    }
+  });
+
+  app.delete('/api/v1/admin/security/passkeys/:passkeyId', async context => {
+    const authorization = await requireAdmin(
+      context,
+      ['owner', 'publisher', 'editor', 'viewer'],
+      true,
+      true
+    );
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(
+        context,
+        503,
+        'DATABASE_NOT_READY',
+        'Authentication database is unavailable'
+      );
+    }
+    try {
+      const input = passkeyDeleteSchema.parse(await context.req.json());
+      return context.json({
+        data: deleteAdminPasskey(database, {
+          userId: authorization.principal.userId,
+          passkeyId: context.req.param('passkeyId'),
+          ...input,
+          audit: auditContext(context, authorization.principal),
+        }),
+      });
+    } catch (error) {
+      return handlePasskeyError(context, error, authorization.principal);
     }
   });
 
