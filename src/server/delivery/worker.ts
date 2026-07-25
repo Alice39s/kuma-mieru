@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
-import type { PiiProtector } from '../subscriptions/crypto.js';
 import type { PublicationSnapshot } from '../events/schemas.js';
+import type { SubscriberTombstoneStore } from '../retention/tombstone-store.js';
+import type { PiiProtector } from '../subscriptions/crypto.js';
 import type { EmailDeliveryTransport, EmailMessage } from './transport.js';
 
 interface OutboxRow {
@@ -11,6 +12,10 @@ interface OutboxRow {
   attempts: number;
   payload_ciphertext: string;
   email_ciphertext: string;
+  subscriber_state: 'pending_confirmation' | 'active' | 'unsubscribed' | 'suppressed' | 'expired';
+  page_id: string;
+  scope_key: string;
+  email_hash: string;
   publication_json: string | null;
 }
 
@@ -29,6 +34,7 @@ export interface DeliveryWorkerOptions {
   workerId?: string;
   maximumAttempts?: number;
   now?: () => Date;
+  tombstones?: SubscriberTombstoneStore;
 }
 
 const claimOutboxItem = (
@@ -41,12 +47,18 @@ const claimOutboxItem = (
     const staleLock = new Date(now.valueOf() - 5 * 60_000).toISOString();
     const candidate = database
       .prepare(
-        `SELECT id FROM notification_outbox
+        `SELECT outbox.id FROM notification_outbox outbox
+         JOIN email_subscriptions subscription ON subscription.id = outbox.subscription_id
          WHERE (
-           (state IN ('queued', 'failed') AND next_attempt_at <= ?)
-           OR (state = 'processing' AND locked_at < ?)
+           (outbox.state IN ('queued', 'failed') AND outbox.next_attempt_at <= ?)
+           OR (outbox.state = 'processing' AND outbox.locked_at < ?)
          )
-         ORDER BY created_at ASC LIMIT 1`
+         AND (
+           (outbox.kind = 'subscription_confirmation'
+             AND subscription.state = 'pending_confirmation')
+           OR (outbox.kind = 'event_publication' AND subscription.state = 'active')
+         )
+         ORDER BY outbox.created_at ASC LIMIT 1`
       )
       .get(nowIso, staleLock) as { id: string } | undefined;
     if (!candidate) return null;
@@ -60,7 +72,8 @@ const claimOutboxItem = (
     return database
       .prepare(
         `SELECT o.id, o.publication_id, o.subscription_id, o.kind, o.attempts,
-                o.payload_ciphertext, s.email_ciphertext,
+                o.payload_ciphertext, s.email_ciphertext, s.state AS subscriber_state,
+                s.page_id, s.scope_key, s.email_hash,
                 p.content_json AS publication_json
          FROM notification_outbox o
          JOIN email_subscriptions s ON s.id = o.subscription_id
@@ -78,6 +91,14 @@ const materializeMessage = (
   protector: PiiProtector,
   publicBaseUrl: string
 ): EmailMessage => {
+  const eligible =
+    (row.kind === 'subscription_confirmation' && row.subscriber_state === 'pending_confirmation') ||
+    (row.kind === 'event_publication' && row.subscriber_state === 'active');
+  if (!eligible) {
+    throw Object.assign(new Error('Subscriber is no longer eligible for delivery'), {
+      code: 'SUBSCRIPTION_INELIGIBLE',
+    });
+  }
   const payload = JSON.parse(protector.decrypt(row.payload_ciphertext)) as Record<string, unknown>;
   const email = protector.decrypt(row.email_ciphertext);
   const baseUrl = new URL(publicBaseUrl);
@@ -144,7 +165,8 @@ const failOutboxItem = (
   row: OutboxRow,
   error: DeliveryError,
   now: Date,
-  maximumAttempts: number
+  maximumAttempts: number,
+  tombstones?: SubscriberTombstoneStore
 ) => {
   const failure = classifyFailure(error);
   const deadLetter = failure.permanent || row.attempts >= maximumAttempts;
@@ -164,12 +186,20 @@ const failOutboxItem = (
         row.id
       );
     if (failure.suppressRecipient) {
+      tombstones?.record({
+        pageId: row.page_id,
+        scopeKey: row.scope_key,
+        emailHash: row.email_hash,
+        state: 'suppressed',
+        recordedAt: now.toISOString(),
+      });
       database
         .prepare(
           `UPDATE email_subscriptions
-           SET state = 'suppressed', updated_at = ? WHERE id = ? AND state = 'active'`
+           SET state = 'suppressed', email_ciphertext = '', pii_deleted_at = ?, updated_at = ?
+           WHERE id = ? AND state = 'active'`
         )
-        .run(now.toISOString(), row.subscription_id);
+        .run(now.toISOString(), now.toISOString(), row.subscription_id);
     }
   })();
 };
@@ -207,7 +237,8 @@ export const processDeliveryBatch = async (
         row,
         error instanceof Error ? (error as DeliveryError) : new Error('Delivery failed'),
         now,
-        maximumAttempts
+        maximumAttempts,
+        options.tombstones
       );
       failed += 1;
     }

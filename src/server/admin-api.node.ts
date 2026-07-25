@@ -16,11 +16,15 @@ import { reconcileSignalAutomation } from './events/automation-repository.js';
 import type { NormalizedSnapshot } from './adapters/types.js';
 import { createSecretStore } from './secrets/store.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
+import { createRetentionService } from './retention/service.js';
+import { createSubscriberTombstoneStore } from './retention/tombstone-store.js';
+import { resolveRetentionPolicy } from './config/schema.js';
 
 test('requires a Better Auth session, trusted origin and bound CSRF token for config writes', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-admin-api-'));
   const databasePath = resolve(directory, 'test.sqlite3');
   const { database } = openDatabase(databasePath);
+  const subscriberTombstones = createSubscriberTombstoneStore(directory);
   try {
     const migration = await migrateDatabase(database, {
       directory: resolve(process.cwd(), 'migrations'),
@@ -106,6 +110,11 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
         config: revision.config,
       };
     };
+    const retentionService = createRetentionService({
+      database,
+      policy: () => resolveRetentionPolicy(runtime.config.dataLifecycle?.retention),
+      tombstones: subscriberTombstones,
+    });
     let fileReloads = 0;
     const app = createApp({
       snapshot: runtime,
@@ -117,6 +126,8 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       authSecret: secret,
       trustedOrigins: [baseURL],
       backupService,
+      retentionService,
+      subscriberTombstones,
       secretStore,
       smtpTest,
       isEmailDeliveryEnabled: () => true,
@@ -405,6 +416,38 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       'Sec-Fetch-Site': 'same-origin',
       'X-Kuma-CSRF': sessionBody.data.csrfToken,
     };
+    const retention = await app.request('/api/v1/admin/retention', {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(retention.status, 200);
+    const retentionPreview = await app.request('/api/v1/admin/retention/preview', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: '{}',
+    });
+    assert.equal(retentionPreview.status, 200);
+    const policyUpdated = await app.request('/api/v1/admin/retention/policy', {
+      method: 'PUT',
+      headers: mutationHeaders,
+      body: JSON.stringify({
+        expectedRevision: runtime.revision,
+        policy: {
+          eventDraftDays: 180,
+          adminAuditDays: 730,
+          deliveryAttemptDays: 180,
+          backupDays: 60,
+        },
+      }),
+    });
+    assert.equal(policyUpdated.status, 200);
+    assert.equal(runtime.config.dataLifecycle?.retention?.backupDays, 60);
+    const retentionRun = await app.request('/api/v1/admin/retention/run', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: '{}',
+    });
+    assert.equal(retentionRun.status, 200);
+
     const backupCreate = await app.request('/api/v1/admin/backups', {
       method: 'POST',
       headers: mutationHeaders,
@@ -868,7 +911,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
         database
           .prepare(
             `SELECT COUNT(*) AS count FROM notification_outbox
-             WHERE kind = 'event_publication' AND state = 'failed'
+             WHERE kind = 'event_publication' AND state = 'dead_letter'
                AND last_error_code = 'SUBSCRIPTION_UNSUBSCRIBED'`
           )
           .get() as { count: number }
@@ -991,6 +1034,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       { result: 'failed', error_code: 'PUBLICATION_REVIEW_INVALID' },
     ]);
   } finally {
+    subscriberTombstones.close();
     database.close();
     await rm(directory, { recursive: true, force: true });
   }

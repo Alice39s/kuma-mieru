@@ -12,6 +12,7 @@ import { createAuth } from './auth/auth.js';
 import { createBootstrapService } from './auth/bootstrap.js';
 import { loadOrCreateAuthSecret } from './auth/secret.js';
 import { loadRuntimeConfig } from './config/runtime-config.js';
+import { extendRetentionPolicy, resolveRetentionPolicy } from './config/schema.js';
 import { createFileConfigReloader } from './config/file-reloader.js';
 import { openDatabase } from './db/database.js';
 import { createBackupService, startBackupScheduler } from './db/backup.js';
@@ -22,6 +23,12 @@ import { createSmtpTestService } from './delivery/smtp-config.js';
 import { loadOrCreateSecretKeyring } from './secrets/keyring.js';
 import { createSecretStore } from './secrets/store.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
+import { createRetentionService, startRetentionScheduler } from './retention/service.js';
+import { createSubscriberTombstoneStore } from './retention/tombstone-store.js';
+import {
+  clearPostRestoreRetentionMarker,
+  readPostRestoreRetentionMarker,
+} from './retention/restore-marker.js';
 
 const currentDirectory = fileURLToPath(new URL('.', import.meta.url));
 const dataDirectory = resolve(process.env.KUMA_MIERU_DATA_DIR ?? './data');
@@ -73,6 +80,34 @@ let runtimeSnapshot = await loadRuntimeConfig({ database });
 const authSecret = await loadOrCreateAuthSecret(dataDirectory);
 const auth = createAuth({ database, baseURL, secret: authSecret, trustedOrigins });
 const piiProtector = createPiiProtector(authSecret);
+const subscriberTombstones = createSubscriberTombstoneStore(dataDirectory);
+const postRestoreMarker = await readPostRestoreRetentionMarker(dataDirectory);
+const retentionService = createRetentionService({
+  database,
+  policy: () =>
+    extendRetentionPolicy(
+      resolveRetentionPolicy(runtimeSnapshot.config.dataLifecycle?.retention),
+      postRestoreMarker?.retentionPolicy
+    ),
+  tombstones: subscriberTombstones,
+});
+if (postRestoreMarker) {
+  const run = await retentionService.run('restore', `system:restore:${postRestoreMarker.backupId}`);
+  await clearPostRestoreRetentionMarker(dataDirectory);
+  console.info('Post-restore retention completed', {
+    runId: run.id,
+    backupId: postRestoreMarker.backupId,
+  });
+} else {
+  const appliedTombstones = subscriberTombstones.apply(database);
+  if (appliedTombstones > 0) {
+    console.info('Applied subscriber tombstones', { count: appliedTombstones });
+  }
+}
+const stopRetentionScheduler =
+  process.env.KUMA_MIERU_RETENTION_SCHEDULE_ENABLED === 'false'
+    ? () => undefined
+    : startRetentionScheduler({ service: retentionService });
 const smtpTest = createSmtpTestService({
   secret: authSecret,
   secretStore,
@@ -81,6 +116,7 @@ const deliveryRuntime = createDeliveryRuntime({
   database,
   protector: piiProtector,
   secretStore,
+  tombstones: subscriberTombstones,
 });
 const sourceTest = createSourceTestService({
   secret: authSecret,
@@ -163,6 +199,8 @@ const app = createApp({
   isEmailDeliveryEnabled: () => deliveryRuntime.status().state === 'running',
   secretStore,
   backupService,
+  retentionService,
+  subscriberTombstones,
   isRuntimeLockHeld: runtimeLock.isHeld,
   publicDirectory: process.env.NODE_ENV === 'development' ? undefined : clientDirectory,
   loadPageSnapshots: page =>
@@ -211,8 +249,10 @@ const shutdown = (signal: NodeJS.Signals) => {
     stopFileReloader();
     stopSourcePoller();
     stopBackupScheduler();
+    stopRetentionScheduler();
     deliveryRuntime.stop();
     try {
+      subscriberTombstones.close();
       database.close();
     } finally {
       runtimeLock.release();

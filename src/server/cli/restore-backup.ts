@@ -55,7 +55,7 @@ try {
     });
     process.stdout.write(
       `${JSON.stringify({ mode: 'executed', ...restored }, null, 2)}\n` +
-        'Start Kuma Mieru and verify /health/ready. Retain the pre-restore file for rollback.\n'
+        'Start Kuma Mieru; it will run mandatory retention before /health/ready. Retain the pre-restore file for rollback.\n'
     );
   }
 } catch (error) {

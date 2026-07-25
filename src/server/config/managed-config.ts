@@ -30,6 +30,7 @@ const summarizeConfig = (config: CanonicalConfig) => ({
   schemaVersion: config.schemaVersion,
   sourceIds: config.sources.map(source => source.id),
   pageIds: config.pages.map(page => page.id),
+  retentionPolicy: config.dataLifecycle?.retention ?? null,
 });
 
 const writeAudit = (

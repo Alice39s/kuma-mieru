@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { AuditContext } from '../config/managed-config.js';
+import type { SubscriberTombstoneStore } from '../retention/tombstone-store.js';
 
 export type SubscriberState =
   | 'pending_confirmation'
@@ -242,7 +243,8 @@ export const suppressAdminSubscriber = (
   database: Database.Database,
   subscriberId: string,
   expectedState: 'active',
-  audit: AuditContext
+  audit: AuditContext,
+  tombstones?: SubscriberTombstoneStore
 ): AdminSubscriber =>
   database.transaction(() => {
     const current = getAdminSubscriber(database, subscriberId);
@@ -254,12 +256,23 @@ export const suppressAdminSubscriber = (
       );
     }
     const updatedAt = new Date().toISOString();
+    const privateRow = database
+      .prepare('SELECT scope_key, email_hash FROM email_subscriptions WHERE id = ?')
+      .get(subscriberId) as { scope_key: string; email_hash: string };
+    tombstones?.record({
+      pageId: current.pageId,
+      scopeKey: privateRow.scope_key,
+      emailHash: privateRow.email_hash,
+      state: 'suppressed',
+      recordedAt: updatedAt,
+    });
     const update = database
       .prepare(
-        `UPDATE email_subscriptions SET state = 'suppressed', updated_at = ?
+        `UPDATE email_subscriptions
+         SET state = 'suppressed', email_ciphertext = '', pii_deleted_at = ?, updated_at = ?
          WHERE id = ? AND state = 'active'`
       )
-      .run(updatedAt, subscriberId);
+      .run(updatedAt, updatedAt, subscriberId);
     if (update.changes !== 1) {
       throw deliveryAdminError(
         'subscriber_state_conflict',
@@ -270,7 +283,7 @@ export const suppressAdminSubscriber = (
       .prepare(
         `UPDATE notification_outbox
          SET state = 'dead_letter', locked_at = NULL, locked_by = NULL,
-             last_error_code = 'ADMIN_SUPPRESSED'
+             payload_ciphertext = NULL, last_error_code = 'ADMIN_SUPPRESSED'
          WHERE subscription_id = ? AND kind = 'event_publication'
            AND state IN ('queued', 'failed', 'processing')`
       )

@@ -16,6 +16,8 @@ import {
 import { openDatabase } from './database.js';
 import { migrateDatabase } from './migrator.js';
 import { acquireRuntimeLock } from './runtime-lock.js';
+import { readPostRestoreRetentionMarker } from '../retention/restore-marker.js';
+import { createManagedRevision } from '../config/repository.js';
 
 const migrationDirectory = resolve(process.cwd(), 'migrations');
 
@@ -61,6 +63,24 @@ test('creates a private online backup, validates it, and restores it offline', a
     assert.equal(manifestText.includes(fixture.dataDirectory), false);
     assert.deepEqual(await fixture.service.validate(backup.backupId), backup);
 
+    createManagedRevision(
+      fixture.database,
+      {
+        schemaVersion: 1,
+        server: {},
+        sources: [],
+        pages: [],
+        dataLifecycle: {
+          retention: {
+            eventDraftDays: 180,
+            adminAuditDays: 730,
+            deliveryAttemptDays: 180,
+            backupDays: 60,
+          },
+        },
+      },
+      'owner'
+    );
     fixture.database.prepare('INSERT INTO backup_test_payload (value) VALUES (?)').run('after');
     fixture.database.close();
     const runtimeLock = await acquireRuntimeLock({
@@ -112,6 +132,17 @@ test('creates a private online backup, validates it, and restores it offline', a
       now: () => new Date('2026-07-25T00:00:00.000Z'),
     });
     assert.equal(restored.rollbackFileName?.includes('pre-restore-2026-07-25'), true);
+    assert.deepEqual(await readPostRestoreRetentionMarker(fixture.dataDirectory), {
+      formatVersion: 1,
+      backupId: backup.backupId,
+      restoredAt: '2026-07-25T00:00:00.000Z',
+      retentionPolicy: {
+        eventDraftDays: 180,
+        adminAuditDays: 730,
+        deliveryAttemptDays: 180,
+        backupDays: 60,
+      },
+    });
     const reopened = new BetterSqlite3(fixture.databasePath, { readonly: true });
     try {
       const values = reopened
@@ -209,7 +240,7 @@ test('rejects a backup whose migration ledger is newer than this build', async (
         .prepare(
           `INSERT INTO schema_migrations
             (version, name, checksum_sha256, applied_at, app_build, execution_ms)
-           VALUES (13, 'future', ?, ?, 'future', 0)`
+           VALUES (14, 'future', ?, ?, 'future', 0)`
         )
         .run('f'.repeat(64), new Date().toISOString());
       candidate.pragma('wal_checkpoint(TRUNCATE)');
@@ -218,7 +249,7 @@ test('rejects a backup whose migration ledger is newer than this build', async (
     }
     const bytes = await readFile(backupPath);
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as Record<string, unknown>;
-    manifest.schemaVersion = 13;
+    manifest.schemaVersion = 14;
     manifest.sizeBytes = bytes.length;
     manifest.sha256 = createHash('sha256').update(bytes).digest('hex');
     await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -339,6 +370,8 @@ test('does not treat a schema-upgrade artifact as the daily runtime backup', asy
         createdAt: completedAt,
         completedAt,
         errorCode: null,
+        retentionState: 'current' as const,
+        retentionDecidedAt: null,
       },
     ],
     create: async () => {

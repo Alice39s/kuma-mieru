@@ -27,6 +27,8 @@ import {
 import {
   sourcePatchSchema as sourcePatchValueSchema,
   sourceSchema,
+  retentionPolicySchema,
+  resolveRetentionPolicy,
   resolveSignalAutomationConfig,
   smtpDeliverySchema,
   statusPageSchema,
@@ -36,6 +38,8 @@ import type { DeliveryRuntimeStatus } from '../delivery/runtime.js';
 import type { SmtpTestService } from '../delivery/smtp-config.js';
 import type { SecretStore } from '../secrets/store.js';
 import { backupErrorCode, type BackupService } from '../db/backup.js';
+import { retentionErrorCode, type RetentionService } from '../retention/service.js';
+import type { SubscriberTombstoneStore } from '../retention/tombstone-store.js';
 import {
   appendIncidentUpdate,
   createIncident,
@@ -155,6 +159,11 @@ const subscriberSuppressSchema = z.object({ expectedState: z.literal('active') }
 const backupRestoreValidateSchema = z.object({
   backupId: z.string().min(1).max(64),
 });
+const emptyMutationSchema = z.object({}).strict();
+const retentionPolicyMutationSchema = z.object({
+  expectedRevision: z.number().int().positive(),
+  policy: retentionPolicySchema,
+});
 
 export interface AdminRouteOptions {
   database?: Database.Database;
@@ -170,6 +179,8 @@ export interface AdminRouteOptions {
   getFileReloadStatus?: () => FileReloadStatus;
   reloadFileConfig?: () => Promise<FileReloadResult>;
   backupService?: BackupService;
+  retentionService?: RetentionService;
+  subscriberTombstones?: SubscriberTombstoneStore;
 }
 
 export const registerAdminRoutes = (
@@ -188,6 +199,8 @@ export const registerAdminRoutes = (
     getFileReloadStatus,
     reloadFileConfig,
     backupService,
+    retentionService,
+    subscriberTombstones,
   }: AdminRouteOptions
 ) => {
   const publicationReview = authSecret ? createPublicationReviewService(authSecret) : null;
@@ -335,6 +348,8 @@ export const registerAdminRoutes = (
   };
   app.use('/api/v1/admin/backups', noStore);
   app.use('/api/v1/admin/backups/*', noStore);
+  app.use('/api/v1/admin/retention', noStore);
+  app.use('/api/v1/admin/retention/*', noStore);
 
   app.get('/api/v1/admin/session', async context => {
     const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
@@ -430,6 +445,114 @@ export const registerAdminRoutes = (
       return context.json({ data: validation });
     } catch (error) {
       return handleBackupError(context, error, authorization.principal);
+    }
+  });
+
+  const handleRetentionError = (
+    context: Context<AppEnvironment>,
+    error: unknown,
+    principal: AdminPrincipal
+  ) => {
+    const code = error instanceof z.ZodError ? 'validation_failed' : retentionErrorCode(error);
+    const status = code === 'retention_in_progress' ? 409 : 400;
+    writeRouteAudit(context, principal.userId, 'failed', code.toUpperCase());
+    return errorResponse(
+      context,
+      status,
+      code.toUpperCase(),
+      error instanceof z.ZodError
+        ? 'Retention request is invalid'
+        : error instanceof Error
+          ? error.message
+          : 'Retention operation failed'
+    );
+  };
+
+  app.get('/api/v1/admin/retention', async context => {
+    const authorization = await requireAdmin(context, ['owner']);
+    if (!authorization.ok) return authorization.response;
+    if (!retentionService) {
+      return errorResponse(context, 503, 'RETENTION_NOT_READY', 'Retention service is unavailable');
+    }
+    return context.json({
+      data: {
+        policy: resolveRetentionPolicy(currentSnapshot().config.dataLifecycle?.retention),
+        runs: retentionService.list(),
+      },
+    });
+  });
+
+  app.post('/api/v1/admin/retention/preview', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!retentionService) {
+      return errorResponse(context, 503, 'RETENTION_NOT_READY', 'Retention service is unavailable');
+    }
+    try {
+      emptyMutationSchema.parse(await context.req.json());
+      const preview = retentionService.preview();
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: preview });
+    } catch (error) {
+      return handleRetentionError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/retention/run', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!retentionService) {
+      return errorResponse(context, 503, 'RETENTION_NOT_READY', 'Retention service is unavailable');
+    }
+    try {
+      emptyMutationSchema.parse(await context.req.json());
+      const run = await retentionService.run('admin', authorization.principal.userId);
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: run });
+    } catch (error) {
+      return handleRetentionError(context, error, authorization.principal);
+    }
+  });
+
+  app.put('/api/v1/admin/retention/policy', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Retention database is unavailable');
+    }
+    if (currentSnapshot().mode !== 'managed') {
+      writeRouteAudit(context, authorization.principal.userId, 'failed', 'CONFIG_READ_ONLY');
+      return errorResponse(
+        context,
+        409,
+        'CONFIG_READ_ONLY',
+        'Retention policy is managed by the active configuration file'
+      );
+    }
+    try {
+      const input = retentionPolicyMutationSchema.parse(await context.req.json());
+      const revision = mutateManagedConfig(database, {
+        expectedRevision: input.expectedRevision,
+        audit: auditContext(context, authorization.principal),
+        action: 'retention.policy.update',
+        targetType: 'retention_policy',
+        mutate: config => ({
+          ...config,
+          dataLifecycle: {
+            ...config.dataLifecycle,
+            retention: input.policy,
+          },
+        }),
+      });
+      await onManagedRevision?.(revision);
+      return context.json({
+        data: {
+          revision: revision.revision,
+          policy: resolveRetentionPolicy(revision.config.dataLifecycle?.retention),
+        },
+      });
+    } catch (error) {
+      return handleManagedError(context, error, authorization.principal);
     }
   });
 
@@ -1425,7 +1548,8 @@ export const registerAdminRoutes = (
         database,
         context.req.param('id'),
         input.expectedState,
-        auditContext(context, authorization.principal)
+        auditContext(context, authorization.principal),
+        subscriberTombstones
       );
       return context.json({ data: subscriber });
     } catch (error) {

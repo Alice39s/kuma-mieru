@@ -317,15 +317,15 @@ test('registers a schema-upgrade artifact in an existing backup catalog', async 
   await cp(resolve(process.cwd(), 'migrations'), directory, { recursive: true });
   const { database } = openDatabase(databasePath);
   try {
-    await migrateDatabase(database, { directory, databasePath, appBuild: 'test-v12' });
+    await migrateDatabase(database, { directory, databasePath, appBuild: 'test-v13' });
     await writeFile(
-      resolve(directory, '000013_catalog_fixture.up.sql'),
+      resolve(directory, '000014_catalog_fixture.up.sql'),
       'CREATE TABLE migration_catalog_fixture (id INTEGER PRIMARY KEY);\n'
     );
     const result = await migrateDatabase(database, {
       directory,
       databasePath,
-      appBuild: 'test-v13',
+      appBuild: 'test-v14',
     });
     const artifact = database
       .prepare(

@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import type { CanonicalConfig } from '../config/schema.js';
 import type { SecretStore } from '../secrets/store.js';
 import type { PiiProtector } from '../subscriptions/crypto.js';
+import type { SubscriberTombstoneStore } from '../retention/tombstone-store.js';
 import { resolveSmtpTransportConfig } from './smtp-config.js';
 import { createSmtpTransport, type SmtpTransportConfig } from './smtp.js';
 import type { EmailDeliveryTransport } from './transport.js';
@@ -20,6 +21,7 @@ export interface CreateDeliveryRuntimeOptions {
   secretStore: SecretStore;
   createTransport?: (config: SmtpTransportConfig) => EmailDeliveryTransport;
   startWorker?: (options: DeliveryWorkerOptions) => () => void;
+  tombstones?: SubscriberTombstoneStore;
 }
 
 const runtimeErrorCode = (error: unknown) =>
@@ -33,6 +35,7 @@ export const createDeliveryRuntime = ({
   secretStore,
   createTransport: transportFactory = createSmtpTransport,
   startWorker = options => startDeliveryWorker(options),
+  tombstones,
 }: CreateDeliveryRuntimeOptions) => {
   let stopWorker: () => void = () => undefined;
   let status: DeliveryRuntimeStatus = {
@@ -63,6 +66,7 @@ export const createDeliveryRuntime = ({
         protector,
         transport: pendingTransport,
         publicBaseUrl: config.server.publicBaseUrl as string,
+        tombstones,
       });
       pendingTransport = null;
       const stopPrevious = stopWorker;

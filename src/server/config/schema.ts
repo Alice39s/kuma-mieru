@@ -130,6 +130,32 @@ export const signalAutomationSchema = z
 export const resolveSignalAutomationConfig = (input?: unknown) =>
   signalAutomationSchema.parse(input);
 
+export const retentionPolicySchema = z
+  .object({
+    eventDraftDays: z.number().int().min(30).max(3650).default(90),
+    adminAuditDays: z.number().int().min(30).max(3650).default(365),
+    deliveryAttemptDays: z.number().int().min(30).max(3650).default(90),
+    backupDays: z.number().int().min(30).max(3650).default(30),
+  })
+  .strict();
+
+export const defaultRetentionPolicy = retentionPolicySchema.parse({});
+
+export const resolveRetentionPolicy = (input?: unknown) => retentionPolicySchema.parse(input ?? {});
+
+export const extendRetentionPolicy = (
+  active: RetentionPolicy,
+  minimum?: RetentionPolicy
+): RetentionPolicy =>
+  minimum
+    ? {
+        eventDraftDays: Math.max(active.eventDraftDays, minimum.eventDraftDays),
+        adminAuditDays: Math.max(active.adminAuditDays, minimum.adminAuditDays),
+        deliveryAttemptDays: Math.max(active.deliveryAttemptDays, minimum.deliveryAttemptDays),
+        backupDays: Math.max(active.backupDays, minimum.backupDays),
+      }
+    : active;
+
 export const canonicalConfigSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -146,6 +172,11 @@ export const canonicalConfigSchema = z
     events: z
       .object({
         automation: signalAutomationSchema.optional(),
+      })
+      .optional(),
+    dataLifecycle: z
+      .object({
+        retention: retentionPolicySchema.optional(),
       })
       .optional(),
     sources: z.array(sourceSchema),
@@ -207,3 +238,4 @@ export type CanonicalConfig = z.infer<typeof canonicalConfigSchema>;
 export type SmtpDeliveryConfig = z.infer<typeof smtpDeliverySchema>;
 export type EnabledSmtpDeliveryConfig = z.infer<typeof enabledSmtpDeliverySchema>;
 export type SignalAutomationConfig = z.infer<typeof signalAutomationSchema>;
+export type RetentionPolicy = z.infer<typeof retentionPolicySchema>;

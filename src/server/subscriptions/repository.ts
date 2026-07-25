@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { PiiProtector } from './crypto.js';
+import type { SubscriberTombstoneStore } from '../retention/tombstone-store.js';
 import {
   subscriptionManageSchema,
   subscriptionRequestSchema,
@@ -19,6 +20,8 @@ interface TokenRow {
   page_id: string;
   incident_id: string | null;
   component_ids_json: string;
+  scope_key: string;
+  email_hash: string;
   state: 'pending_confirmation' | 'active' | 'unsubscribed' | 'suppressed' | 'expired';
 }
 
@@ -242,7 +245,7 @@ const getTokenRow = (
   database
     .prepare(
       `SELECT t.id, t.subscription_id, t.purpose, t.expires_at, t.consumed_at,
-              s.page_id, s.incident_id, s.component_ids_json, s.state
+              s.page_id, s.incident_id, s.component_ids_json, s.scope_key, s.email_hash, s.state
        FROM subscription_tokens t
        JOIN email_subscriptions s ON s.id = t.subscription_id
        WHERE t.token_hash = ? AND t.purpose = ?`
@@ -328,7 +331,8 @@ export const updateEmailSubscription = (
 export const unsubscribeEmail = (
   database: Database.Database,
   protector: PiiProtector,
-  token: string
+  token: string,
+  tombstones?: SubscriberTombstoneStore
 ) =>
   database.transaction(() => {
     const view = inspectSubscriptionToken(database, protector, token, 'unsubscribe');
@@ -336,17 +340,31 @@ export const unsubscribeEmail = (
       throw subscriptionError('subscription_token_invalid', 'Unsubscribe token is invalid');
     }
     const now = new Date().toISOString();
+    const row = getTokenRow(database, protector, token, 'unsubscribe') as TokenRow;
+    tombstones?.record({
+      pageId: row.page_id,
+      scopeKey: row.scope_key,
+      emailHash: row.email_hash,
+      state: 'unsubscribed',
+      recordedAt: now,
+    });
     database
       .prepare('UPDATE subscription_tokens SET consumed_at = ? WHERE token_hash = ?')
       .run(now, protector.tokenHash(token));
     database
-      .prepare("UPDATE email_subscriptions SET state = 'unsubscribed', updated_at = ? WHERE id = ?")
-      .run(now, view.subscriptionId);
+      .prepare(
+        `UPDATE email_subscriptions
+         SET state = 'unsubscribed', email_ciphertext = '', pii_deleted_at = ?, updated_at = ?
+         WHERE id = ?`
+      )
+      .run(now, now, view.subscriptionId);
     database
       .prepare(
         `UPDATE notification_outbox
-         SET state = 'failed', last_error_code = 'SUBSCRIPTION_UNSUBSCRIBED'
-         WHERE subscription_id = ? AND state = 'queued' AND kind = 'event_publication'`
+         SET state = 'dead_letter', payload_ciphertext = NULL,
+             last_error_code = 'SUBSCRIPTION_UNSUBSCRIBED'
+         WHERE subscription_id = ? AND state IN ('queued', 'failed')
+           AND kind = 'event_publication'`
       )
       .run(view.subscriptionId);
     return { unsubscribed: true as const };

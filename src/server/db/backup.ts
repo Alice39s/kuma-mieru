@@ -16,6 +16,9 @@ import { basename, dirname, resolve } from 'node:path';
 import type Database from 'better-sqlite3';
 import BetterSqlite3 from 'better-sqlite3';
 import { z } from 'zod';
+import { getActiveRevision } from '../config/repository.js';
+import { resolveRetentionPolicy } from '../config/schema.js';
+import { writePostRestoreRetentionMarker } from '../retention/restore-marker.js';
 import { loadMigrationFiles, verifyAppliedMigrations, verifyDatabase } from './migrator.js';
 
 const minimumFreeBytes = 16 * 1024 * 1024;
@@ -62,6 +65,8 @@ export interface BackupArtifact {
   createdAt: string;
   completedAt: string | null;
   errorCode: string | null;
+  retentionState: 'current' | 'eligible' | 'hold';
+  retentionDecidedAt: string | null;
 }
 
 export interface BackupValidation {
@@ -341,6 +346,25 @@ export const restoreBackupArtifact = async ({
   }
   const databaseDirectory = dirname(databasePath);
   const activeSize = await fileSize(databasePath);
+  const activeRetentionPolicy =
+    activeSize > 0
+      ? (() => {
+          const active = new BetterSqlite3(databasePath, {
+            readonly: true,
+            fileMustExist: true,
+          });
+          try {
+            const revision = getActiveRevision(active);
+            return revision
+              ? resolveRetentionPolicy(revision.config.dataLifecycle?.retention)
+              : undefined;
+          } catch {
+            return undefined;
+          } finally {
+            active.close();
+          }
+        })()
+      : undefined;
   if ((await availableBytes(databaseDirectory)) < validation.sizeBytes + activeSize) {
     throw codedError('restore_space_insufficient', 'Insufficient space for restore rollback copy');
   }
@@ -380,6 +404,12 @@ export const restoreBackupArtifact = async ({
     } finally {
       restored.close();
     }
+    await writePostRestoreRetentionMarker(dataDirectory, {
+      formatVersion: 1,
+      backupId,
+      restoredAt: now().toISOString(),
+      retentionPolicy: activeRetentionPolicy,
+    });
     return {
       ...validation,
       rollbackFileName: activeMoved ? basename(rollbackPath) : null,
@@ -401,6 +431,8 @@ const mapArtifact = (row: {
   created_at: string;
   completed_at: string | null;
   error_code: string | null;
+  retention_state: BackupArtifact['retentionState'];
+  retention_decided_at: string | null;
 }): BackupArtifact => ({
   id: row.id,
   state: row.state,
@@ -410,6 +442,8 @@ const mapArtifact = (row: {
   createdAt: row.created_at,
   completedAt: row.completed_at,
   errorCode: row.error_code,
+  retentionState: row.retention_state,
+  retentionDecidedAt: row.retention_decided_at,
 });
 
 export const createBackupService = (options: CreateBackupServiceOptions): BackupService => {
@@ -427,7 +461,7 @@ export const createBackupService = (options: CreateBackupServiceOptions): Backup
       options.database
         .prepare(
           `SELECT id, state, file_name, manifest_json, created_by, created_at, completed_at,
-                  error_code
+                  error_code, retention_state, retention_decided_at
            FROM backup_artifacts
            ORDER BY created_at DESC`
         )

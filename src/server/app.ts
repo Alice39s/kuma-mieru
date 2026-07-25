@@ -23,6 +23,8 @@ import type { SecretStore } from './secrets/store.js';
 import type { BackupService } from './db/backup.js';
 import type { DeliveryRuntimeStatus } from './delivery/runtime.js';
 import type { SmtpTestService } from './delivery/smtp-config.js';
+import type { RetentionService } from './retention/service.js';
+import type { SubscriberTombstoneStore } from './retention/tombstone-store.js';
 import {
   getPublishedIncident,
   listPublishedEvents,
@@ -81,6 +83,8 @@ export interface AppOptions {
   isEmailDeliveryEnabled?: () => boolean;
   secretStore?: SecretStore;
   backupService?: BackupService;
+  retentionService?: RetentionService;
+  subscriberTombstones?: SubscriberTombstoneStore;
   isRuntimeLockHeld?: () => boolean;
 }
 
@@ -108,6 +112,8 @@ export const createApp = ({
   isEmailDeliveryEnabled = () => false,
   secretStore,
   backupService,
+  retentionService,
+  subscriberTombstones,
   isRuntimeLockHeld = () => true,
 }: AppOptions) => {
   const app = new Hono<AppEnvironment>();
@@ -700,7 +706,12 @@ export const createApp = ({
     }
     try {
       return context.json({
-        data: unsubscribeEmail(database, piiProtector, context.req.param('token')),
+        data: unsubscribeEmail(
+          database,
+          piiProtector,
+          context.req.param('token'),
+          subscriberTombstones
+        ),
       });
     } catch {
       return errorResponse(
@@ -882,6 +893,8 @@ export const createApp = ({
     getFileReloadStatus,
     reloadFileConfig,
     backupService,
+    retentionService,
+    subscriberTombstones,
   });
 
   app.notFound(context => {
