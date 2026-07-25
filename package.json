@@ -37,6 +37,7 @@
     "release:v2:manifest": "bun scripts/generate-v2-release-manifest.ts",
     "release:v2:manifest:strict": "bun scripts/generate-v2-release-manifest.ts --strict",
     "release:v2:policy": "bun scripts/resolve-v2-release.ts",
+    "smoke:v2:external-sources": "bun run build:v2:server && node dist/v2/server/adapters/external-source-smoke.js",
     "build:analyze": "bun run generate && ANALYZE=true next build",
     "build:cloudflare": "CF_DEPLOYMENT=true bun run generate && opennextjs-cloudflare build",
     "deploy:cloudflare": "CF_DEPLOYMENT=true opennextjs-cloudflare deploy",
