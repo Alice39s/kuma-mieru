@@ -24,6 +24,19 @@ after its release gates pass.
 `better-sqlite3` is deliberately executed under Node, not Bun. The current Bun N-API runtime can
 crash while loading it, so v2 database tests also run against compiled Node output.
 
+Before opening the application database or running migrations, the process acquires a private
+SQLite lock database below `/data/.runtime`. One lifecycle-long `BEGIN EXCLUSIVE` makes the entire
+data directory single-writer: a second Runtime, `migrate-v1 --execute`, or
+`restore-backup --execute` fails closed instead of racing the active process. The lock uses operating
+system SQLite file ownership rather than PID files or expiring heartbeats, so `SIGKILL` and container
+crashes release it without a stale-lock override. Readiness includes
+`runtimeOwnership: "exclusive"` and fails if the owning transaction is no longer held.
+
+The Simple profile therefore runs exactly one application replica per data directory. The volume
+must provide correct local/POSIX SQLite locking semantics; shared network filesystems that weaken
+SQLite locking are unsupported. Horizontal availability requires a future external database/runtime
+coordination profile, not multiple containers writing the same SQLite volume.
+
 ## Commands
 
 ```bash
@@ -146,9 +159,10 @@ bun run restore-backup -- --backup-id bkp_<uuid> --data-dir ./data --execute
 ```
 
 The first command is a zero-write dry run. Before `--execute`, stop Kuma Mieru. Execution refuses a
-database with WAL/SHM sidecars, revalidates the fixed backup artifact, checks rollback space, copies
-and hashes a private candidate, atomically replaces the database, and preserves the previous file
-as `kuma-mieru.sqlite3.pre-restore-<timestamp>`. Start the same or newer compatible build afterward,
+data directory whose Runtime ownership lock is held, also refuses a database with WAL/SHM sidecars,
+revalidates the fixed backup artifact, checks rollback space, copies and hashes a private candidate,
+atomically replaces the database, and preserves the previous file as
+`kuma-mieru.sqlite3.pre-restore-<timestamp>`. Start the same or newer compatible build afterward,
 verify `/health/ready`, and retain the pre-restore file until the operator's rollback window ends.
 The production image contains the same compiled CLI; a container deployment can invoke
 `node dist/v2/server/cli/restore-backup.js --backup-id bkp_<uuid> --data-dir /data` from a one-off

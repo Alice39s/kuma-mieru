@@ -16,6 +16,7 @@ import { createFileConfigReloader } from './config/file-reloader.js';
 import { openDatabase } from './db/database.js';
 import { createBackupService, startBackupScheduler } from './db/backup.js';
 import { migrateDatabase } from './db/migrator.js';
+import { acquireRuntimeLock } from './db/runtime-lock.js';
 import { createDeliveryRuntime } from './delivery/runtime.js';
 import { createSmtpTestService } from './delivery/smtp-config.js';
 import { loadOrCreateSecretKeyring } from './secrets/keyring.js';
@@ -41,6 +42,10 @@ const trustedOrigins = (process.env.KUMA_MIERU_TRUSTED_ORIGINS ?? baseURL)
   .map(origin => origin.trim())
   .filter(Boolean);
 
+const runtimeLock = await acquireRuntimeLock({
+  dataDirectory,
+  appBuild: buildVersion,
+});
 const { database } = openDatabase(databasePath);
 const migration = await migrateDatabase(database, {
   directory: migrationDirectory,
@@ -158,6 +163,7 @@ const app = createApp({
   isEmailDeliveryEnabled: () => deliveryRuntime.status().state === 'running',
   secretStore,
   backupService,
+  isRuntimeLockHeld: runtimeLock.isHeld,
   publicDirectory: process.env.NODE_ENV === 'development' ? undefined : clientDirectory,
   loadPageSnapshots: page =>
     page.sourceRefs.flatMap(sourceId => {
@@ -206,8 +212,12 @@ const shutdown = (signal: NodeJS.Signals) => {
     stopSourcePoller();
     stopBackupScheduler();
     deliveryRuntime.stop();
-    database.close();
-    process.exit(0);
+    try {
+      database.close();
+    } finally {
+      runtimeLock.release();
+      process.exit(0);
+    }
   });
 };
 

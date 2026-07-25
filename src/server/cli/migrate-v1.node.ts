@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import Database from 'better-sqlite3';
 import { legacyEnvironmentKeys } from '../config/legacy-compatibility.js';
+import { acquireRuntimeLock } from '../db/runtime-lock.js';
 
 const cleanEnvironment = () => {
   const legacy = new Set<string>(legacyEnvironmentKeys);
@@ -44,6 +45,19 @@ test('migrate-v1 dry-run writes nothing and execute creates a reversible managed
       targetRevision: 1,
     });
     assert.equal(existsSync(dataDirectory), false);
+
+    const heldLock = await acquireRuntimeLock({ dataDirectory, appBuild: 'test-holder' });
+    try {
+      const blockedExecution = spawnSync(process.execPath, [cliPath, '--execute'], {
+        cwd: directory,
+        env: environment,
+        encoding: 'utf8',
+      });
+      assert.notEqual(blockedExecution.status, 0);
+      assert.match(blockedExecution.stderr, /Another Kuma Mieru runtime owns/u);
+    } finally {
+      heldLock.release();
+    }
 
     const execution = spawnSync(process.execPath, [cliPath, '--execute'], {
       cwd: directory,

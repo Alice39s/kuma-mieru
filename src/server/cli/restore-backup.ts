@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { backupErrorCode, restoreBackupArtifact, validateBackupArtifact } from '../db/backup.js';
+import { acquireRuntimeLock, type RuntimeLock } from '../db/runtime-lock.js';
 
 const argumentsList = process.argv.slice(2);
 const argumentValue = (name: string) => {
@@ -27,7 +28,14 @@ if (!backupId) {
   process.exit(2);
 }
 
+let runtimeLock: RuntimeLock | null = null;
 try {
+  if (execute) {
+    runtimeLock = await acquireRuntimeLock({
+      dataDirectory,
+      appBuild: process.env.KUMA_MIERU_BUILD_VERSION ?? '2.0.0-dev',
+    });
+  }
   const validation = await validateBackupArtifact({
     backupId,
     dataDirectory,
@@ -58,5 +66,7 @@ try {
       message: error instanceof Error ? error.message : 'Backup restore failed',
     })}\n`
   );
-  process.exit(1);
+  process.exitCode = 1;
+} finally {
+  runtimeLock?.release();
 }

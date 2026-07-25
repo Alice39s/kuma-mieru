@@ -38,6 +38,7 @@ test('exposes readiness, compatibility health and public metadata', async () => 
     status: 'ok',
     schemaVersion: 1,
     configMode: 'compatibility',
+    runtimeOwnership: 'exclusive',
   });
 
   const health = await app.request('/api/health');
@@ -52,6 +53,19 @@ test('exposes readiness, compatibility health and public metadata', async () => 
     title: 'Example Status',
     sourceRefs: ['primary'],
   });
+});
+
+test('fails readiness closed when exclusive runtime ownership is lost', async () => {
+  const app = createApp({
+    snapshot,
+    schemaVersion: 1,
+    buildVersion: '2.0.0-test',
+    isRuntimeLockHeld: () => false,
+  });
+  const ready = await app.request('/health/ready');
+  assert.equal(ready.status, 503);
+  const body = (await ready.json()) as { error: { code: string } };
+  assert.equal(body.error.code, 'RUNTIME_LOCK_NOT_HELD');
 });
 
 test('returns a stable JSON error for unknown API routes', async () => {

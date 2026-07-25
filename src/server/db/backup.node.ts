@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { lstat, mkdtemp, readFile, readdir, rm, stat, writeFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -14,6 +15,7 @@ import {
 } from './backup.js';
 import { openDatabase } from './database.js';
 import { migrateDatabase } from './migrator.js';
+import { acquireRuntimeLock } from './runtime-lock.js';
 
 const migrationDirectory = resolve(process.cwd(), 'migrations');
 
@@ -61,6 +63,33 @@ test('creates a private online backup, validates it, and restores it offline', a
 
     fixture.database.prepare('INSERT INTO backup_test_payload (value) VALUES (?)').run('after');
     fixture.database.close();
+    const runtimeLock = await acquireRuntimeLock({
+      dataDirectory: fixture.dataDirectory,
+      appBuild: 'test-holder',
+    });
+    try {
+      const restoreCliPath = resolve(import.meta.dirname, '../cli/restore-backup.js');
+      const blockedRestore = spawnSync(
+        process.execPath,
+        [
+          restoreCliPath,
+          '--backup-id',
+          backup.backupId,
+          '--data-dir',
+          fixture.dataDirectory,
+          '--execute',
+        ],
+        {
+          cwd: process.cwd(),
+          env: { ...process.env, KUMA_MIERU_MIGRATIONS_DIR: migrationDirectory },
+          encoding: 'utf8',
+        }
+      );
+      assert.notEqual(blockedRestore.status, 0);
+      assert.match(blockedRestore.stderr, /"errorCode":"runtime_lock_held"/u);
+    } finally {
+      runtimeLock.release();
+    }
     await writeFile(`${fixture.databasePath}-wal`, 'active');
     await assert.rejects(
       restoreBackupArtifact({

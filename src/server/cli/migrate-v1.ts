@@ -7,6 +7,7 @@ import { buildLegacyMigrationPlan } from '../config/legacy-compatibility.js';
 import { createManagedRevision, getActiveRevision } from '../config/repository.js';
 import { openDatabase } from '../db/database.js';
 import { migrateDatabase } from '../db/migrator.js';
+import { acquireRuntimeLock } from '../db/runtime-lock.js';
 
 const argumentsSet = new Set(process.argv.slice(2));
 const execute = argumentsSet.has('--execute');
@@ -88,63 +89,71 @@ if (dryRun) {
   );
 } else {
   await mkdir(dataDirectory, { recursive: true });
-  const { database } = openDatabase(databasePath);
+  const runtimeLock = await acquireRuntimeLock({
+    dataDirectory,
+    appBuild: process.env.KUMA_MIERU_BUILD_VERSION ?? '2.0.0-dev',
+  });
   try {
-    const migration = await migrateDatabase(database, {
-      directory: migrationDirectory,
-      databasePath,
-      appBuild: process.env.KUMA_MIERU_BUILD_VERSION ?? '2.0.0-dev',
-    });
-    const timestamp = new Date().toISOString().replaceAll(':', '-');
-    const backupDirectory = resolve(dataDirectory, 'migration-backups', `v1-import-${timestamp}`);
-    await mkdir(backupDirectory, { recursive: true });
-    const sqliteBackupPath = resolve(backupDirectory, 'kuma-mieru.pre-import.sqlite3');
-    await database.backup(sqliteBackupPath);
-    let generatedConfigBackupPath: string | null = null;
-    if (existsSync(generatedConfigPath)) {
-      generatedConfigBackupPath = resolve(backupDirectory, 'generated-config.v1.json');
-      await copyFile(generatedConfigPath, generatedConfigBackupPath);
+    const { database } = openDatabase(databasePath);
+    try {
+      const migration = await migrateDatabase(database, {
+        directory: migrationDirectory,
+        databasePath,
+        appBuild: process.env.KUMA_MIERU_BUILD_VERSION ?? '2.0.0-dev',
+      });
+      const timestamp = new Date().toISOString().replaceAll(':', '-');
+      const backupDirectory = resolve(dataDirectory, 'migration-backups', `v1-import-${timestamp}`);
+      await mkdir(backupDirectory, { recursive: true });
+      const sqliteBackupPath = resolve(backupDirectory, 'kuma-mieru.pre-import.sqlite3');
+      await database.backup(sqliteBackupPath);
+      let generatedConfigBackupPath: string | null = null;
+      if (existsSync(generatedConfigPath)) {
+        generatedConfigBackupPath = resolve(backupDirectory, 'generated-config.v1.json');
+        await copyFile(generatedConfigPath, generatedConfigBackupPath);
+      }
+      const previous = getActiveRevision(database);
+      const revision = createManagedRevision(database, plan.config, 'system:migrate-v1');
+      const manifestPath = resolve(backupDirectory, 'migration-manifest.json');
+      await writeFile(
+        manifestPath,
+        `${JSON.stringify(
+          {
+            source: plan.source,
+            contentHash: plan.contentHash,
+            previousRevision: previous?.revision ?? null,
+            importedRevision: revision.revision,
+            sqliteBackupPath,
+            generatedConfigBackupPath,
+            schemaBackupPath: migration.backupPath,
+            conflicts: plan.conflicts,
+            ignoredFields: plan.ignoredFields,
+            decisions: plan.decisions,
+          },
+          null,
+          2
+        )}\n`
+      );
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            action: 'execute',
+            importedRevision: revision.revision,
+            contentHash: revision.contentHash,
+            backupDirectory,
+            sqliteBackupPath,
+            generatedConfigBackupPath,
+            manifestPath,
+            nextStep:
+              'Set KUMA_MIERU_CONFIG_MODE=managed, restart, verify /health/ready, and retain the backup for rollback.',
+          },
+          null,
+          2
+        )}\n`
+      );
+    } finally {
+      database.close();
     }
-    const previous = getActiveRevision(database);
-    const revision = createManagedRevision(database, plan.config, 'system:migrate-v1');
-    const manifestPath = resolve(backupDirectory, 'migration-manifest.json');
-    await writeFile(
-      manifestPath,
-      `${JSON.stringify(
-        {
-          source: plan.source,
-          contentHash: plan.contentHash,
-          previousRevision: previous?.revision ?? null,
-          importedRevision: revision.revision,
-          sqliteBackupPath,
-          generatedConfigBackupPath,
-          schemaBackupPath: migration.backupPath,
-          conflicts: plan.conflicts,
-          ignoredFields: plan.ignoredFields,
-          decisions: plan.decisions,
-        },
-        null,
-        2
-      )}\n`
-    );
-    process.stdout.write(
-      `${JSON.stringify(
-        {
-          action: 'execute',
-          importedRevision: revision.revision,
-          contentHash: revision.contentHash,
-          backupDirectory,
-          sqliteBackupPath,
-          generatedConfigBackupPath,
-          manifestPath,
-          nextStep:
-            'Set KUMA_MIERU_CONFIG_MODE=managed, restart, verify /health/ready, and retain the backup for rollback.',
-        },
-        null,
-        2
-      )}\n`
-    );
   } finally {
-    database.close();
+    runtimeLock.release();
   }
 }

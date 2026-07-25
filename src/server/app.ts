@@ -81,6 +81,7 @@ export interface AppOptions {
   isEmailDeliveryEnabled?: () => boolean;
   secretStore?: SecretStore;
   backupService?: BackupService;
+  isRuntimeLockHeld?: () => boolean;
 }
 
 export const createApp = ({
@@ -107,6 +108,7 @@ export const createApp = ({
   isEmailDeliveryEnabled = () => false,
   secretStore,
   backupService,
+  isRuntimeLockHeld = () => true,
 }: AppOptions) => {
   const app = new Hono<AppEnvironment>();
   const currentSnapshot = () => getRuntimeSnapshot?.() ?? snapshot;
@@ -208,7 +210,19 @@ export const createApp = ({
 
   app.get('/health/live', context => context.json({ status: 'ok' }));
   app.get('/health/ready', context =>
-    context.json({ status: 'ok', schemaVersion, configMode: currentSnapshot().mode })
+    isRuntimeLockHeld()
+      ? context.json({
+          status: 'ok',
+          schemaVersion,
+          configMode: currentSnapshot().mode,
+          runtimeOwnership: 'exclusive',
+        })
+      : errorResponse(
+          context,
+          503,
+          'RUNTIME_LOCK_NOT_HELD',
+          'Runtime does not own the data directory'
+        )
   );
   app.get('/api/health', context => {
     context.header('Cache-Control', 'no-store');
