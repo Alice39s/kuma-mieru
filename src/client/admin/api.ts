@@ -386,6 +386,36 @@ export interface AdminTwoFactorStatus {
   recoveryCodesConfigured: boolean;
 }
 
+export interface AdminOidcProvider {
+  enabled: boolean;
+  configured: boolean;
+  displayName: string | null;
+  discoveryUrl: string | null;
+  issuer: string | null;
+  clientId: string | null;
+  clientSecretConfigured: boolean;
+  tokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post' | null;
+  version: number;
+}
+
+export interface AdminOidcMapping {
+  subject: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: AdminRole;
+  createdAt: string;
+}
+
+export interface AuthenticationMethods {
+  passkey: true;
+  password: true;
+  oidc: {
+    providerId: 'kuma-oidc';
+    displayName: string;
+  } | null;
+}
+
 export type SignInResult =
   | { state: 'authenticated' }
   | { state: 'two_factor_required'; methods: Array<'totp' | 'backup_code'> };
@@ -485,6 +515,16 @@ export const signIn = (input: { email: string; password: string }) =>
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  });
+
+export const getAuthenticationMethods = async () =>
+  (await request<{ data: AuthenticationMethods }>('/api/v1/auth/methods')).data;
+
+export const beginOidcSignIn = () =>
+  request<{ data: { url: string } }>('/api/v1/auth/oidc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
   });
 
 export const verifySignInTotp = (input: { code: string; trustDevice: boolean }) =>
@@ -1003,6 +1043,64 @@ export const revokeAdminUserSession = (session: AdminSession, userId: string, se
       method: 'DELETE',
       headers: mutationHeaders(session),
       body: '{}',
+    }
+  );
+
+export const getAdminOidcProvider = async () =>
+  (await request<{ data: AdminOidcProvider }>('/api/v1/admin/security/oidc')).data;
+
+export const configureAdminOidcProvider = (
+  session: AdminSession,
+  input: {
+    expectedVersion: number;
+    displayName: string;
+    discoveryUrl: string;
+    clientId: string;
+    clientSecret?: string;
+    tokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post';
+  }
+) =>
+  request<{ data: AdminOidcProvider }>('/api/v1/admin/security/oidc', {
+    method: 'PUT',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
+
+export const disableAdminOidcProvider = (session: AdminSession, expectedVersion: number) =>
+  request<{ data: AdminOidcProvider }>('/api/v1/admin/security/oidc/disable', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify({ expectedVersion }),
+  });
+
+export const getAdminOidcMappings = async () =>
+  (await request<{ data: AdminOidcMapping[] }>('/api/v1/admin/security/oidc/mappings')).data;
+
+export const configureAdminOidcMapping = (
+  session: AdminSession,
+  userId: string,
+  input: { expectedSubject: string | null; subject: string }
+) =>
+  request<{ data: AdminOidcMapping }>(
+    `/api/v1/admin/security/oidc/mappings/${encodeURIComponent(userId)}`,
+    {
+      method: 'PUT',
+      headers: mutationHeaders(session),
+      body: JSON.stringify(input),
+    }
+  );
+
+export const deleteAdminOidcMapping = (
+  session: AdminSession,
+  userId: string,
+  expectedSubject: string
+) =>
+  request<{ data: { userId: string; removed: true; revokedSessions: number } }>(
+    `/api/v1/admin/security/oidc/mappings/${encodeURIComponent(userId)}`,
+    {
+      method: 'DELETE',
+      headers: mutationHeaders(session),
+      body: JSON.stringify({ expectedSubject }),
     }
   );
 

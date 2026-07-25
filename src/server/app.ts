@@ -16,6 +16,7 @@ import { registerAuthenticationRoutes } from './auth/routes.js';
 import { errorResponse, type AppEnvironment } from './api/errors.js';
 import type { KumaAuth } from './auth/auth.js';
 import type { BootstrapService } from './auth/bootstrap.js';
+import { oidcProviderId, type OidcControlPlane } from './auth/oidc.js';
 import type { ConfigRevision } from './config/repository.js';
 import type { FileReloadResult, FileReloadStatus } from './config/file-reloader.js';
 import type { CanonicalConfig } from './config/schema.js';
@@ -99,7 +100,10 @@ export interface AppOptions {
   getRuntimeSnapshot?: () => RuntimeConfigSnapshot;
   database?: Database.Database;
   auth?: KumaAuth;
+  getAuth?: () => KumaAuth;
   authSecret?: string;
+  oidc?: OidcControlPlane;
+  onAuthConfigurationChanged?: () => void | Promise<void>;
   trustedOrigins?: string[];
   onManagedRevision?: (revision: ConfigRevision) => void | Promise<void>;
   getFileReloadStatus?: () => FileReloadStatus;
@@ -131,7 +135,10 @@ export const createApp = ({
   getRuntimeSnapshot,
   database,
   auth,
+  getAuth,
   authSecret,
+  oidc,
+  onAuthConfigurationChanged,
   trustedOrigins = [],
   onManagedRevision,
   getFileReloadStatus,
@@ -152,6 +159,7 @@ export const createApp = ({
 }: AppOptions) => {
   const app = new Hono<AppEnvironment>();
   const currentSnapshot = () => getRuntimeSnapshot?.() ?? snapshot;
+  const currentAuth = () => getAuth?.() ?? auth;
   const piiProtector = authSecret ? createPiiProtector(authSecret) : null;
   const subscriptionNonce = authSecret ? createSubscriptionNonceService(authSecret) : null;
   const findPage = (slug: string) =>
@@ -358,12 +366,18 @@ export const createApp = ({
     })
   );
 
-  registerAuthenticationRoutes(app, { auth, trustedOrigins });
+  registerAuthenticationRoutes(app, { auth, getAuth, oidc, trustedOrigins });
 
   app.on(['GET', 'POST'], '/api/auth/*', context => {
-    if (context.req.path !== '/api/auth/sign-out') return context.notFound();
-    return auth
-      ? auth.handler(context.req.raw)
+    const signOut = context.req.method === 'POST' && context.req.path === '/api/auth/sign-out';
+    const oidcCallback =
+      context.req.method === 'GET' &&
+      context.req.path === `/api/auth/oauth2/callback/${oidcProviderId}` &&
+      Boolean(oidc?.getPublicProvider());
+    if (!signOut && !oidcCallback) return context.notFound();
+    const resolvedAuth = currentAuth();
+    return resolvedAuth
+      ? resolvedAuth.handler(context.req.raw)
       : errorResponse(context, 503, 'AUTH_NOT_READY', 'Authentication is not configured');
   });
 
@@ -1140,6 +1154,8 @@ export const createApp = ({
     backupService,
     retentionService,
     subscriberTombstones,
+    oidc,
+    onAuthConfigurationChanged,
   });
 
   app.get('/:pageId', async (context, next) => {

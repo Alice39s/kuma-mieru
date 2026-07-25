@@ -97,6 +97,58 @@ test('verifies and commits a source before composing its public page', async ({ 
   await assertAccessible(page);
 });
 
+test('validates Generic OIDC and maps an issuer subject to an existing local user', async ({
+  page,
+}) => {
+  const state = await installAdminApi(page);
+  await page.goto('/admin/');
+  await page.getByRole('button', { name: 'Access' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Generic OpenID Connect' })).toBeVisible();
+  await page.getByLabel('Login button label').fill('Company SSO');
+  await page
+    .getByLabel('Discovery URL')
+    .fill('https://id.example.com/.well-known/openid-configuration');
+  await page.getByLabel('Confidential client ID').fill('kuma-mieru-e2e');
+  await page.getByLabel('Client secret').fill('write-only-e2e-secret');
+  await page.getByRole('button', { name: 'Validate and enable' }).click();
+
+  await expect(page.getByText('active', { exact: true })).toBeVisible();
+  expect(state.oidcProvider).toMatchObject({
+    enabled: true,
+    displayName: 'Company SSO',
+    clientId: 'kuma-mieru-e2e',
+    clientSecretConfigured: true,
+    version: 1,
+  });
+  await dismissNotifications(page);
+
+  const viewerMapping = page.locator('.oidc-mapping-ledger article').filter({
+    hasText: 'OIDC Viewer',
+  });
+  await viewerMapping.getByLabel('Exact `sub` claim').fill('issuer-viewer-subject');
+  await viewerMapping.getByRole('button', { name: 'Review mapping' }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByLabel(/Type viewer-e2e-reference to confirm/u).fill('viewer-e2e-reference');
+  await page.getByRole('button', { name: 'Apply and revoke sessions' }).click();
+
+  await expect
+    .poll(() => state.oidcMappings)
+    .toEqual([
+      {
+        subject: 'issuer-viewer-subject',
+        userId: 'viewer-e2e-reference',
+        name: 'OIDC Viewer',
+        email: 'viewer@example.com',
+        role: 'viewer',
+        createdAt: '2026-07-25T02:00:00.000Z',
+      },
+    ]);
+  expect(state.mutationHeaders).toHaveLength(2);
+  expect(state.mutationHeaders.every(headers => headers.csrf === 'e2e-csrf-token')).toBe(true);
+  await assertAccessible(page);
+});
+
 test('keeps Viewer access read-only across configuration and event surfaces', async ({ page }) => {
   await installAdminApi(page, { role: 'viewer' });
   await page.goto('/admin/');

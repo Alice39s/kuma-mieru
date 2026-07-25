@@ -1736,6 +1736,137 @@
   gap: 0.65rem;
   margin-top: 0.85rem;
 }
+.oidc-access-card {
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: 1.2rem;
+  background: var(--admin-surface);
+}
+.oidc-access-card > .access-section-heading > span {
+  width: auto;
+  padding: 0 0.7rem;
+  text-transform: uppercase;
+}
+.oidc-access-card > .access-section-heading > span.is-enabled {
+  border-color: color-mix(in srgb, var(--admin-accent) 35%, var(--admin-line));
+  background: color-mix(in srgb, var(--admin-accent) 8%, transparent);
+  color: var(--admin-accent);
+}
+.oidc-access-intro {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--admin-line);
+}
+.oidc-access-intro > svg {
+  color: var(--admin-accent);
+}
+.oidc-access-intro p {
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 0.68rem;
+  line-height: 1.65;
+}
+.oidc-access-grid {
+  display: grid;
+  grid-template-columns: minmax(19rem, 0.75fr) minmax(0, 1.45fr);
+}
+.oidc-provider-form {
+  padding: 1.25rem;
+  border-right: 1px solid var(--admin-line);
+}
+.oidc-mapping-ledger {
+  min-width: 0;
+}
+.oidc-mapping-ledger > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--admin-line);
+}
+.oidc-mapping-ledger > header p,
+.oidc-mapping-ledger > header h3 {
+  margin: 0;
+}
+.oidc-mapping-ledger > header h3 {
+  font:
+    600 1.35rem 'Newsreader Variable',
+    serif;
+}
+.oidc-mapping-ledger > header > span {
+  color: var(--admin-muted);
+  font-size: 0.7rem;
+}
+.oidc-mapping-ledger article {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.65fr) minmax(12rem, 1fr) auto;
+  align-items: end;
+  gap: 0.8rem;
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--admin-line);
+}
+.oidc-mapping-ledger article:last-child {
+  border-bottom: 0;
+}
+.oidc-mapping-ledger article > div:first-child {
+  display: grid;
+  gap: 0.18rem;
+  align-self: center;
+}
+.oidc-mapping-ledger article small {
+  overflow: hidden;
+  color: var(--admin-muted);
+  font-size: 0.65rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.oidc-mapping-ledger .admin-field {
+  margin: 0;
+}
+.oidc-mapping-actions {
+  display: flex;
+  gap: 0.45rem;
+}
+.oidc-disable-review {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(10rem, 0.35fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--admin-red, #9d302d) 30%, var(--admin-line));
+  background: color-mix(in srgb, var(--admin-red, #9d302d) 3%, transparent);
+}
+.oidc-disable-review > svg {
+  color: var(--admin-red, #9d302d);
+}
+.oidc-disable-review strong {
+  font-size: 0.74rem;
+}
+.oidc-disable-review p {
+  margin: 0.2rem 0 0;
+  color: var(--admin-muted);
+  font-size: 0.65rem;
+}
+.oidc-disable-review input {
+  min-width: 0;
+  border: 1px solid var(--admin-line);
+  border-radius: 0.65rem;
+  background: var(--admin-canvas);
+  color: var(--admin-ink);
+}
+.oidc-mapping-review {
+  margin: 0 1.25rem 1.25rem;
+}
+.oidc-mapping-review h3 {
+  margin: 0.15rem 0 0.35rem;
+  font:
+    600 1.45rem 'Newsreader Variable',
+    serif;
+}
 .security-workspace {
   display: grid;
   gap: 1.25rem;
@@ -2073,14 +2204,27 @@
   .smtp-control-grid,
   .lifecycle-grid,
   .access-grid,
+  .oidc-access-grid,
   .security-grid,
   .attention-queue {
     grid-template-columns: 1fr;
   }
   .two-factor-summary,
   .two-factor-password-review,
-  .two-factor-verify {
+  .two-factor-verify,
+  .oidc-access-intro,
+  .oidc-disable-review {
     grid-template-columns: 1fr;
+  }
+  .oidc-provider-form {
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-line);
+  }
+  .oidc-mapping-ledger article {
+    grid-template-columns: minmax(10rem, 0.65fr) minmax(12rem, 1fr);
+  }
+  .oidc-mapping-actions {
+    grid-column: 2;
   }
   .two-factor-summary > .security-passkey-actions {
     justify-content: flex-start;
@@ -2220,6 +2364,12 @@
   .access-session-list article > button {
     grid-column: 2;
     justify-self: start;
+  }
+  .oidc-mapping-ledger article {
+    grid-template-columns: 1fr;
+  }
+  .oidc-mapping-actions {
+    grid-column: auto;
   }
   .access-review-actions {
     flex-direction: column;

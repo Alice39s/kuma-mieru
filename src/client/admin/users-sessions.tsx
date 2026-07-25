@@ -23,6 +23,7 @@ import {
   matchesUserConfirmation,
   roleChangeWarning,
 } from './users-model';
+import { OidcAccess } from './oidc-access';
 
 const createUserSchema = z
   .object({
@@ -377,6 +378,15 @@ export const UsersSessions = ({ session }: { session: AdminSession }) => {
           </div>
         )}
       </section>
+
+      <OidcAccess
+        session={session}
+        users={users}
+        onSessionsChanged={async () => {
+          await loadUsers();
+          if (selectedUserId) await loadSessions(selectedUserId);
+        }}
+      />
 
       {roleReview ? (
         <section className="access-risk-review" aria-live="polite">

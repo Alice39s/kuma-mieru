@@ -1,13 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { startAuthentication } from '@simplewebauthn/browser';
-import { ArrowLeft, ArrowRight, Fingerprint, KeyRound, ShieldCheck } from 'lucide-react';
-import { useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { ArrowLeft, ArrowRight, Building2, Fingerprint, KeyRound, ShieldCheck } from 'lucide-react';
+import { useEffect, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   beginPasskeySignIn,
+  beginOidcSignIn,
   completePasskeySignIn,
   createOwner,
+  getAuthenticationMethods,
   signIn,
+  type AuthenticationMethods,
   verifySignInBackupCode,
   verifySignInTotp,
 } from './api';
@@ -142,9 +145,11 @@ export const SetupGate = ({ onComplete }: AuthGateProps) => {
 
 export const LoginGate = ({ onComplete }: AuthGateProps) => {
   const [failure, setFailure] = useState<string | null>(null);
+  const [methods, setMethods] = useState<AuthenticationMethods | null>(null);
   const [stage, setStage] = useState<'password' | 'two_factor'>('password');
   const [method, setMethod] = useState<'totp' | 'backup_code'>('totp');
   const [passkeySubmitting, setPasskeySubmitting] = useState(false);
+  const [oidcSubmitting, setOidcSubmitting] = useState(false);
   const form = useForm<SignInInput>({
     resolver: zodResolver(signInSchema),
     defaultValues: { email: '', password: '' },
@@ -153,6 +158,16 @@ export const LoginGate = ({ onComplete }: AuthGateProps) => {
     resolver: zodResolver(twoFactorChallengeSchema),
     defaultValues: { code: '', trustDevice: false },
   });
+  useEffect(() => {
+    void getAuthenticationMethods()
+      .then(setMethods)
+      .catch(() => setMethods(null));
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('authError')) {
+      setFailure('The identity provider could not verify this account mapping.');
+      window.history.replaceState(null, '', `${url.pathname}${url.hash}`);
+    }
+  }, []);
   const submit = form.handleSubmit(async input => {
     setFailure(null);
     try {
@@ -220,6 +235,17 @@ export const LoginGate = ({ onComplete }: AuthGateProps) => {
       setPasskeySubmitting(false);
     }
   };
+  const signInWithOidc = async () => {
+    setFailure(null);
+    setOidcSubmitting(true);
+    try {
+      const result = await beginOidcSignIn();
+      window.location.assign(result.data.url);
+    } catch {
+      setFailure('The identity provider sign-in could not be started.');
+      setOidcSubmitting(false);
+    }
+  };
 
   return (
     <AuthStage
@@ -248,6 +274,19 @@ export const LoginGate = ({ onComplete }: AuthGateProps) => {
               <Fingerprint size={17} />
               {passkeySubmitting ? 'Waiting for passkey…' : 'Continue with a passkey'}
             </button>
+            {methods?.oidc ? (
+              <button
+                className="admin-secondary-button"
+                disabled={oidcSubmitting || passkeySubmitting || form.formState.isSubmitting}
+                onClick={() => void signInWithOidc()}
+                type="button"
+              >
+                <Building2 size={17} />
+                {oidcSubmitting
+                  ? 'Opening identity provider…'
+                  : `Continue with ${methods.oidc.displayName}`}
+              </button>
+            ) : null}
             <div className="auth-method-divider">
               <span>or use recovery credentials</span>
             </div>

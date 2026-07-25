@@ -118,6 +118,39 @@ interface SmtpStatus {
       };
 }
 
+interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  role: AdminRole;
+  createdAt: string;
+  updatedAt: string;
+  activeSessionCount: number;
+  passkeyCount: number;
+}
+
+interface AdminOidcProvider {
+  enabled: boolean;
+  configured: boolean;
+  displayName: string | null;
+  discoveryUrl: string | null;
+  issuer: string | null;
+  clientId: string | null;
+  clientSecretConfigured: boolean;
+  tokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post' | null;
+  version: number;
+}
+
+interface AdminOidcMapping {
+  subject: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: AdminRole;
+  createdAt: string;
+}
+
 export interface AdminApiOptions {
   empty?: boolean;
   role?: AdminRole;
@@ -131,6 +164,8 @@ export interface AdminApiState {
   deliveries: AdminDelivery[];
   incidents: AdminIncident[];
   mutationHeaders: Array<{ csrf: string | null; origin: string | null }>;
+  oidcMappings: AdminOidcMapping[];
+  oidcProvider: AdminOidcProvider;
   ownerSetup: { email: string; name: string; password: string; token: string } | null;
   pages: AdminPage[];
   publications: Array<{
@@ -146,6 +181,7 @@ export interface AdminApiState {
   sources: AdminSource[];
   stagedCredentials: boolean;
   subscribers: AdminSubscriber[];
+  users: AdminUser[];
 }
 
 const fulfillJson = (route: Route, body: unknown, status = 200) =>
@@ -252,6 +288,18 @@ export const installAdminApi = async (
     deliveries: options.withDelivery ? [{ ...referenceDelivery }] : [],
     incidents: options.withIncident ? [{ ...referenceIncident }] : [],
     mutationHeaders: [],
+    oidcMappings: [],
+    oidcProvider: {
+      enabled: false,
+      configured: false,
+      displayName: null,
+      discoveryUrl: null,
+      issuer: null,
+      clientId: null,
+      clientSecretConfigured: false,
+      tokenEndpointAuthMethod: null,
+      version: 0,
+    },
     ownerSetup: null,
     pages: options.empty ? [] : [{ ...referencePage }],
     publications: [],
@@ -262,6 +310,30 @@ export const installAdminApi = async (
     sources: options.empty ? [] : [{ ...referenceSource }],
     stagedCredentials: false,
     subscribers: options.withDelivery ? [{ ...referenceSubscriber }] : [],
+    users: [
+      {
+        id: 'owner-e2e-reference',
+        name: 'Reference Owner',
+        email: 'owner@example.com',
+        emailVerified: true,
+        role: 'owner',
+        createdAt: '2026-07-25T01:00:00.000Z',
+        updatedAt: '2026-07-25T01:00:00.000Z',
+        activeSessionCount: 1,
+        passkeyCount: 1,
+      },
+      {
+        id: 'viewer-e2e-reference',
+        name: 'OIDC Viewer',
+        email: 'viewer@example.com',
+        emailVerified: true,
+        role: 'viewer',
+        createdAt: '2026-07-25T01:10:00.000Z',
+        updatedAt: '2026-07-25T01:10:00.000Z',
+        activeSessionCount: 0,
+        passkeyCount: 0,
+      },
+    ],
   };
   const revisions: AdminRevision[] = options.empty
     ? [
@@ -317,6 +389,21 @@ export const installAdminApi = async (
       });
     }
 
+    if (pathname === '/api/v1/auth/methods' && method === 'GET') {
+      return fulfillJson(route, {
+        data: {
+          passkey: true,
+          password: true,
+          oidc: state.oidcProvider.enabled
+            ? {
+                providerId: 'kuma-oidc',
+                displayName: state.oidcProvider.displayName,
+              }
+            : null,
+        },
+      });
+    }
+
     if (pathname === '/api/v1/setup/owner' && method === 'POST') {
       const input = parseBody<{ email: string; name: string; password: string; token: string }>(
         route
@@ -326,7 +413,10 @@ export const installAdminApi = async (
       return fulfillJson(route, { data: { userId: 'owner-e2e-reference', role: 'owner' } });
     }
 
-    if (pathname === '/api/auth/sign-in/email' && method === 'POST') {
+    if (
+      ['/api/auth/sign-in/email', '/api/v1/auth/sign-in'].includes(pathname) &&
+      method === 'POST'
+    ) {
       state.authenticated = true;
       return fulfillJson(route, { data: { accepted: true } });
     }
@@ -350,6 +440,92 @@ export const installAdminApi = async (
           role: state.role,
           csrfToken: 'e2e-csrf-token',
         },
+      });
+    }
+
+    if (pathname === '/api/v1/admin/users' && method === 'GET') {
+      return fulfillJson(route, { data: state.users });
+    }
+
+    const userSessions = pathname.match(/^\/api\/v1\/admin\/users\/([^/]+)\/sessions$/);
+    if (userSessions && method === 'GET') {
+      const userId = decodeURIComponent(userSessions[1] ?? '');
+      return fulfillJson(route, {
+        data:
+          userId === 'owner-e2e-reference'
+            ? [
+                {
+                  id: 'session-owner-reference',
+                  userId,
+                  createdAt: '2026-07-25T01:00:00.000Z',
+                  updatedAt: '2026-07-25T01:00:00.000Z',
+                  expiresAt: '2026-07-26T01:00:00.000Z',
+                  current: true,
+                },
+              ]
+            : [],
+      });
+    }
+
+    if (pathname === '/api/v1/admin/security/oidc' && method === 'GET') {
+      return fulfillJson(route, { data: state.oidcProvider });
+    }
+
+    if (pathname === '/api/v1/admin/security/oidc' && method === 'PUT') {
+      recordMutationBoundary(route, state);
+      const input = parseBody<{
+        expectedVersion: number;
+        displayName: string;
+        discoveryUrl: string;
+        clientId: string;
+        clientSecret?: string;
+        tokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post';
+      }>(route);
+      state.oidcProvider = {
+        enabled: true,
+        configured: true,
+        displayName: input.displayName,
+        discoveryUrl: input.discoveryUrl,
+        issuer: 'https://id.example.com/',
+        clientId: input.clientId,
+        clientSecretConfigured:
+          state.oidcProvider.clientSecretConfigured || Boolean(input.clientSecret),
+        tokenEndpointAuthMethod: input.tokenEndpointAuthMethod,
+        version: input.expectedVersion + 1,
+      };
+      return fulfillJson(route, { data: state.oidcProvider });
+    }
+
+    if (pathname === '/api/v1/admin/security/oidc/mappings' && method === 'GET') {
+      return fulfillJson(route, { data: state.oidcMappings });
+    }
+
+    const oidcMapping = pathname.match(/^\/api\/v1\/admin\/security\/oidc\/mappings\/([^/]+)$/);
+    if (oidcMapping && method === 'PUT') {
+      recordMutationBoundary(route, state);
+      const userId = decodeURIComponent(oidcMapping[1] ?? '');
+      const user = state.users.find(candidate => candidate.id === userId);
+      const input = parseBody<{ expectedSubject: string | null; subject: string }>(route);
+      if (!user) return fulfillJson(route, { error: { code: 'NOT_FOUND' } }, 404);
+      state.oidcMappings = state.oidcMappings.filter(mapping => mapping.userId !== userId);
+      const mapping: AdminOidcMapping = {
+        subject: input.subject,
+        userId,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        createdAt: '2026-07-25T02:00:00.000Z',
+      };
+      state.oidcMappings.push(mapping);
+      return fulfillJson(route, { data: mapping });
+    }
+
+    if (oidcMapping && method === 'DELETE') {
+      recordMutationBoundary(route, state);
+      const userId = decodeURIComponent(oidcMapping[1] ?? '');
+      state.oidcMappings = state.oidcMappings.filter(mapping => mapping.userId !== userId);
+      return fulfillJson(route, {
+        data: { userId, removed: true, revokedSessions: 0 },
       });
     }
 

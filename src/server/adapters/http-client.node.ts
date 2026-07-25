@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   createHttpBinaryClient,
   createHttpJsonClient,
+  createHttpJsonRequestClient,
   parsePrivateAddressCidrs,
 } from './http-client.js';
 
@@ -335,6 +336,33 @@ test('strips credentials before following a cross-origin redirect', async () => 
   assert.equal(requests[0]?.authorization, 'Bearer private-token');
   assert.equal(requests[1]?.authorization, null);
   assert.equal(requests[1]?.safeHeader, 'preserved');
+});
+
+test('never forwards a request body across redirects', async () => {
+  let requests = 0;
+  const client = createHttpJsonRequestClient({
+    resolveHost: async () => [{ address: '203.0.113.10', family: 4 }],
+    fetchImplementation: async () => {
+      requests += 1;
+      return new Response(null, {
+        status: 307,
+        headers: { Location: 'https://api-two.example.com/token' },
+      });
+    },
+  });
+  await assert.rejects(
+    client(new URL('https://api-one.example.com/token'), {
+      method: 'POST',
+      headers: { Authorization: 'Basic private-credential' },
+      body: 'client_secret=private-value',
+    }),
+    error =>
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'redirect_rejected'
+  );
+  assert.equal(requests, 1);
 });
 
 test('pins the connection to the prevalidated address without a second system lookup', async () => {

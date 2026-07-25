@@ -3,6 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { errorResponse, type AppEnvironment } from '../api/errors.js';
 import type { KumaAuth } from './auth.js';
+import type { OidcControlPlane } from './oidc.js';
 import { isTrustedBrowserMutation } from './security.js';
 
 const signInSchema = z
@@ -53,10 +54,10 @@ const dispatchAuthRequest = (
   auth: KumaAuth,
   path: string,
   body: unknown,
-  method: 'GET' | 'POST' = 'POST'
+  method: 'GET' | 'POST' = 'POST',
+  baseURL?: string
 ) => {
-  const url = new URL(context.req.url);
-  url.pathname = `/api/auth${path}`;
+  const url = new URL(`/api/auth${path}`, baseURL ?? context.req.url);
   url.search = '';
   const headers = new Headers(context.req.raw.headers);
   if (method === 'POST') headers.set('content-type', 'application/json');
@@ -96,12 +97,18 @@ export const registerAuthenticationRoutes = (
   app: Hono<AppEnvironment>,
   {
     auth,
+    getAuth,
+    oidc,
     trustedOrigins,
   }: {
     auth?: KumaAuth;
+    getAuth?: () => KumaAuth;
+    oidc?: OidcControlPlane;
     trustedOrigins: string[];
   }
 ) => {
+  const currentAuth = () => getAuth?.() ?? auth;
+
   app.use(
     '/api/v1/auth/*',
     bodyLimit({
@@ -116,13 +123,79 @@ export const registerAuthenticationRoutes = (
     context.header('Cache-Control', 'no-store');
   });
 
+  app.get('/api/v1/auth/methods', context =>
+    context.json({
+      data: {
+        passkey: true,
+        password: true,
+        oidc: oidc?.getPublicProvider() ?? null,
+      },
+    })
+  );
+
+  app.post('/api/v1/auth/oidc', async context => {
+    const rejected = requireTrustedJson(context, trustedOrigins);
+    if (rejected) return rejected;
+    const provider = oidc?.getPublicProvider();
+    const resolvedAuth = currentAuth();
+    if (!provider || !resolvedAuth) return authUnavailable(context);
+    try {
+      z.object({})
+        .strict()
+        .parse(await context.req.json());
+      const trustedOrigin = context.req.header('Origin') ?? trustedOrigins[0];
+      if (!trustedOrigin) return authUnavailable(context);
+      const callbackURL = new URL('/admin', trustedOrigin).toString();
+      const errorCallbackURL = new URL('/admin?authError=oidc', trustedOrigin).toString();
+      const authResponse = await dispatchAuthRequest(
+        context,
+        resolvedAuth,
+        '/sign-in/oauth2',
+        {
+          providerId: provider.providerId,
+          callbackURL,
+          errorCallbackURL,
+          disableRedirect: true,
+          requestSignUp: false,
+        },
+        'POST',
+        trustedOrigin
+      );
+      if (!authResponse.ok) return authenticationFailure(context, authResponse);
+      forwardAuthHeaders(context, authResponse.headers);
+      const response = z
+        .object({
+          url: z.url(),
+          redirect: z.boolean(),
+        })
+        .parse(await authResponse.json());
+      if (!oidc?.isAuthorizationUrlAllowed(response.url)) {
+        return errorResponse(
+          context,
+          502,
+          'OIDC_AUTHORIZATION_URL_REJECTED',
+          'OIDC authorization endpoint is invalid'
+        );
+      }
+      return context.json({ data: { url: response.url } });
+    } catch {
+      return invalidAuthentication(context);
+    }
+  });
+
   app.post('/api/v1/auth/sign-in', async context => {
     const rejected = requireTrustedJson(context, trustedOrigins);
     if (rejected) return rejected;
-    if (!auth) return authUnavailable(context);
+    const resolvedAuth = currentAuth();
+    if (!resolvedAuth) return authUnavailable(context);
     try {
       const input = signInSchema.parse(await context.req.json());
-      const authResponse = await dispatchAuthRequest(context, auth, '/sign-in/email', input);
+      const authResponse = await dispatchAuthRequest(
+        context,
+        resolvedAuth,
+        '/sign-in/email',
+        input
+      );
       if (!authResponse.ok) return authenticationFailure(context, authResponse);
       forwardAuthHeaders(context, authResponse.headers);
       const response = (await authResponse.json()) as {
@@ -149,14 +222,15 @@ export const registerAuthenticationRoutes = (
   app.post('/api/v1/auth/passkey/options', async context => {
     const rejected = requireTrustedJson(context, trustedOrigins);
     if (rejected) return rejected;
-    if (!auth) return authUnavailable(context);
+    const resolvedAuth = currentAuth();
+    if (!resolvedAuth) return authUnavailable(context);
     try {
       z.object({})
         .strict()
         .parse(await context.req.json());
       const authResponse = await dispatchAuthRequest(
         context,
-        auth,
+        resolvedAuth,
         '/passkey/generate-authenticate-options',
         undefined,
         'GET'
@@ -172,12 +246,13 @@ export const registerAuthenticationRoutes = (
   app.post('/api/v1/auth/passkey/verify', async context => {
     const rejected = requireTrustedJson(context, trustedOrigins);
     if (rejected) return rejected;
-    if (!auth) return authUnavailable(context);
+    const resolvedAuth = currentAuth();
+    if (!resolvedAuth) return authUnavailable(context);
     try {
       const input = passkeyAuthenticationSchema.parse(await context.req.json());
       const authResponse = await dispatchAuthRequest(
         context,
-        auth,
+        resolvedAuth,
         '/passkey/verify-authentication',
         input
       );
@@ -192,12 +267,13 @@ export const registerAuthenticationRoutes = (
   app.post('/api/v1/auth/two-factor/totp', async context => {
     const rejected = requireTrustedJson(context, trustedOrigins);
     if (rejected) return rejected;
-    if (!auth) return authUnavailable(context);
+    const resolvedAuth = currentAuth();
+    if (!resolvedAuth) return authUnavailable(context);
     try {
       const input = totpChallengeSchema.parse(await context.req.json());
       const authResponse = await dispatchAuthRequest(
         context,
-        auth,
+        resolvedAuth,
         '/two-factor/verify-totp',
         input
       );
@@ -212,12 +288,13 @@ export const registerAuthenticationRoutes = (
   app.post('/api/v1/auth/two-factor/backup-code', async context => {
     const rejected = requireTrustedJson(context, trustedOrigins);
     if (rejected) return rejected;
-    if (!auth) return authUnavailable(context);
+    const resolvedAuth = currentAuth();
+    if (!resolvedAuth) return authUnavailable(context);
     try {
       const input = backupCodeChallengeSchema.parse(await context.req.json());
       const authResponse = await dispatchAuthRequest(
         context,
-        auth,
+        resolvedAuth,
         '/two-factor/verify-backup-code',
         input
       );

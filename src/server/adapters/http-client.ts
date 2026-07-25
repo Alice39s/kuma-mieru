@@ -28,6 +28,12 @@ export interface HttpJsonResponse {
   lastModified: string | null;
 }
 
+export interface HttpJsonRequest {
+  method?: 'GET' | 'POST';
+  headers?: Record<string, string>;
+  body?: string;
+}
+
 export interface HttpBinaryResponse {
   status: 200 | 304;
   data: Uint8Array | null;
@@ -374,10 +380,15 @@ const createHttpBodyClient = (
     );
   }
 
-  return async (inputUrl: URL, headers: Record<string, string> = {}): Promise<HttpBodyResponse> => {
+  return async (
+    inputUrl: URL,
+    headers: Record<string, string> = {},
+    request: Pick<HttpJsonRequest, 'method' | 'body'> = {}
+  ): Promise<HttpBodyResponse> => {
     const deadline = Date.now() + timeoutMs;
     let url = new URL(inputUrl);
     let requestHeaders = { ...headers };
+    const method = request.method ?? 'GET';
     for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
       const addresses = await withinDeadline(
         resolveTarget(url, privateAddressAllowlist, resolveHost, allowedOrigins),
@@ -389,8 +400,9 @@ const createHttpBodyClient = (
         try {
           response = await withinDeadline(
             fetchImplementation(url, {
-              method: 'GET',
+              method,
               headers: { Accept: accept, ...requestHeaders },
+              body: request.body,
               redirect: 'manual',
               signal: AbortSignal.timeout(remainingTime(deadline)),
               dispatcher,
@@ -404,6 +416,12 @@ const createHttpBodyClient = (
         if (response.status >= 300 && response.status < 400 && response.status !== 304) {
           const location = response.headers.get('location');
           await response.body?.cancel();
+          if (method !== 'GET' || request.body !== undefined) {
+            throw requestError(
+              'redirect_rejected',
+              'Redirects are not allowed for non-GET requests or request bodies'
+            );
+          }
           if (!location || redirectCount === maxRedirects) {
             throw requestError('redirect_rejected', 'Source redirect limit exceeded');
           }
@@ -468,14 +486,20 @@ const createHttpBodyClient = (
 };
 
 export const createHttpJsonClient = (options: HttpJsonClientOptions = {}) => {
+  const requestJson = createHttpJsonRequestClient(options);
+  return (inputUrl: URL, headers: Record<string, string> = {}) =>
+    requestJson(inputUrl, { headers });
+};
+
+export const createHttpJsonRequestClient = (options: HttpJsonClientOptions = {}) => {
   const requestBody = createHttpBodyClient(
     options,
     'application/json',
     contentType => contentType === 'application/json' || contentType.endsWith('+json'),
     'Source did not return JSON'
   );
-  return async (inputUrl: URL, headers: Record<string, string> = {}): Promise<HttpJsonResponse> => {
-    const response = await requestBody(inputUrl, headers);
+  return async (inputUrl: URL, request: HttpJsonRequest = {}): Promise<HttpJsonResponse> => {
+    const response = await requestBody(inputUrl, request.headers, request);
     if (response.status === 304) {
       return {
         status: 304,

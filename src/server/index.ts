@@ -11,6 +11,7 @@ import { getSourceSnapshotState } from './adapters/source-store.js';
 import { createSourceTestService } from './adapters/source-test.js';
 import { createAuth } from './auth/auth.js';
 import { createBootstrapService } from './auth/bootstrap.js';
+import { createOidcControlPlane } from './auth/oidc.js';
 import { loadOrCreateAuthSecret } from './auth/secret.js';
 import { loadRuntimeConfig } from './config/runtime-config.js';
 import { extendRetentionPolicy, resolveRetentionPolicy } from './config/schema.js';
@@ -100,7 +101,23 @@ const secretKeyring = await loadOrCreateSecretKeyring(dataDirectory);
 const secretStore = createSecretStore(database, secretKeyring);
 let runtimeSnapshot = await loadRuntimeConfig({ database });
 const authSecret = await loadOrCreateAuthSecret(dataDirectory);
-const auth = createAuth({ database, baseURL, secret: authSecret, trustedOrigins });
+const oidc = createOidcControlPlane({
+  database,
+  secretStore,
+  privateAddressCidrs,
+});
+const buildAuth = () =>
+  createAuth({
+    database,
+    baseURL,
+    secret: authSecret,
+    trustedOrigins,
+    oidc: oidc.getRuntimeConfig(),
+  });
+let auth = buildAuth();
+const refreshAuth = () => {
+  auth = buildAuth();
+};
 const piiProtector = createPiiProtector(authSecret);
 const subscriberTombstones = createSubscriberTombstoneStore(dataDirectory);
 const postRestoreMarker = await readPostRestoreRetentionMarker(dataDirectory);
@@ -212,7 +229,10 @@ const app = createApp({
   buildVersion,
   database,
   auth,
+  getAuth: () => auth,
   authSecret,
+  oidc,
+  onAuthConfigurationChanged: refreshAuth,
   trustedOrigins,
   bootstrap,
   sourceTest,

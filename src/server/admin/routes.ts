@@ -56,6 +56,7 @@ import {
   renameAdminPasskey,
 } from '../auth/passkey-repository.js';
 import { getAdminTwoFactorStatus } from '../auth/two-factor-repository.js';
+import { oidcErrorCode, type OidcControlPlane } from '../auth/oidc.js';
 import {
   appendIncidentUpdate,
   createIncident,
@@ -241,6 +242,26 @@ const twoFactorVerifySchema = z
       .refine(code => [...code].every(character => character >= '0' && character <= '9')),
   })
   .strict();
+const oidcProviderSchema = z
+  .object({
+    expectedVersion: z.number().int().min(0),
+    displayName: z.string().trim().min(1).max(100),
+    discoveryUrl: z.url().max(2_048),
+    clientId: z.string().trim().min(1).max(1_024),
+    clientSecret: z.string().min(1).max(16_384).optional(),
+    tokenEndpointAuthMethod: z.enum(['client_secret_basic', 'client_secret_post']),
+  })
+  .strict();
+const oidcDisableSchema = z.object({ expectedVersion: z.number().int().positive() }).strict();
+const oidcMappingSchema = z
+  .object({
+    expectedSubject: z.string().trim().min(1).max(512).nullable(),
+    subject: z.string().trim().min(1).max(512),
+  })
+  .strict();
+const oidcMappingDeleteSchema = z
+  .object({ expectedSubject: z.string().trim().min(1).max(512) })
+  .strict();
 
 export interface AdminRouteOptions {
   database?: Database.Database;
@@ -258,6 +279,8 @@ export interface AdminRouteOptions {
   backupService?: BackupService;
   retentionService?: RetentionService;
   subscriberTombstones?: SubscriberTombstoneStore;
+  oidc?: OidcControlPlane;
+  onAuthConfigurationChanged?: () => void | Promise<void>;
 }
 
 export const registerAdminRoutes = (
@@ -278,6 +301,8 @@ export const registerAdminRoutes = (
     backupService,
     retentionService,
     subscriberTombstones,
+    oidc,
+    onAuthConfigurationChanged,
   }: AdminRouteOptions
 ) => {
   const publicationReview = authSecret ? createPublicationReviewService(authSecret) : null;
@@ -629,6 +654,137 @@ export const registerAdminRoutes = (
       return context.json({ data });
     } catch (error) {
       return handleAdminAuthError(context, error, authorization.principal);
+    }
+  });
+
+  const handleOidcError = (
+    context: Context<AppEnvironment>,
+    error: unknown,
+    principal: AdminPrincipal
+  ) => {
+    const code = error instanceof z.ZodError ? 'validation_failed' : oidcErrorCode(error);
+    const status =
+      code === 'oidc_user_not_found' || code === 'oidc_mapping_not_found'
+        ? 404
+        : code === 'oidc_admin_failed' || code === 'oidc_date_invalid'
+          ? 500
+          : code === 'validation_failed' ||
+              code === 'oidc_endpoint_invalid' ||
+              code === 'oidc_endpoint_origin_mismatch' ||
+              code === 'oidc_code_flow_unsupported' ||
+              code === 'oidc_pkce_unsupported' ||
+              code === 'oidc_scope_unsupported' ||
+              code === 'oidc_client_auth_unsupported'
+            ? 400
+            : 409;
+    writeRouteAudit(context, principal.userId, 'failed', code.toUpperCase());
+    return errorResponse(
+      context,
+      status,
+      code.toUpperCase(),
+      status === 500
+        ? 'OIDC administration failed'
+        : error instanceof Error
+          ? error.message
+          : 'OIDC administration failed',
+      error instanceof z.ZodError ? error.issues : undefined
+    );
+  };
+
+  app.get('/api/v1/admin/security/oidc', async context => {
+    const authorization = await requireAdmin(context, ['owner']);
+    if (!authorization.ok) return authorization.response;
+    if (!oidc) {
+      return errorResponse(context, 503, 'OIDC_NOT_READY', 'OIDC control plane is unavailable');
+    }
+    try {
+      return context.json({ data: oidc.getProvider() });
+    } catch (error) {
+      return handleOidcError(context, error, authorization.principal);
+    }
+  });
+
+  app.put('/api/v1/admin/security/oidc', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!oidc) {
+      return errorResponse(context, 503, 'OIDC_NOT_READY', 'OIDC control plane is unavailable');
+    }
+    try {
+      const input = oidcProviderSchema.parse(await context.req.json());
+      const data = await oidc.configure(input, auditContext(context, authorization.principal));
+      await onAuthConfigurationChanged?.();
+      return context.json({ data });
+    } catch (error) {
+      return handleOidcError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/security/oidc/disable', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!oidc) {
+      return errorResponse(context, 503, 'OIDC_NOT_READY', 'OIDC control plane is unavailable');
+    }
+    try {
+      const input = oidcDisableSchema.parse(await context.req.json());
+      const data = oidc.disable(input, auditContext(context, authorization.principal));
+      await onAuthConfigurationChanged?.();
+      return context.json({ data });
+    } catch (error) {
+      return handleOidcError(context, error, authorization.principal);
+    }
+  });
+
+  app.get('/api/v1/admin/security/oidc/mappings', async context => {
+    const authorization = await requireAdmin(context, ['owner']);
+    if (!authorization.ok) return authorization.response;
+    if (!oidc) {
+      return errorResponse(context, 503, 'OIDC_NOT_READY', 'OIDC control plane is unavailable');
+    }
+    try {
+      return context.json({ data: oidc.listMappings() });
+    } catch (error) {
+      return handleOidcError(context, error, authorization.principal);
+    }
+  });
+
+  app.put('/api/v1/admin/security/oidc/mappings/:userId', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!oidc) {
+      return errorResponse(context, 503, 'OIDC_NOT_READY', 'OIDC control plane is unavailable');
+    }
+    try {
+      const input = oidcMappingSchema.parse(await context.req.json());
+      const data = oidc.configureMapping(
+        context.req.param('userId'),
+        input,
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data });
+    } catch (error) {
+      return handleOidcError(context, error, authorization.principal);
+    }
+  });
+
+  app.delete('/api/v1/admin/security/oidc/mappings/:userId', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!oidc) {
+      return errorResponse(context, 503, 'OIDC_NOT_READY', 'OIDC control plane is unavailable');
+    }
+    try {
+      const input = oidcMappingDeleteSchema.parse(await context.req.json());
+      return context.json({
+        data: oidc.deleteMapping(
+          context.req.param('userId'),
+          input,
+          auditContext(context, authorization.principal)
+        ),
+      });
+    } catch (error) {
+      return handleOidcError(context, error, authorization.principal);
     }
   });
 

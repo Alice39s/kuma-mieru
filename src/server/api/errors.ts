@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 
 export type AppEnvironment = { Variables: { requestId: string } };
-export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429 | 500 | 503 | 507;
+export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429 | 500 | 502 | 503 | 507;
 
 export const errorResponse = (
   context: Context<AppEnvironment>,
