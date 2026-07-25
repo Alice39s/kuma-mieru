@@ -284,6 +284,7 @@ const run = async () => {
       const startedAt = performance.now();
       let result;
       let lifecycleBackfill = {
+        batchSize: 0,
         batches: 0,
         updatedEvents: 0,
         maxWriteLockMilliseconds: 0,
@@ -353,7 +354,9 @@ const run = async () => {
         trial,
         totalMilliseconds: round(totalMilliseconds),
         writeLockMilliseconds: round(writeLockMilliseconds),
+        migrationWriteLockMilliseconds: round(migrationWriteLock.milliseconds),
         ledgerExecutionMilliseconds: ledger.execution_ms,
+        lifecycleBackfillBatchSize: lifecycleBackfill.batchSize,
         lifecycleBackfillBatches: lifecycleBackfill.batches,
         lifecycleBackfillMilliseconds: round(lifecycleBackfill.totalWriteLockMilliseconds),
         lifecycleBackfillMaxWriteLockMilliseconds: round(
@@ -443,6 +446,7 @@ const run = async () => {
         mirroredEventEntries: options.mirroredRows,
         nativeEvents: options.nativeEventRows,
         expectedLifecycleDueEvents,
+        lifecycleBackfillBatchSize: trials[0]?.lifecycleBackfillBatchSize ?? null,
         payloadBytes: Buffer.byteLength(payload),
       },
       budgets: {

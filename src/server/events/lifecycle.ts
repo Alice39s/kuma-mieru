@@ -15,7 +15,8 @@ import {
 
 const systemActor = 'system:event-lifecycle';
 const defaultBatchSize = 100;
-const defaultBackfillBatchSize = 1_000;
+const maximumBackfillBatchSize = 250;
+const defaultBackfillBatchSize = maximumBackfillBatchSize;
 const defaultIntervalMilliseconds = 30_000;
 
 interface DueEventRow {
@@ -51,6 +52,7 @@ export interface EventLifecycleService {
 }
 
 export interface EventLifecycleBackfillRun {
+  batchSize: number;
   batches: number;
   updatedEvents: number;
   maxWriteLockMilliseconds: number;
@@ -72,13 +74,13 @@ export const backfillEventLifecycleDueTimes = ({
   database: Database.Database;
   batchSize?: number;
 }): EventLifecycleBackfillRun => {
-  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 1_000) {
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > maximumBackfillBatchSize) {
     throw lifecycleError(
       'event_lifecycle_backfill_batch_invalid',
-      'Event lifecycle backfill batch size must be between 1 and 1000'
+      `Event lifecycle backfill batch size must be between 1 and ${maximumBackfillBatchSize}`
     );
   }
-  const selectBatch = database.prepare(
+  const selectBatchSql = (cursorPredicate: string) =>
     `SELECT id,
        CASE
          WHEN type = 'maintenance' AND state = 'scheduled'
@@ -104,9 +106,11 @@ export const backfillEventLifecycleDueTimes = ({
          (type = 'maintenance' AND state IN ('scheduled', 'in_progress'))
          OR (type = 'notice' AND state = 'published')
        )
+       ${cursorPredicate}
      ORDER BY id
-     LIMIT ?`
-  );
+     LIMIT ?`;
+  const selectFirstBatch = database.prepare(selectBatchSql(''));
+  const selectNextBatch = database.prepare(selectBatchSql('AND id > ?'));
   const updateEvent = database.prepare(
     `UPDATE native_events
      SET lifecycle_due_at = ?
@@ -130,10 +134,14 @@ export const backfillEventLifecycleDueTimes = ({
   let updatedEvents = 0;
   let maxWriteLockMilliseconds = 0;
   let totalWriteLockMilliseconds = 0;
+  let cursor: string | null = null;
   while (true) {
     let rows: LegacyLifecycleBackfillRow[];
     try {
-      rows = selectBatch.all(batchSize) as LegacyLifecycleBackfillRow[];
+      rows =
+        cursor === null
+          ? (selectFirstBatch.all(batchSize) as LegacyLifecycleBackfillRow[])
+          : (selectNextBatch.all(cursor, batchSize) as LegacyLifecycleBackfillRow[]);
     } catch {
       throw lifecycleError(
         'event_lifecycle_backfill_invalid',
@@ -143,6 +151,8 @@ export const backfillEventLifecycleDueTimes = ({
     if (rows.length === 0) break;
     const validRows = rows.map(row => {
       if (
+        typeof row.id !== 'string' ||
+        row.id.length === 0 ||
         typeof row.lifecycle_due_at !== 'string' ||
         Number.isNaN(Date.parse(row.lifecycle_due_at))
       ) {
@@ -153,6 +163,13 @@ export const backfillEventLifecycleDueTimes = ({
       }
       return { id: row.id, lifecycle_due_at: row.lifecycle_due_at };
     });
+    const nextCursor = validRows.at(-1)?.id;
+    if (!nextCursor) {
+      throw lifecycleError(
+        'event_lifecycle_backfill_invalid',
+        'Legacy event lifecycle batch has no valid cursor'
+      );
+    }
     const startedAt = performance.now();
     applyBatch(validRows);
     const writeLockMilliseconds = performance.now() - startedAt;
@@ -160,8 +177,10 @@ export const backfillEventLifecycleDueTimes = ({
     updatedEvents += validRows.length;
     totalWriteLockMilliseconds += writeLockMilliseconds;
     maxWriteLockMilliseconds = Math.max(maxWriteLockMilliseconds, writeLockMilliseconds);
+    cursor = nextCursor;
   }
   return {
+    batchSize,
     batches,
     updatedEvents,
     maxWriteLockMilliseconds,

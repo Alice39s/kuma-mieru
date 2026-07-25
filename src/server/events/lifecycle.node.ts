@@ -102,6 +102,7 @@ test('backfills legacy lifecycle boundaries in bounded idempotent batches', asyn
     })();
 
     const first = backfillEventLifecycleDueTimes({ database, batchSize: 2 });
+    assert.equal(first.batchSize, 2);
     assert.equal(first.batches, 2);
     assert.equal(first.updatedEvents, 3);
     assert.equal(first.maxWriteLockMilliseconds >= 0, true);
@@ -130,6 +131,7 @@ test('backfills legacy lifecycle boundaries in bounded idempotent batches', asyn
       ]
     );
     assert.deepEqual(backfillEventLifecycleDueTimes({ database, batchSize: 2 }), {
+      batchSize: 2,
       batches: 0,
       updatedEvents: 0,
       maxWriteLockMilliseconds: 0,
@@ -140,7 +142,7 @@ test('backfills legacy lifecycle boundaries in bounded idempotent batches', asyn
       error => eventLifecycleErrorCode(error) === 'event_lifecycle_backfill_batch_invalid'
     );
     assert.throws(
-      () => backfillEventLifecycleDueTimes({ database, batchSize: 1_001 }),
+      () => backfillEventLifecycleDueTimes({ database, batchSize: 251 }),
       error => eventLifecycleErrorCode(error) === 'event_lifecycle_backfill_batch_invalid'
     );
 
