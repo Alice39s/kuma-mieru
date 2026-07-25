@@ -1,6 +1,25 @@
 import assert from 'node:assert/strict';
+import { createServer, type Server } from 'node:http';
 import test from 'node:test';
 import { createHttpJsonClient } from './http-client.js';
+
+const listen = (server: Server) =>
+  new Promise<number>((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      assert.ok(address && typeof address === 'object');
+      resolveListen(address.port);
+    });
+  });
+
+const close = (server: Server) =>
+  new Promise<void>((resolveClose, rejectClose) => {
+    server.close(error => {
+      if (error) rejectClose(error);
+      else resolveClose();
+    });
+  });
 
 test('blocks direct requests to private addresses before fetch', async () => {
   let fetched = false;
@@ -80,4 +99,32 @@ test('strips credentials before following a cross-origin redirect', async () => 
   assert.equal(requests[0]?.authorization, 'Bearer private-token');
   assert.equal(requests[1]?.authorization, null);
   assert.equal(requests[1]?.safeHeader, 'preserved');
+});
+
+test('pins the connection to the prevalidated address without a second system lookup', async () => {
+  let hostHeader = '';
+  const server = createServer((request, response) => {
+    hostHeader = request.headers.host ?? '';
+    response.setHeader('Content-Type', 'application/json');
+    response.end(JSON.stringify({ pinned: true }));
+  });
+  try {
+    const port = await listen(server);
+    let resolutions = 0;
+    const client = createHttpJsonClient({
+      allowPrivateAddresses: true,
+      resolveHost: async hostname => {
+        assert.equal(hostname, 'source.invalid');
+        resolutions += 1;
+        return [{ address: '127.0.0.1', family: 4 }];
+      },
+    });
+    const result = await client(new URL(`http://source.invalid:${port}/status`));
+    assert.equal(result.status, 200);
+    assert.deepEqual(result.data, { pinned: true });
+    assert.equal(resolutions, 1);
+    assert.equal(hostHeader, `source.invalid:${port}`);
+  } finally {
+    await close(server);
+  }
 });

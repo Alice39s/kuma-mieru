@@ -2,13 +2,24 @@ import { createHash } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import type Database from 'better-sqlite3';
+import { Agent, fetch as undiciFetch, interceptors, type Dispatcher } from 'undici';
 import type { z } from 'zod';
 import type { SourceJsonRequester } from './types.js';
+
+interface ResolvedAddress {
+  address: string;
+  family: 4 | 6;
+}
 
 type ResolveHost = (
   hostname: string,
   options: { all: true; verbatim: true }
 ) => Promise<Array<{ address: string; family: number }>>;
+
+type PinnedFetch = (
+  input: string | URL,
+  init: RequestInit & { dispatcher: Dispatcher }
+) => Promise<Response>;
 
 export interface HttpJsonResponse {
   status: 200 | 304;
@@ -22,7 +33,7 @@ export interface HttpJsonClientOptions {
   timeoutMs?: number;
   maxBodyBytes?: number;
   maxRedirects?: number;
-  fetchImplementation?: typeof fetch;
+  fetchImplementation?: PinnedFetch;
   resolveHost?: ResolveHost;
 }
 
@@ -68,30 +79,50 @@ const isPrivateAddress = (input: string) => {
   return false;
 };
 
-const validateTarget = async (
+const resolveTarget = async (
   url: URL,
   allowPrivateAddresses: boolean,
   resolveHost: ResolveHost
-) => {
+): Promise<ResolvedAddress[]> => {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw requestError('unsupported_protocol', 'Source URL must use HTTP or HTTPS');
   }
   if (url.username || url.password) {
     throw requestError('embedded_credentials', 'Source URL must not contain credentials');
   }
-  if (allowPrivateAddresses) return;
-
   const hostname = url.hostname.replaceAll('[', '').replaceAll(']', '');
-  if (hostname.toLowerCase() === 'localhost') {
+  if (hostname.toLowerCase() === 'localhost' && !allowPrivateAddresses) {
     throw requestError('private_address_blocked', 'Private source address is not allowed');
   }
-  const addresses = isIP(hostname)
+  const resolved = isIP(hostname)
     ? [{ address: hostname, family: isIP(hostname) }]
     : await resolveHost(hostname, { all: true, verbatim: true });
-  if (addresses.length === 0 || addresses.some(result => isPrivateAddress(result.address))) {
+  const addresses = resolved.flatMap<ResolvedAddress>(result =>
+    result.family === 4 || result.family === 6
+      ? [{ address: result.address, family: result.family }]
+      : []
+  );
+  if (addresses.length === 0) {
+    throw requestError('dns_resolution_failed', 'Source hostname did not resolve to an IP address');
+  }
+  if (!allowPrivateAddresses && addresses.some(result => isPrivateAddress(result.address))) {
     throw requestError('private_address_blocked', 'Private source address is not allowed');
   }
+  return addresses;
 };
+
+const createPinnedDispatcher = (addresses: ResolvedAddress[]): Dispatcher =>
+  new Agent({ connections: 1, pipelining: 1 }).compose(
+    interceptors.dns({
+      maxTTL: 0,
+      lookup: (_origin, _options, callback) => {
+        callback(
+          null,
+          addresses.map(address => ({ ...address, ttl: 0 }))
+        );
+      },
+    })
+  );
 
 const readLimitedBody = async (response: Response, maxBodyBytes: number) => {
   if (!response.body) return new Uint8Array();
@@ -118,7 +149,7 @@ const readLimitedBody = async (response: Response, maxBodyBytes: number) => {
 };
 
 export const createHttpJsonClient = (options: HttpJsonClientOptions = {}) => {
-  const fetchImplementation = options.fetchImplementation ?? fetch;
+  const fetchImplementation = options.fetchImplementation ?? (undiciFetch as PinnedFetch);
   const resolveHost = options.resolveHost ?? (lookup as ResolveHost);
   const allowPrivateAddresses = options.allowPrivateAddresses ?? false;
   const timeoutMs = options.timeoutMs ?? 10_000;
@@ -129,59 +160,69 @@ export const createHttpJsonClient = (options: HttpJsonClientOptions = {}) => {
     let url = new URL(inputUrl);
     let requestHeaders = { ...headers };
     for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
-      await validateTarget(url, allowPrivateAddresses, resolveHost);
-      const response = await fetchImplementation(url, {
-        method: 'GET',
-        headers: { Accept: 'application/json', ...requestHeaders },
-        redirect: 'manual',
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+      const addresses = await resolveTarget(url, allowPrivateAddresses, resolveHost);
+      const dispatcher = createPinnedDispatcher(addresses);
+      try {
+        const response = await fetchImplementation(url, {
+          method: 'GET',
+          headers: { Accept: 'application/json', ...requestHeaders },
+          redirect: 'manual',
+          signal: AbortSignal.timeout(timeoutMs),
+          dispatcher,
+        });
 
-      if (response.status >= 300 && response.status < 400 && response.status !== 304) {
-        const location = response.headers.get('location');
-        if (!location || redirectCount === maxRedirects) {
-          throw requestError('redirect_rejected', 'Source redirect limit exceeded');
+        if (response.status >= 300 && response.status < 400 && response.status !== 304) {
+          const location = response.headers.get('location');
+          await response.body?.cancel();
+          if (!location || redirectCount === maxRedirects) {
+            throw requestError('redirect_rejected', 'Source redirect limit exceeded');
+          }
+          const nextUrl = new URL(location, url);
+          if (nextUrl.origin !== url.origin) {
+            requestHeaders = Object.fromEntries(
+              Object.entries(requestHeaders).filter(
+                ([name]) =>
+                  !['authorization', 'cookie', 'proxy-authorization'].includes(name.toLowerCase())
+              )
+            );
+          }
+          url = nextUrl;
+          continue;
         }
-        const nextUrl = new URL(location, url);
-        if (nextUrl.origin !== url.origin) {
-          requestHeaders = Object.fromEntries(
-            Object.entries(requestHeaders).filter(
-              ([name]) =>
-                !['authorization', 'cookie', 'proxy-authorization'].includes(name.toLowerCase())
-            )
-          );
+        if (response.status === 304) {
+          await response.body?.cancel();
+          return {
+            status: 304,
+            data: null,
+            etag: response.headers.get('etag'),
+            lastModified: response.headers.get('last-modified'),
+          };
         }
-        url = nextUrl;
-        continue;
-      }
-      if (response.status === 304) {
+        if (!response.ok) {
+          await response.body?.cancel();
+          throw requestError(`http_${response.status}`, `Source returned HTTP ${response.status}`);
+        }
+        const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+        if (!contentType.includes('application/json') && !contentType.includes('+json')) {
+          await response.body?.cancel();
+          throw requestError('invalid_content_type', 'Source did not return JSON');
+        }
+        const body = await readLimitedBody(response, maxBodyBytes);
+        let data: unknown;
+        try {
+          data = JSON.parse(new TextDecoder().decode(body));
+        } catch {
+          throw requestError('invalid_json', 'Source returned invalid JSON');
+        }
         return {
-          status: 304,
-          data: null,
+          status: 200,
+          data,
           etag: response.headers.get('etag'),
           lastModified: response.headers.get('last-modified'),
         };
+      } finally {
+        await dispatcher.close();
       }
-      if (!response.ok) {
-        throw requestError(`http_${response.status}`, `Source returned HTTP ${response.status}`);
-      }
-      const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
-      if (!contentType.includes('application/json') && !contentType.includes('+json')) {
-        throw requestError('invalid_content_type', 'Source did not return JSON');
-      }
-      const body = await readLimitedBody(response, maxBodyBytes);
-      let data: unknown;
-      try {
-        data = JSON.parse(new TextDecoder().decode(body));
-      } catch {
-        throw requestError('invalid_json', 'Source returned invalid JSON');
-      }
-      return {
-        status: 200,
-        data,
-        etag: response.headers.get('etag'),
-        lastModified: response.headers.get('last-modified'),
-      };
     }
     throw requestError('redirect_rejected', 'Source redirect limit exceeded');
   };

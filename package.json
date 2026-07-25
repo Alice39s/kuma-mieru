@@ -112,6 +112,7 @@
     "takumi-js": "2.4.2",
     "tm-themes": "^1.12.2",
     "unified": "^11.0.5",
+    "undici": "8.9.0",
     "usehooks-ts": "^3.1.1",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
