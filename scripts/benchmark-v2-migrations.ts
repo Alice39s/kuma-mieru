@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import { migrateDatabase } from '../src/server/db/migrator.ts';
 import { openDatabase } from '../src/server/db/database.ts';
+import { backfillEventLifecycleDueTimes } from '../src/server/events/lifecycle.ts';
 
 const mebibyte = 1024 * 1024;
 const releaseMinimumRuns = 20;
@@ -239,7 +240,7 @@ const run = async () => {
     const fromVersion = migrationNames.length - 1;
     const toVersion = migrationNames.length;
     const expectedLifecycleDueEvents =
-      toVersion === 17 && options.nativeEventRows > 0
+      toVersion >= 17 && options.nativeEventRows > 0
         ? Math.floor(options.nativeEventRows / 4) * 3 + Math.min(options.nativeEventRows % 4, 3)
         : null;
     const baseDatabasePath = resolve(root, `schema-${fromVersion}-fixture.sqlite3`);
@@ -282,6 +283,12 @@ const run = async () => {
       const writeLocks: Array<{ version: number; name: string; milliseconds: number }> = [];
       const startedAt = performance.now();
       let result;
+      let lifecycleBackfill = {
+        batches: 0,
+        updatedEvents: 0,
+        maxWriteLockMilliseconds: 0,
+        totalWriteLockMilliseconds: 0,
+      };
       try {
         result = await migrateDatabase(database.database, {
           directory: targetMigrationDirectory,
@@ -294,6 +301,9 @@ const run = async () => {
               milliseconds: measurement.writeLockMilliseconds,
             }),
         });
+        if (expectedLifecycleDueEvents !== null) {
+          lifecycleBackfill = backfillEventLifecycleDueTimes({ database: database.database });
+        }
       } finally {
         database.database.close();
         sampling = false;
@@ -302,8 +312,10 @@ const run = async () => {
       if (samplingError) throw samplingError;
       peakDirectoryBytes = Math.max(peakDirectoryBytes, await pathSize(trialDirectory));
       const totalMilliseconds = performance.now() - startedAt;
-      const latestWriteLock = writeLocks.find(measurement => measurement.version === toVersion);
-      if (!latestWriteLock) throw new Error(`Migration ${toVersion} did not report its write lock`);
+      const migrationWriteLock = writeLocks.find(measurement => measurement.version === toVersion);
+      if (!migrationWriteLock) {
+        throw new Error(`Migration ${toVersion} did not report its write lock`);
+      }
       const migrated = openDatabase(databasePath);
       const ledger = migrated.database
         .prepare('SELECT execution_ms FROM schema_migrations WHERE version = ?')
@@ -329,15 +341,24 @@ const run = async () => {
         lifecycleDueEvents !== expectedLifecycleDueEvents
       ) {
         throw new Error(
-          `Migration 17 backfilled ${lifecycleDueEvents} lifecycle rows; expected ${expectedLifecycleDueEvents}`
+          `Lifecycle backfill updated ${lifecycleDueEvents} due rows; expected ${expectedLifecycleDueEvents}`
         );
       }
       const peakExtraBytes = Math.max(0, peakDirectoryBytes - baselineDirectoryBytes);
+      const writeLockMilliseconds = Math.max(
+        migrationWriteLock.milliseconds,
+        lifecycleBackfill.maxWriteLockMilliseconds
+      );
       const trialResult = {
         trial,
         totalMilliseconds: round(totalMilliseconds),
-        writeLockMilliseconds: round(latestWriteLock.milliseconds),
+        writeLockMilliseconds: round(writeLockMilliseconds),
         ledgerExecutionMilliseconds: ledger.execution_ms,
+        lifecycleBackfillBatches: lifecycleBackfill.batches,
+        lifecycleBackfillMilliseconds: round(lifecycleBackfill.totalWriteLockMilliseconds),
+        lifecycleBackfillMaxWriteLockMilliseconds: round(
+          lifecycleBackfill.maxWriteLockMilliseconds
+        ),
         baselineDirectoryBytes,
         peakDirectoryBytes,
         peakExtraBytes,

@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import type Database from 'better-sqlite3';
 import {
   appendMaintenanceUpdate,
@@ -14,6 +15,7 @@ import {
 
 const systemActor = 'system:event-lifecycle';
 const defaultBatchSize = 100;
+const defaultBackfillBatchSize = 1_000;
 const defaultIntervalMilliseconds = 30_000;
 
 interface DueEventRow {
@@ -22,6 +24,11 @@ interface DueEventRow {
   state: 'scheduled' | 'in_progress' | 'published';
   version: number;
   lifecycle_due_at: string;
+}
+
+interface LegacyLifecycleBackfillRow {
+  id: string;
+  lifecycle_due_at: string | null;
 }
 
 export interface EventLifecycleFailure {
@@ -43,6 +50,13 @@ export interface EventLifecycleService {
   run(): EventLifecycleRun;
 }
 
+export interface EventLifecycleBackfillRun {
+  batches: number;
+  updatedEvents: number;
+  maxWriteLockMilliseconds: number;
+  totalWriteLockMilliseconds: number;
+}
+
 export const eventLifecycleErrorCode = (error: unknown) =>
   typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
     ? error.code
@@ -50,6 +64,110 @@ export const eventLifecycleErrorCode = (error: unknown) =>
 
 const lifecycleError = (code: string, message: string) =>
   Object.assign(new Error(message), { code });
+
+export const backfillEventLifecycleDueTimes = ({
+  database,
+  batchSize = defaultBackfillBatchSize,
+}: {
+  database: Database.Database;
+  batchSize?: number;
+}): EventLifecycleBackfillRun => {
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 1_000) {
+    throw lifecycleError(
+      'event_lifecycle_backfill_batch_invalid',
+      'Event lifecycle backfill batch size must be between 1 and 1000'
+    );
+  }
+  const selectBatch = database.prepare(
+    `SELECT id,
+       CASE
+         WHEN type = 'maintenance' AND state = 'scheduled'
+           THEN strftime(
+             '%Y-%m-%dT%H:%M:%fZ',
+             json_extract(details_json, '$.scheduledStartAt')
+           )
+         WHEN type = 'maintenance' AND state = 'in_progress'
+           THEN strftime(
+             '%Y-%m-%dT%H:%M:%fZ',
+             json_extract(details_json, '$.scheduledEndAt')
+           )
+         WHEN type = 'notice' AND state = 'published'
+           THEN strftime(
+             '%Y-%m-%dT%H:%M:%fZ',
+             json_extract(details_json, '$.endsAt')
+           )
+         ELSE NULL
+       END AS lifecycle_due_at
+     FROM native_events
+     WHERE lifecycle_due_at IS NULL
+       AND (
+         (type = 'maintenance' AND state IN ('scheduled', 'in_progress'))
+         OR (type = 'notice' AND state = 'published')
+       )
+     ORDER BY id
+     LIMIT ?`
+  );
+  const updateEvent = database.prepare(
+    `UPDATE native_events
+     SET lifecycle_due_at = ?
+     WHERE id = ? AND lifecycle_due_at IS NULL`
+  );
+  const applyBatch = database.transaction(
+    (rows: Array<{ id: string; lifecycle_due_at: string }>) => {
+      for (const row of rows) {
+        const result = updateEvent.run(row.lifecycle_due_at, row.id);
+        if (result.changes !== 1) {
+          throw lifecycleError(
+            'event_lifecycle_backfill_conflict',
+            `Event lifecycle backfill lost ownership of ${row.id}`
+          );
+        }
+      }
+    }
+  );
+
+  let batches = 0;
+  let updatedEvents = 0;
+  let maxWriteLockMilliseconds = 0;
+  let totalWriteLockMilliseconds = 0;
+  while (true) {
+    let rows: LegacyLifecycleBackfillRow[];
+    try {
+      rows = selectBatch.all(batchSize) as LegacyLifecycleBackfillRow[];
+    } catch {
+      throw lifecycleError(
+        'event_lifecycle_backfill_invalid',
+        'Legacy event lifecycle details are not valid JSON'
+      );
+    }
+    if (rows.length === 0) break;
+    const validRows = rows.map(row => {
+      if (
+        typeof row.lifecycle_due_at !== 'string' ||
+        Number.isNaN(Date.parse(row.lifecycle_due_at))
+      ) {
+        throw lifecycleError(
+          'event_lifecycle_backfill_invalid',
+          `Legacy event ${row.id} has no valid lifecycle boundary`
+        );
+      }
+      return { id: row.id, lifecycle_due_at: row.lifecycle_due_at };
+    });
+    const startedAt = performance.now();
+    applyBatch(validRows);
+    const writeLockMilliseconds = performance.now() - startedAt;
+    batches += 1;
+    updatedEvents += validRows.length;
+    totalWriteLockMilliseconds += writeLockMilliseconds;
+    maxWriteLockMilliseconds = Math.max(maxWriteLockMilliseconds, writeLockMilliseconds);
+  }
+  return {
+    batches,
+    updatedEvents,
+    maxWriteLockMilliseconds,
+    totalWriteLockMilliseconds,
+  };
+};
 
 const auditContext = (eventId: string, nextVersion: number) => ({
   actorId: systemActor,

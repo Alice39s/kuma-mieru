@@ -22,7 +22,11 @@ import { migrateDatabase } from './db/migrator.js';
 import { acquireRuntimeLock } from './db/runtime-lock.js';
 import { createDeliveryRuntime } from './delivery/runtime.js';
 import { createSmtpTestService } from './delivery/smtp-config.js';
-import { createEventLifecycleService, startEventLifecycleScheduler } from './events/lifecycle.js';
+import {
+  backfillEventLifecycleDueTimes,
+  createEventLifecycleService,
+  startEventLifecycleScheduler,
+} from './events/lifecycle.js';
 import { loadOrCreateSecretKeyring } from './secrets/keyring.js';
 import { createSecretStore } from './secrets/store.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
@@ -82,6 +86,10 @@ const migration = await migrateDatabase(database, {
 });
 if (releaseManifest) {
   assertReleaseSchema(releaseManifest, migration.currentVersion);
+}
+const eventLifecycleBackfill = backfillEventLifecycleDueTimes({ database });
+if (eventLifecycleBackfill.updatedEvents > 0) {
+  console.info('Backfilled scheduled event lifecycle due times', eventLifecycleBackfill);
 }
 const eventLifecycleService = createEventLifecycleService({ database });
 const initialEventLifecycleRun = eventLifecycleService.run();

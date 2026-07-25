@@ -22,10 +22,165 @@ import {
   listPublishedNotices,
   publishNotice,
 } from './notice-repository.js';
-import { createEventLifecycleService } from './lifecycle.js';
+import {
+  backfillEventLifecycleDueTimes,
+  createEventLifecycleService,
+  eventLifecycleErrorCode,
+} from './lifecycle.js';
 
 const migrationDirectory = resolve(process.cwd(), 'migrations');
 const audit = { actorId: 'owner-1', requestId: 'event-lifecycle-fixture' };
+
+test('backfills legacy lifecycle boundaries in bounded idempotent batches', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-event-lifecycle-backfill-'));
+  const databasePath = resolve(directory, 'event-lifecycle-backfill.sqlite3');
+  const { database } = openDatabase(databasePath);
+  try {
+    await migrateDatabase(database, { directory: migrationDirectory, databasePath });
+    const insertEvent = database.prepare(
+      `INSERT INTO native_events
+        (id, type, page_id, title, state, version, created_by, idempotency_key, request_hash,
+         created_at, updated_at, details_json)
+       VALUES (?, ?, 'public', ?, ?, 1, 'legacy-owner', ?, ?, ?, ?, ?)`
+    );
+    const occurredAt = '2026-07-24T00:00:00.000Z';
+    const events = [
+      {
+        id: 'legacy-maintenance-scheduled',
+        type: 'maintenance',
+        state: 'scheduled',
+        details: {
+          scheduledStartAt: '2026-07-24T01:00:00+00:00',
+          scheduledEndAt: '2026-07-24T02:00:00+00:00',
+        },
+      },
+      {
+        id: 'legacy-maintenance-progress',
+        type: 'maintenance',
+        state: 'in_progress',
+        details: {
+          scheduledStartAt: '2026-07-24T01:00:00+00:00',
+          scheduledEndAt: '2026-07-24T02:00:00+00:00',
+        },
+      },
+      {
+        id: 'legacy-notice-published',
+        type: 'notice',
+        state: 'published',
+        details: { endsAt: '2026-07-24T03:00:00+00:00' },
+      },
+      {
+        id: 'legacy-maintenance-draft',
+        type: 'maintenance',
+        state: 'draft',
+        details: {
+          scheduledStartAt: '2026-07-24T01:00:00+00:00',
+          scheduledEndAt: '2026-07-24T02:00:00+00:00',
+        },
+      },
+      {
+        id: 'legacy-incident',
+        type: 'incident',
+        state: 'investigating',
+        details: {},
+      },
+    ] as const;
+    database.transaction(() => {
+      for (const event of events) {
+        insertEvent.run(
+          event.id,
+          event.type,
+          event.id,
+          event.state,
+          event.id,
+          event.id,
+          occurredAt,
+          occurredAt,
+          JSON.stringify(event.details)
+        );
+      }
+    })();
+
+    const first = backfillEventLifecycleDueTimes({ database, batchSize: 2 });
+    assert.equal(first.batches, 2);
+    assert.equal(first.updatedEvents, 3);
+    assert.equal(first.maxWriteLockMilliseconds >= 0, true);
+    assert.equal(first.totalWriteLockMilliseconds >= first.maxWriteLockMilliseconds, true);
+    assert.deepEqual(
+      database
+        .prepare(
+          `SELECT id, lifecycle_due_at
+           FROM native_events
+           WHERE id LIKE 'legacy-%'
+           ORDER BY id`
+        )
+        .all(),
+      [
+        { id: 'legacy-incident', lifecycle_due_at: null },
+        { id: 'legacy-maintenance-draft', lifecycle_due_at: null },
+        {
+          id: 'legacy-maintenance-progress',
+          lifecycle_due_at: '2026-07-24T02:00:00.000Z',
+        },
+        {
+          id: 'legacy-maintenance-scheduled',
+          lifecycle_due_at: '2026-07-24T01:00:00.000Z',
+        },
+        { id: 'legacy-notice-published', lifecycle_due_at: '2026-07-24T03:00:00.000Z' },
+      ]
+    );
+    assert.deepEqual(backfillEventLifecycleDueTimes({ database, batchSize: 2 }), {
+      batches: 0,
+      updatedEvents: 0,
+      maxWriteLockMilliseconds: 0,
+      totalWriteLockMilliseconds: 0,
+    });
+    assert.throws(
+      () => backfillEventLifecycleDueTimes({ database, batchSize: 0 }),
+      error => eventLifecycleErrorCode(error) === 'event_lifecycle_backfill_batch_invalid'
+    );
+    assert.throws(
+      () => backfillEventLifecycleDueTimes({ database, batchSize: 1_001 }),
+      error => eventLifecycleErrorCode(error) === 'event_lifecycle_backfill_batch_invalid'
+    );
+
+    insertEvent.run(
+      'legacy-invalid-json',
+      'maintenance',
+      'Invalid legacy JSON',
+      'scheduled',
+      'legacy-invalid-json',
+      'legacy-invalid-json',
+      occurredAt,
+      occurredAt,
+      '{broken'
+    );
+    assert.throws(
+      () => backfillEventLifecycleDueTimes({ database }),
+      error => eventLifecycleErrorCode(error) === 'event_lifecycle_backfill_invalid'
+    );
+    database.prepare("DELETE FROM native_events WHERE id = 'legacy-invalid-json'").run();
+
+    insertEvent.run(
+      'legacy-invalid-maintenance',
+      'maintenance',
+      'Invalid legacy maintenance',
+      'scheduled',
+      'legacy-invalid-maintenance',
+      'legacy-invalid-maintenance',
+      occurredAt,
+      occurredAt,
+      '{}'
+    );
+    assert.throws(
+      () => backfillEventLifecycleDueTimes({ database }),
+      error => eventLifecycleErrorCode(error) === 'event_lifecycle_backfill_invalid'
+    );
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('catches up maintenance start and end atomically without inheriting email delivery', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-event-lifecycle-'));
