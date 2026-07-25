@@ -12,6 +12,11 @@ export const signInSchema = z.object({
   password: z.string().min(1, 'Password is required.'),
 });
 
+export const twoFactorChallengeSchema = z.object({
+  code: z.string().trim().min(1, 'Enter an authenticator or recovery code.').max(128),
+  trustDevice: z.boolean(),
+});
+
 export const sourceDraftSchema = z
   .object({
     id: z.string().min(1, 'Source ID is required.'),
@@ -211,6 +216,7 @@ export const retentionRunConfirmationSchema = z.object({
 
 export type OwnerSetupInput = z.infer<typeof ownerSetupSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
+export type TwoFactorChallengeInput = z.infer<typeof twoFactorChallengeSchema>;
 export type SourceDraftInput = z.infer<typeof sourceDraftSchema>;
 export type PageDraftInput = z.infer<typeof pageDraftSchema>;
 export type SmtpDraftInput = z.infer<typeof smtpDraftSchema>;

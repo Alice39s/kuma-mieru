@@ -1,5 +1,7 @@
 import type {
+  AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/browser';
 
@@ -378,6 +380,16 @@ export interface AdminPasskey {
   createdAt: string | null;
 }
 
+export interface AdminTwoFactorStatus {
+  enabled: boolean;
+  setupPending: boolean;
+  recoveryCodesConfigured: boolean;
+}
+
+export type SignInResult =
+  | { state: 'authenticated' }
+  | { state: 'two_factor_required'; methods: Array<'totp' | 'backup_code'> };
+
 interface ReloadStatus {
   state: 'ready' | 'checking' | 'failed';
   lastAttemptAt: string | null;
@@ -469,10 +481,40 @@ export const createOwner = (input: {
   });
 
 export const signIn = (input: { email: string; password: string }) =>
-  request('/api/auth/sign-in/email', {
+  request<{ data: SignInResult }>('/api/v1/auth/sign-in', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  });
+
+export const verifySignInTotp = (input: { code: string; trustDevice: boolean }) =>
+  request<{ data: { state: 'authenticated' } }>('/api/v1/auth/two-factor/totp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+export const verifySignInBackupCode = (input: { code: string; trustDevice: boolean }) =>
+  request<{ data: { state: 'authenticated' } }>('/api/v1/auth/two-factor/backup-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+export const beginPasskeySignIn = () =>
+  request<{ data: PublicKeyCredentialRequestOptionsJSON }>('/api/v1/auth/passkey/options', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+
+export const completePasskeySignIn = (
+  response: Omit<AuthenticationResponseJSON, 'clientExtensionResults'>
+) =>
+  request<{ data: { state: 'authenticated' } }>('/api/v1/auth/passkey/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ response }),
   });
 
 export const signOut = () => request('/api/auth/sign-out', { method: 'POST' });
@@ -1008,6 +1050,40 @@ export const renameAdminPasskey = (
       body: JSON.stringify(input),
     }
   );
+
+export const getAdminTwoFactorStatus = async () =>
+  (await request<{ data: AdminTwoFactorStatus }>('/api/v1/admin/security/two-factor')).data;
+
+export const beginAdminTwoFactorSetup = (session: AdminSession, password: string) =>
+  request<{ data: { totpURI: string; backupCodes: string[] } }>(
+    '/api/v1/admin/security/two-factor/setup',
+    {
+      method: 'POST',
+      headers: mutationHeaders(session),
+      body: JSON.stringify({ password }),
+    }
+  );
+
+export const verifyAdminTwoFactorSetup = (session: AdminSession, input: { code: string }) =>
+  request<{ data: AdminTwoFactorStatus }>('/api/v1/admin/security/two-factor/setup/verify', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
+
+export const regenerateAdminRecoveryCodes = (session: AdminSession, password: string) =>
+  request<{ data: { backupCodes: string[] } }>('/api/v1/admin/security/two-factor/recovery-codes', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify({ password }),
+  });
+
+export const disableAdminTwoFactor = (session: AdminSession, password: string) =>
+  request<{ data: AdminTwoFactorStatus }>('/api/v1/admin/security/two-factor/disable', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify({ password }),
+  });
 
 export const deleteAdminPasskey = (
   session: AdminSession,

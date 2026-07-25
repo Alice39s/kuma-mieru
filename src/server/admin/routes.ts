@@ -55,6 +55,7 @@ import {
   recordAdminPasskeyRegistration,
   renameAdminPasskey,
 } from '../auth/passkey-repository.js';
+import { getAdminTwoFactorStatus } from '../auth/two-factor-repository.js';
 import {
   appendIncidentUpdate,
   createIncident,
@@ -228,6 +229,16 @@ const passkeyRenameSchema = z
 const passkeyDeleteSchema = z
   .object({
     expectedName: z.string().max(100).nullable(),
+  })
+  .strict();
+const twoFactorPasswordSchema = z.object({ password: z.string().min(1).max(1024) }).strict();
+const twoFactorVerifySchema = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .length(6)
+      .refine(code => [...code].every(character => character >= '0' && character <= '9')),
   })
   .strict();
 
@@ -651,10 +662,7 @@ export const registerAdminRoutes = (
     );
   };
 
-  const forwardPasskeyCookies = (
-    context: Context<AppEnvironment>,
-    headers: Headers | undefined
-  ) => {
+  const forwardAuthCookies = (context: Context<AppEnvironment>, headers: Headers | undefined) => {
     for (const cookie of headers?.getSetCookie() ?? []) {
       context.header('Set-Cookie', cookie, { append: true });
     }
@@ -698,7 +706,7 @@ export const registerAdminRoutes = (
         query: input,
         returnHeaders: true,
       });
-      forwardPasskeyCookies(context, generated.headers);
+      forwardAuthCookies(context, generated.headers);
       return context.json({ data: { options: generated.response, name: input.name } });
     } catch (error) {
       if (!(error instanceof z.ZodError)) {
@@ -750,7 +758,7 @@ export const registerAdminRoutes = (
           registered.id,
           auditContext(context, authorization.principal)
         );
-        forwardPasskeyCookies(context, verified.headers);
+        forwardAuthCookies(context, verified.headers);
         return context.json({ data: passkey }, 201);
       } catch (error) {
         database
@@ -836,6 +844,204 @@ export const registerAdminRoutes = (
       });
     } catch (error) {
       return handlePasskeyError(context, error, authorization.principal);
+    }
+  });
+
+  const twoFactorUnavailable = (context: Context<AppEnvironment>) =>
+    errorResponse(context, 503, 'AUTH_NOT_READY', 'Authentication service is unavailable');
+
+  const twoFactorFailure = (
+    context: Context<AppEnvironment>,
+    principal: AdminPrincipal,
+    code: string,
+    message: string,
+    error?: unknown
+  ) => {
+    writeRouteAudit(context, principal.userId, 'failed', code);
+    return errorResponse(
+      context,
+      error instanceof z.ZodError ? 400 : 409,
+      code,
+      message,
+      error instanceof z.ZodError ? error.issues : undefined
+    );
+  };
+
+  app.get('/api/v1/admin/security/two-factor', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) return twoFactorUnavailable(context);
+    return context.json({
+      data: getAdminTwoFactorStatus(database, authorization.principal.userId),
+    });
+  });
+
+  app.post('/api/v1/admin/security/two-factor/setup', async context => {
+    const authorization = await requireAdmin(
+      context,
+      ['owner', 'publisher', 'editor', 'viewer'],
+      true,
+      true
+    );
+    if (!authorization.ok) return authorization.response;
+    if (!database || !auth) return twoFactorUnavailable(context);
+    try {
+      const current = getAdminTwoFactorStatus(database, authorization.principal.userId);
+      if (current.enabled) {
+        return twoFactorFailure(
+          context,
+          authorization.principal,
+          'TWO_FACTOR_ALREADY_ENABLED',
+          'Two-factor authentication is already enabled'
+        );
+      }
+      const input = twoFactorPasswordSchema.parse(await context.req.json());
+      const result = await auth.api.enableTwoFactor({
+        headers: context.req.raw.headers,
+        body: input,
+        returnHeaders: true,
+      });
+      const setup = z
+        .object({
+          totpURI: z.string().startsWith('otpauth://'),
+          backupCodes: z.array(z.string().min(1)).min(1),
+        })
+        .parse(result.response);
+      forwardAuthCookies(context, result.headers);
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: setup });
+    } catch (error) {
+      return twoFactorFailure(
+        context,
+        authorization.principal,
+        error instanceof z.ZodError ? 'VALIDATION_FAILED' : 'TWO_FACTOR_SETUP_FAILED',
+        'Two-factor setup could not be started',
+        error
+      );
+    }
+  });
+
+  app.post('/api/v1/admin/security/two-factor/setup/verify', async context => {
+    const authorization = await requireAdmin(
+      context,
+      ['owner', 'publisher', 'editor', 'viewer'],
+      true,
+      true
+    );
+    if (!authorization.ok) return authorization.response;
+    if (!database || !auth) return twoFactorUnavailable(context);
+    try {
+      const current = getAdminTwoFactorStatus(database, authorization.principal.userId);
+      if (!current.setupPending) {
+        return twoFactorFailure(
+          context,
+          authorization.principal,
+          'TWO_FACTOR_SETUP_NOT_PENDING',
+          'Two-factor setup is not pending'
+        );
+      }
+      const input = twoFactorVerifySchema.parse(await context.req.json());
+      const result = await auth.api.verifyTOTP({
+        headers: context.req.raw.headers,
+        body: input,
+        returnHeaders: true,
+      });
+      const status = getAdminTwoFactorStatus(database, authorization.principal.userId);
+      if (!status.enabled) throw new Error('Two-factor setup did not become active');
+      forwardAuthCookies(context, result.headers);
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: status });
+    } catch (error) {
+      return twoFactorFailure(
+        context,
+        authorization.principal,
+        error instanceof z.ZodError ? 'VALIDATION_FAILED' : 'TWO_FACTOR_VERIFICATION_FAILED',
+        'The authenticator code could not be verified',
+        error
+      );
+    }
+  });
+
+  app.post('/api/v1/admin/security/two-factor/recovery-codes', async context => {
+    const authorization = await requireAdmin(
+      context,
+      ['owner', 'publisher', 'editor', 'viewer'],
+      true,
+      true
+    );
+    if (!authorization.ok) return authorization.response;
+    if (!database || !auth) return twoFactorUnavailable(context);
+    try {
+      const current = getAdminTwoFactorStatus(database, authorization.principal.userId);
+      if (!current.enabled) {
+        return twoFactorFailure(
+          context,
+          authorization.principal,
+          'TWO_FACTOR_NOT_ENABLED',
+          'Two-factor authentication is not enabled'
+        );
+      }
+      const input = twoFactorPasswordSchema.parse(await context.req.json());
+      const result = await auth.api.generateBackupCodes({
+        headers: context.req.raw.headers,
+        body: input,
+        returnHeaders: true,
+      });
+      const generated = z
+        .object({ status: z.literal(true), backupCodes: z.array(z.string().min(1)).min(1) })
+        .parse(result.response);
+      forwardAuthCookies(context, result.headers);
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: { backupCodes: generated.backupCodes } });
+    } catch (error) {
+      return twoFactorFailure(
+        context,
+        authorization.principal,
+        error instanceof z.ZodError ? 'VALIDATION_FAILED' : 'RECOVERY_CODES_FAILED',
+        'Recovery codes could not be regenerated',
+        error
+      );
+    }
+  });
+
+  app.post('/api/v1/admin/security/two-factor/disable', async context => {
+    const authorization = await requireAdmin(
+      context,
+      ['owner', 'publisher', 'editor', 'viewer'],
+      true,
+      true
+    );
+    if (!authorization.ok) return authorization.response;
+    if (!database || !auth) return twoFactorUnavailable(context);
+    try {
+      const current = getAdminTwoFactorStatus(database, authorization.principal.userId);
+      if (!current.enabled && !current.setupPending) {
+        return twoFactorFailure(
+          context,
+          authorization.principal,
+          'TWO_FACTOR_NOT_CONFIGURED',
+          'Two-factor authentication is not configured'
+        );
+      }
+      const input = twoFactorPasswordSchema.parse(await context.req.json());
+      const result = await auth.api.disableTwoFactor({
+        headers: context.req.raw.headers,
+        body: input,
+        returnHeaders: true,
+      });
+      forwardAuthCookies(context, result.headers);
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({
+        data: getAdminTwoFactorStatus(database, authorization.principal.userId),
+      });
+    } catch (error) {
+      return twoFactorFailure(
+        context,
+        authorization.principal,
+        error instanceof z.ZodError ? 'VALIDATION_FAILED' : 'TWO_FACTOR_DISABLE_FAILED',
+        'Two-factor authentication could not be disabled',
+        error
+      );
     }
   });
 

@@ -28,6 +28,7 @@ import {
   passkeyLabel,
   passkeyUnavailableReason,
 } from './passkey-model';
+import { TwoFactorSecurity } from './two-factor-security';
 
 const registrationSchema = z
   .object({
@@ -189,6 +190,8 @@ export const SecurityWorkbench = ({ session }: { session: AdminSession }) => {
           </div>
         </section>
       ) : null}
+
+      <TwoFactorSecurity session={session} />
 
       <div className="security-grid">
         <section className="security-passkey-card">

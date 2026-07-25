@@ -1845,6 +1845,176 @@
     600 1.65rem 'Newsreader Variable',
     serif;
 }
+.two-factor-card {
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: 1.2rem;
+  background: var(--admin-surface);
+}
+.two-factor-card > .access-section-heading > span {
+  border-color: var(--admin-line);
+  color: var(--admin-muted);
+}
+.two-factor-card > .access-section-heading > span.is-enabled {
+  border-color: color-mix(in srgb, var(--admin-accent) 35%, var(--admin-line));
+  background: color-mix(in srgb, var(--admin-accent) 8%, transparent);
+  color: var(--admin-accent);
+}
+.two-factor-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem 1.25rem 1.25rem;
+}
+.two-factor-summary > div {
+  min-width: 0;
+}
+.two-factor-summary strong {
+  font-size: 0.77rem;
+}
+.two-factor-summary p {
+  max-width: 48rem;
+  margin: 0.3rem 0 0;
+  color: var(--admin-muted);
+  font-size: 0.68rem;
+  line-height: 1.65;
+}
+.two-factor-password-review {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.8fr) minmax(16rem, 1fr) auto;
+  align-items: end;
+  gap: 1rem;
+  margin: 0 1.25rem 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 0.9rem;
+  background: var(--admin-panel);
+}
+.two-factor-password-review h3,
+.two-factor-setup h3,
+.two-factor-codes h3 {
+  margin: 0.12rem 0 0;
+  font:
+    600 1.25rem 'Newsreader Variable',
+    serif;
+}
+.two-factor-password-review .admin-field,
+.two-factor-password-review .access-review-actions {
+  margin: 0;
+}
+.two-factor-setup {
+  display: grid;
+  gap: 1rem;
+  padding: 0 1.25rem 1.25rem;
+}
+.two-factor-qr {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 1rem;
+  background: var(--admin-panel);
+}
+.two-factor-qr img {
+  width: min(12rem, 100%);
+  height: auto;
+  border: 0.45rem solid #fff;
+  border-radius: 0.8rem;
+}
+.two-factor-qr p,
+.two-factor-codes > p {
+  margin: 0.45rem 0 0.9rem;
+  color: var(--admin-muted);
+  font-size: 0.68rem;
+  line-height: 1.65;
+}
+.two-factor-codes {
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--admin-amber, #aa731d) 35%, var(--admin-line));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--admin-amber, #aa731d) 4%, var(--admin-panel));
+}
+.two-factor-codes > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.two-factor-code-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+.two-factor-code-grid code {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 0.6rem;
+  background: var(--admin-surface);
+  font-family: ui-monospace, monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+.two-factor-verify {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.8fr) minmax(13rem, 0.6fr) minmax(14rem, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 1rem;
+  background: var(--admin-panel);
+}
+.two-factor-verify .admin-field {
+  margin: 0;
+}
+.two-factor-confirmation-error {
+  grid-column: 3;
+  color: var(--admin-red, #9d302d);
+  font-size: 0.64rem;
+}
+.auth-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  color: var(--admin-muted);
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+.auth-checkbox input {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.05rem;
+  accent-color: var(--admin-accent);
+}
+.auth-secondary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.auth-passkey-entry {
+  padding-bottom: 0;
+}
+.auth-method-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--admin-muted);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.auth-method-divider::before,
+.auth-method-divider::after {
+  height: 1px;
+  background: var(--admin-line);
+  content: '';
+}
 .workbench-loading {
   padding: 6rem 0;
   color: var(--admin-muted);
@@ -1906,6 +2076,17 @@
   .security-grid,
   .attention-queue {
     grid-template-columns: 1fr;
+  }
+  .two-factor-summary,
+  .two-factor-password-review,
+  .two-factor-verify {
+    grid-template-columns: 1fr;
+  }
+  .two-factor-summary > .security-passkey-actions {
+    justify-content: flex-start;
+  }
+  .two-factor-confirmation-error {
+    grid-column: auto;
   }
   .access-user-ledger {
     border-right: 0;
@@ -2049,6 +2230,10 @@
   .security-passkey-actions {
     grid-column: 2;
     justify-content: flex-start;
+  }
+  .two-factor-qr,
+  .two-factor-code-grid {
+    grid-template-columns: 1fr;
   }
 }
 

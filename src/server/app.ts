@@ -12,6 +12,7 @@ import type { MetricWindowState } from './adapters/metric-store.js';
 import type { MethodologyState } from './adapters/methodology-store.js';
 import type { SourceTestService } from './adapters/source-test.js';
 import { registerAdminRoutes } from './admin/routes.js';
+import { registerAuthenticationRoutes } from './auth/routes.js';
 import { errorResponse, type AppEnvironment } from './api/errors.js';
 import type { KumaAuth } from './auth/auth.js';
 import type { BootstrapService } from './auth/bootstrap.js';
@@ -357,11 +358,14 @@ export const createApp = ({
     })
   );
 
-  app.on(['GET', 'POST'], '/api/auth/*', context =>
-    auth
+  registerAuthenticationRoutes(app, { auth, trustedOrigins });
+
+  app.on(['GET', 'POST'], '/api/auth/*', context => {
+    if (context.req.path !== '/api/auth/sign-out') return context.notFound();
+    return auth
       ? auth.handler(context.req.raw)
-      : errorResponse(context, 503, 'AUTH_NOT_READY', 'Authentication is not configured')
-  );
+      : errorResponse(context, 503, 'AUTH_NOT_READY', 'Authentication is not configured');
+  });
 
   app.get('/api/v1/setup/status', context =>
     context.json({

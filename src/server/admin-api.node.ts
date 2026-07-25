@@ -157,9 +157,14 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     const unauthenticated = await app.request('/api/v1/admin/pages');
     assert.equal(unauthenticated.status, 401);
 
-    const signIn = await app.request('/api/auth/sign-in/email', {
+    const signIn = await app.request('/api/v1/auth/sign-in', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: baseURL },
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: baseURL,
+        'Sec-Fetch-Site': 'same-origin',
+        'X-Forwarded-For': '8.8.8.8',
+      },
       body: JSON.stringify({ email: 'owner@example.com', password: 'a-secure-owner-password' }),
     });
     assert.equal(signIn.status, 200);
@@ -271,6 +276,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
         'Content-Type': 'application/json',
         Origin: baseURL,
         'Sec-Fetch-Site': 'same-origin',
+        'X-Forwarded-For': '8.8.8.8',
         'X-Kuma-CSRF': sessionBody.data.csrfToken,
       },
       body: pageBody,
@@ -1203,9 +1209,13 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     assert.equal(createdOperatorBody.data.role, 'publisher');
     assert.equal(JSON.stringify(createdOperatorBody).includes('password'), false);
 
-    const publisherSignIn = await app.request('/api/auth/sign-in/email', {
+    const publisherSignIn = await app.request('/api/v1/auth/sign-in', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: baseURL },
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: baseURL,
+        'Sec-Fetch-Site': 'same-origin',
+      },
       body: JSON.stringify({
         email: 'publisher@example.com',
         password: 'publisher-password-secure',
@@ -1313,7 +1323,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
 
     const signedOut = await app.request('/api/auth/sign-out', {
       method: 'POST',
-      headers: { Cookie: cookie, Origin: baseURL },
+      headers: { Cookie: cookie, Origin: baseURL, 'X-Forwarded-For': '8.8.8.8' },
     });
     assert.equal(signedOut.status, 200);
     const sessionAfterSignOut = await app.request('/api/v1/admin/session', {
