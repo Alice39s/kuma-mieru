@@ -12,7 +12,15 @@
   },
   "database": {
     "minimumSchemaVersion": 0,
-    "maximumSchemaVersion": 7
+    "maximumSchemaVersion": 13
+  },
+  "container": {
+    "image": "ghcr.io/alice39s/kuma-mieru",
+    "developmentTag": "2-dev",
+    "readOnlyRootFilesystem": true,
+    "dropAllCapabilities": true,
+    "noNewPrivileges": true,
+    "dockerSocket": false
   },
   "compatibility": {
     "supportedMajor": 2,

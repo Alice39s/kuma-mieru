@@ -2,30 +2,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
-import { z } from 'zod';
-
-const releaseSpecSchema = z.object({
-  schemaVersion: z.literal(1),
-  product: z.literal('kuma-mieru'),
-  version: z.string().regex(/^2\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u),
-  channel: z.enum(['development', 'alpha', 'beta', 'rc', 'stable']),
-  stable: z.boolean(),
-  runtime: z.object({
-    node: z.string().min(1),
-    uid: z.number().int().positive(),
-    gid: z.number().int().positive(),
-    dataDirectory: z.literal('/data'),
-  }),
-  database: z.object({
-    minimumSchemaVersion: z.number().int().nonnegative(),
-    maximumSchemaVersion: z.number().int().positive(),
-  }),
-  compatibility: z.object({
-    supportedMajor: z.literal(2),
-    legacyRoutes: z.array(z.string().startsWith('/')).min(1),
-    legacyEnvironment: z.array(z.string().min(1)).min(1),
-  }),
-});
+import { releaseSpecSchema } from '../src/server/release/spec.ts';
 
 const root = process.cwd();
 const outputDirectory = resolve(root, 'dist', 'v2');
@@ -34,6 +11,22 @@ const sha256 = (content: Uint8Array) => createHash('sha256').update(content).dig
 const toPosix = (path: string) => path.replaceAll('\\', '/');
 const git = (arguments_: string[]) =>
   execFileSync('git', arguments_, { cwd: root, encoding: 'utf8' }).trim();
+const tryGit = (arguments_: string[]) => {
+  try {
+    return git(arguments_);
+  } catch {
+    return null;
+  }
+};
+const sourceOverride = {
+  commit: process.env.KUMA_MIERU_SOURCE_COMMIT,
+  committedAt: process.env.KUMA_MIERU_SOURCE_COMMITTED_AT,
+};
+if (Boolean(sourceOverride.commit) !== Boolean(sourceOverride.committedAt)) {
+  throw new Error(
+    'KUMA_MIERU_SOURCE_COMMIT and KUMA_MIERU_SOURCE_COMMITTED_AT must be provided together'
+  );
+}
 
 const collectFiles = async (directory: string): Promise<string[]> => {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -50,9 +43,6 @@ const collectFiles = async (directory: string): Promise<string[]> => {
 const spec = releaseSpecSchema.parse(
   JSON.parse(await readFile(resolve(root, 'release', 'v2', 'release-spec.json'), 'utf8'))
 );
-if (spec.stable !== (spec.channel === 'stable')) {
-  throw new Error('release-spec stable must be true exactly when channel is stable');
-}
 
 const migrationDirectory = resolve(root, 'migrations');
 const migrationNames = (await readdir(migrationDirectory))
@@ -81,12 +71,26 @@ if (maximumMigrationVersion !== spec.database.maximumSchemaVersion) {
   );
 }
 
-const dirty = git(['status', '--porcelain']).length > 0;
-if (process.argv.includes('--strict') && dirty) {
-  throw new Error('Strict release manifest generation requires a clean Git worktree');
+const usesSourceOverride = Boolean(sourceOverride.commit);
+const repositoryCommit = tryGit(['rev-parse', 'HEAD']);
+const commit =
+  sourceOverride.commit ?? process.env.GITHUB_SHA ?? repositoryCommit ?? 'unverified';
+const commitExists =
+  commit !== 'unverified' && tryGit(['cat-file', '-e', `${commit}^{commit}`]) !== null;
+const committedAt =
+  sourceOverride.committedAt ??
+  (commitExists ? tryGit(['show', '-s', '--format=%cI', commit]) : null) ??
+  '1970-01-01T00:00:00Z';
+const repositoryStatus = tryGit(['status', '--porcelain']);
+const dirty = usesSourceOverride
+  ? process.env.KUMA_MIERU_SOURCE_DIRTY === 'true'
+  : repositoryStatus === null || repositoryStatus.length > 0;
+const sourceVerified = usesSourceOverride
+  ? process.env.KUMA_MIERU_SOURCE_VERIFIED === 'true'
+  : repositoryCommit !== null && commitExists;
+if (process.argv.includes('--strict') && (!sourceVerified || dirty)) {
+  throw new Error('Strict release manifest generation requires verified, clean source evidence');
 }
-const commit = process.env.GITHUB_SHA ?? git(['rev-parse', 'HEAD']);
-const committedAt = git(['show', '-s', '--format=%cI', commit]);
 const files = await collectFiles(outputDirectory);
 const artifacts = await Promise.all(
   files.map(async path => {
@@ -105,9 +109,10 @@ const manifest = {
   version: spec.version,
   channel: spec.channel,
   stable: spec.stable,
-  source: { commit, committedAt, dirty },
+  source: { commit, committedAt, dirty, verified: sourceVerified },
   runtime: spec.runtime,
   database: { ...spec.database, migrations },
+  container: spec.container,
   compatibility: spec.compatibility,
   artifacts,
 };

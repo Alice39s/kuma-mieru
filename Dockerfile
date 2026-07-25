@@ -10,8 +10,15 @@ RUN bun install --frozen-lockfile
 
 FROM dependencies AS builder
 
+ARG KUMA_MIERU_SOURCE_COMMIT=unverified
+ARG KUMA_MIERU_SOURCE_COMMITTED_AT=1970-01-01T00:00:00Z
+ARG KUMA_MIERU_SOURCE_VERIFIED=false
 COPY . .
-RUN bun run build
+RUN KUMA_MIERU_SOURCE_COMMIT="${KUMA_MIERU_SOURCE_COMMIT}" \
+    KUMA_MIERU_SOURCE_COMMITTED_AT="${KUMA_MIERU_SOURCE_COMMITTED_AT}" \
+    KUMA_MIERU_SOURCE_VERIFIED="${KUMA_MIERU_SOURCE_VERIFIED}" \
+    KUMA_MIERU_SOURCE_DIRTY=false \
+    bun run build
 
 FROM bun-base AS production-dependencies
 
@@ -22,11 +29,15 @@ RUN bun install --frozen-lockfile --production
 FROM node:24-alpine AS runtime
 
 ARG KUMA_MIERU_BUILD_VERSION=2.0.0-dev
+ARG KUMA_MIERU_SOURCE_COMMIT=unverified
+ARG KUMA_MIERU_SOURCE_COMMITTED_AT=1970-01-01T00:00:00Z
 LABEL org.opencontainers.image.title="Kuma Mieru" \
       org.opencontainers.image.description="Uptime-first status page and public communication control plane" \
       org.opencontainers.image.source="https://github.com/Alice39s/kuma-mieru" \
       org.opencontainers.image.licenses="MPL-2.0" \
-      org.opencontainers.image.version="${KUMA_MIERU_BUILD_VERSION}"
+      org.opencontainers.image.version="${KUMA_MIERU_BUILD_VERSION}" \
+      org.opencontainers.image.revision="${KUMA_MIERU_SOURCE_COMMIT}" \
+      org.opencontainers.image.created="${KUMA_MIERU_SOURCE_COMMITTED_AT}"
 
 RUN apk add --no-cache dumb-init \
     && addgroup -S -g 10001 kuma-mieru \

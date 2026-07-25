@@ -29,6 +29,11 @@ import {
   clearPostRestoreRetentionMarker,
   readPostRestoreRetentionMarker,
 } from './retention/restore-marker.js';
+import {
+  assertReleaseBuild,
+  assertReleaseSchema,
+  loadReleaseManifest,
+} from './release/manifest.js';
 
 const currentDirectory = fileURLToPath(new URL('.', import.meta.url));
 const dataDirectory = resolve(process.env.KUMA_MIERU_DATA_DIR ?? './data');
@@ -40,7 +45,13 @@ const migrationDirectory = process.env.KUMA_MIERU_MIGRATIONS_DIR
     ? bundledMigrationDirectory
     : resolve(process.cwd(), 'migrations');
 const clientDirectory = resolve(currentDirectory, '../client');
-const buildVersion = process.env.KUMA_MIERU_BUILD_VERSION ?? '2.0.0-dev';
+const releaseManifest = await loadReleaseManifest(
+  resolve(currentDirectory, '../release-manifest.json'),
+  { required: process.env.NODE_ENV === 'production' }
+);
+const buildVersion =
+  process.env.KUMA_MIERU_BUILD_VERSION ?? releaseManifest?.version ?? '2.0.0-dev';
+if (releaseManifest) assertReleaseBuild(releaseManifest, buildVersion);
 const port = Number(process.env.PORT ?? 3882);
 const hostname = process.env.HOST ?? '0.0.0.0';
 const baseURL = process.env.KUMA_MIERU_BASE_URL ?? `http://127.0.0.1:${port}`;
@@ -59,6 +70,9 @@ const migration = await migrateDatabase(database, {
   databasePath,
   appBuild: buildVersion,
 });
+if (releaseManifest) {
+  assertReleaseSchema(releaseManifest, migration.currentVersion);
+}
 const backupService = createBackupService({
   database,
   databasePath,
@@ -202,6 +216,7 @@ const app = createApp({
   retentionService,
   subscriberTombstones,
   isRuntimeLockHeld: runtimeLock.isHeld,
+  releaseManifest,
   publicDirectory: process.env.NODE_ENV === 'development' ? undefined : clientDirectory,
   loadPageSnapshots: page =>
     page.sourceRefs.flatMap(sourceId => {

@@ -131,10 +131,34 @@ The Simple Compose profile applies a read-only root filesystem, `/tmp` tmpfs, th
 20-second graceful shutdown window. It does not mount a Docker socket or request host namespaces,
 devices, privileged mode, or a writable Source mount.
 
-The 2026-07-23 amd64 Docker PoC produced a 75,175,529-byte image, ran as `10001:10001`, rejected a
-root-filesystem write, accepted the `/data` write, returned schema version 7 from Readiness, and
-exited with code 0 on Compose SIGTERM. The isolated Compose project, volume, network, image, and
-temporary remote directory were removed after the test.
+The 2026-07-25 amd64 Docker drill produced a 74,913,128-byte image, ran as `10001:10001`, rejected a
+root-filesystem write, accepted the `/data` write, returned schema version 13 from Readiness, and
+exited with code 0 on Compose SIGTERM. It also proved that the runtime graph contains no Next.js,
+production output contains no source maps, and all 141 files in the embedded Release Manifest match
+their byte length and SHA-256. A deliberately mismatched `KUMA_MIERU_BUILD_VERSION=2.0.1` failed
+before opening the listener.
+
+### Release identity and supply chain
+
+`release/v2/release-spec.json`, rather than the compatibility-period root package version, is the
+machine-readable v2 release identity. Version suffix, channel, SQLite schema range, runtime identity,
+container constraints, and the v1 compatibility inventory are validated together. A production
+build creates `dist/v2/release-manifest.json`; startup requires it, checks the build version before
+opening the database, and checks the migrated schema before serving traffic. Public metadata exposes
+the non-secret channel, source, and container evidence. A source archive without Git metadata still
+builds an explicitly unverified local Manifest; strict release evidence rejects that fallback.
+
+The release policy permits `v2-dev` to publish only `2-dev` plus an immutable commit tag. Alpha,
+Beta, and RC tags publish only their exact version and commit tag. Only an exact Stable tag whose
+commit is already in `main` may publish minor, major, and `latest` aliases. Pull requests and manual
+dispatches build without pushing. Published multi-architecture images request BuildKit SPDX SBOM and
+maximum provenance, GitHub provenance for the final manifest digest, and a Cosign keyless signature
+of that same digest.
+
+The remote 2026-07-25 OCI drill found two SLSA provenance statements and two SPDX statements bound
+to the temporary validation digest. A real GHCR push, GitHub OIDC signature verification,
+pull-by-digest on both architectures, and a Rootless Docker daemon remain release-environment
+gates; local evidence does not claim those external gates are complete.
 
 ## SQLite backup and offline restore
 

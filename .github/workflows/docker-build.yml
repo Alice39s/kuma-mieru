@@ -1,48 +1,69 @@
-name: Docker Build and Push to GHCR
+name: Kuma Mieru v2 container
 
 on:
   push:
-    branches: ['main', 'v2-dev']
-    paths:
-      - '.dockerignore'
-      - 'bun.lock'
-      - 'package.json'
-      - 'runtime/v2/**'
-      - 'src/**'
-      - 'scripts/**'
-      - 'migrations/**'
-      - 'public/**'
-      - 'vite.config.ts'
-      - 'tsconfig.server.json'
-      - 'tsconfig.v2.json'
-      - 'Dockerfile'
-      - '.github/workflows/docker-build.yml'
-      - 'docker-compose.yml'
+    branches: [v2-dev]
+    tags: ["v2.*"]
   pull_request:
-    branches: ['main', 'v2-dev']
-    paths:
-      - '.dockerignore'
-      - 'bun.lock'
-      - 'package.json'
-      - 'runtime/v2/**'
-      - 'src/**'
-      - 'scripts/**'
-      - 'migrations/**'
-      - 'public/**'
-      - 'vite.config.ts'
-      - 'tsconfig.server.json'
-      - 'tsconfig.v2.json'
-      - 'Dockerfile'
-      - 'docker-compose.yml'
+    branches: [v2-dev]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-container-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE: ghcr.io/alice39s/kuma-mieru
 
 jobs:
-  build-and-push:
+  policy:
+    name: Resolve release policy
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.policy.outputs.version }}
+      channel: ${{ steps.policy.outputs.channel }}
+      stable: ${{ steps.policy.outputs.stable }}
+      publish: ${{ steps.policy.outputs.publish }}
+      tags: ${{ steps.policy.outputs.tags }}
+      source_committed_at: ${{ steps.source.outputs.committed_at }}
+
+    steps:
+      - name: Checkout complete source history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun 1.3.14
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Resolve channel and allowed image tags
+        id: policy
+        run: bun run release:v2:policy
+
+      - name: Require stable tags to be merged into main
+        if: steps.policy.outputs.require_main_ancestry == 'true'
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: Resolve immutable source timestamp
+        id: source
+        run: echo "committed_at=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+
+  image:
+    name: Build, attest, and sign
+    needs: policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
     permissions:
       contents: read
       packages: write
@@ -51,64 +72,62 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Get package version
-        id: package_version
-        run: |
-          version=$(node -p "require('./package.json').version")
-          major=$(echo "$version" | cut -d. -f1)
-          minor=$(echo "$version" | cut -d. -f2)
-          {
-            echo "version=$version"
-            echo "major=$major"
-            echo "major_minor=$major.$minor"
-          } >> "$GITHUB_OUTPUT"
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
         with:
           platforms: arm64
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        if: needs.policy.outputs.publish == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ steps.package_version.outputs.version }}
-            type=raw,value=${{ steps.package_version.outputs.major_minor }}
-            type=raw,value=${{ steps.package_version.outputs.major }}
-            type=sha,format=short,prefix=sha-
-          labels: |
-            org.opencontainers.image.title=Kuma Mieru
-            org.opencontainers.image.description=An Uptime-first status page and public communication control plane.
-            org.opencontainers.image.version=${{ steps.package_version.outputs.version }}
-            org.opencontainers.image.licenses=MPL-2.0
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+      - name: Build and optionally publish multi-architecture image
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          push: ${{ needs.policy.outputs.publish == 'true' }}
+          tags: ${{ needs.policy.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=Kuma Mieru
+            org.opencontainers.image.description=Uptime-first status page and public communication control plane
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.policy.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ needs.policy.outputs.source_committed_at }}
+            org.opencontainers.image.licenses=MPL-2.0
+          build-args: |
+            KUMA_MIERU_BUILD_VERSION=${{ needs.policy.outputs.version }}
+            KUMA_MIERU_SOURCE_COMMIT=${{ github.sha }}
+            KUMA_MIERU_SOURCE_COMMITTED_AT=${{ needs.policy.outputs.source_committed_at }}
+            KUMA_MIERU_SOURCE_VERIFIED=true
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: mode=max
           sbom: true
-          build-args: |
-            KUMA_MIERU_BUILD_VERSION=${{ steps.package_version.outputs.version }}
+
+      - name: Record GitHub build provenance
+        if: needs.policy.outputs.publish == 'true'
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Install Cosign
+        if: needs.policy.outputs.publish == 'true'
+        uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9 # v3
+
+      - name: Keyless-sign the immutable image digest
+        if: needs.policy.outputs.publish == 'true'
+        run: cosign sign --yes "${IMAGE}@${{ steps.build.outputs.digest }}"

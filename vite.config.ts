@@ -22,7 +22,7 @@ export default defineConfig({
   build: {
     outDir: 'dist/v2/client',
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: process.env.KUMA_MIERU_SOURCE_MAPS === 'true',
     target: 'es2022',
   },
 });

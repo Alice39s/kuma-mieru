@@ -25,3 +25,5 @@ await mkdir(resolve(outputDirectory, 'server'), { recursive: true });
 await cp(resolve(root, 'migrations'), resolve(outputDirectory, 'server', 'migrations'), {
   recursive: true,
 });
+await run('verify:v2:bundle');
+await run('release:v2:manifest');

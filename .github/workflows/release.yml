@@ -1,10 +1,10 @@
-name: Create Release
+name: Create v1 Release
 
 on:
   push:
     paths:
-      - 'package.json'
-      - '.github/workflows/release.yml'
+      - "package.json"
+      - ".github/workflows/release.yml"
     branches:
       - main
 
@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
@@ -31,9 +31,14 @@ jobs:
       - name: Get version from package.json
         id: package_version
         run: |
-          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+          version=$(node -p "require('./package.json').version")
+          {
+            echo "version=$version"
+            echo "major=${version%%.*}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Check if release exists
+        if: steps.package_version.outputs.major == '1'
         id: check_release
         run: |
           latest_release=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest || echo '{"tag_name":"none"}')
@@ -47,7 +52,7 @@ jobs:
           fi
 
       - name: Generate changelog
-        if: steps.check_release.outputs.version_exists == 'false'
+        if: steps.package_version.outputs.major == '1' && steps.check_release.outputs.version_exists == 'false'
         id: changelog
         env:
           COMMIT_URL: ${{ steps.env_vars.outputs.commit_url }}
@@ -92,8 +97,8 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        if: steps.check_release.outputs.version_exists == 'false'
-        uses: softprops/action-gh-release@v1
+        if: steps.package_version.outputs.major == '1' && steps.check_release.outputs.version_exists == 'false'
+        uses: softprops/action-gh-release@26994186c0ac3ef5cae75ac16aa32e8153525f77 # v1
         env:
           VERSION: ${{ steps.package_version.outputs.version }}
           REPO_NAME: ${{ steps.env_vars.outputs.repo_name }}

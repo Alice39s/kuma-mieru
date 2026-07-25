@@ -25,6 +25,7 @@ import type { DeliveryRuntimeStatus } from './delivery/runtime.js';
 import type { SmtpTestService } from './delivery/smtp-config.js';
 import type { RetentionService } from './retention/service.js';
 import type { SubscriberTombstoneStore } from './retention/tombstone-store.js';
+import type { ReleaseManifest } from './release/manifest.js';
 import {
   getPublishedIncident,
   listPublishedEvents,
@@ -86,6 +87,7 @@ export interface AppOptions {
   retentionService?: RetentionService;
   subscriberTombstones?: SubscriberTombstoneStore;
   isRuntimeLockHeld?: () => boolean;
+  releaseManifest?: ReleaseManifest | null;
 }
 
 export const createApp = ({
@@ -115,6 +117,7 @@ export const createApp = ({
   retentionService,
   subscriberTombstones,
   isRuntimeLockHeld = () => true,
+  releaseManifest = null,
 }: AppOptions) => {
   const app = new Hono<AppEnvironment>();
   const currentSnapshot = () => getRuntimeSnapshot?.() ?? snapshot;
@@ -395,6 +398,14 @@ export const createApp = ({
     return context.json({
       version: buildVersion,
       schemaVersion,
+      release: releaseManifest
+        ? {
+            channel: releaseManifest.channel,
+            stable: releaseManifest.stable,
+            source: releaseManifest.source,
+            container: releaseManifest.container,
+          }
+        : null,
       config: {
         mode: runtime.mode,
         revision: runtime.revision,

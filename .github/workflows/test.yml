@@ -21,15 +21,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
 
       - name: Setup Bun 1.3.14
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.3.14
 
@@ -58,7 +58,7 @@ jobs:
         run: bun run release:v2:manifest:strict
 
       - name: Upload release evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kuma-mieru-v2-release-evidence-${{ github.sha }}
           path: |
@@ -74,11 +74,11 @@ jobs:
     timeout-minutes: 25
     env:
       COMPOSE_PROJECT_NAME: kmv2-ci-${{ github.run_id }}-${{ github.run_attempt }}
-      KUMA_MIERU_BUILD_VERSION: 2.0.0-ci.${{ github.run_number }}
+      KUMA_MIERU_BUILD_VERSION: 2.0.0-dev
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Build and start the hardened Compose profile
         run: docker compose -p "$COMPOSE_PROJECT_NAME" up --build --wait --wait-timeout 180 --detach
@@ -89,13 +89,33 @@ jobs:
           test -n "$container_id"
           test "$(docker inspect --format '{{.Config.User}}' "$container_id")" = '10001:10001'
           test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$container_id")" = 'true'
-          docker inspect "$container_id" | jq -e '.[0].HostConfig.CapDrop == ["ALL"]'
+          docker inspect "$container_id" | jq -e '
+            .[0].HostConfig.CapDrop == ["ALL"] and
+            .[0].HostConfig.Privileged == false and
+            .[0].HostConfig.NetworkMode != "host" and
+            .[0].HostConfig.PidMode != "host" and
+            .[0].HostConfig.IpcMode != "host" and
+            (.[0].HostConfig.Devices // []) == [] and
+            (.[0].HostConfig.SecurityOpt | index("no-new-privileges:true") != null)
+          '
           docker inspect "$container_id" | jq -e 'all(.[0].Mounts[]; .Destination != "/var/run/docker.sock")'
           docker exec "$container_id" sh -eu -c '! touch /root-filesystem-must-stay-read-only'
           docker exec "$container_id" sh -eu -c 'touch /data/ci-write-check && rm /data/ci-write-check'
           wget -q -O - http://127.0.0.1:3883/health/live | jq -e '.status == "ok"'
-          wget -q -O - http://127.0.0.1:3883/health/ready | jq -e '.status == "ok"'
+          wget -q -O - http://127.0.0.1:3883/health/ready | jq -e '.status == "ok" and .schemaVersion == 13'
+          wget -q -O - http://127.0.0.1:3883/api/v1/meta | jq -e '
+            .version == "2.0.0-dev" and
+            .schemaVersion == 13 and
+            .release.source.verified == false and
+            .release.container.readOnlyRootFilesystem == true and
+            .release.container.dropAllCapabilities == true and
+            .release.container.dockerSocket == false
+          '
 
       - name: Stop and remove isolated Compose resources
         if: always()
-        run: docker compose -p "$COMPOSE_PROJECT_NAME" down -v --remove-orphans
+        run: |
+          docker compose -p "$COMPOSE_PROJECT_NAME" down -v --remove-orphans
+          test -z "$(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")"
+          test -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")"
+          test -z "$(docker network ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")"

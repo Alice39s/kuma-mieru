@@ -2,11 +2,14 @@ name: kuma-mieru-v2
 
 services:
   kuma-mieru:
-    image: ghcr.io/alice39s/kuma-mieru:2-dev
+    image: ${KUMA_MIERU_IMAGE:-ghcr.io/alice39s/kuma-mieru:2-dev}
     build:
       context: .
       args:
         KUMA_MIERU_BUILD_VERSION: ${KUMA_MIERU_BUILD_VERSION:-2.0.0-dev}
+        KUMA_MIERU_SOURCE_COMMIT: ${KUMA_MIERU_SOURCE_COMMIT:-unverified}
+        KUMA_MIERU_SOURCE_COMMITTED_AT: ${KUMA_MIERU_SOURCE_COMMITTED_AT:-1970-01-01T00:00:00Z}
+        KUMA_MIERU_SOURCE_VERIFIED: ${KUMA_MIERU_SOURCE_VERIFIED:-false}
     restart: unless-stopped
     user: '10001:10001'
     read_only: true
