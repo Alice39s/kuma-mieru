@@ -102,6 +102,8 @@ export const normalizeUptimeKumaSnapshot = ({
     services,
     incidents: incidents.map(incident => ({
       id: `${sourceId}:incident:${incident.id}`,
+      sourceEventId: String(incident.id),
+      kind: 'incident' as const,
       title: incident.title,
       content: incident.content,
       severity:

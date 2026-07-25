@@ -34,6 +34,11 @@ import {
 } from './events/maintenance-repository.js';
 import { listPublishedNotices } from './events/notice-repository.js';
 import { listPublishedPostmortems } from './events/postmortem-repository.js';
+import {
+  getMirroredEventTimeline,
+  listMirroredEvents,
+  type MirroredEventSourceFilter,
+} from './events/mirrored-repository.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
 import { createSubscriptionNonceService } from './subscriptions/nonce.js';
 import {
@@ -110,6 +115,17 @@ export const createApp = ({
     );
   const findLegacyPage = (requested: string | undefined) =>
     (requested ? findPage(requested) : null) ?? currentSnapshot().config.pages[0] ?? null;
+  const mirroredFiltersForPage = (
+    page: CanonicalConfig['pages'][number]
+  ): MirroredEventSourceFilter[] =>
+    page.sourceRefs.flatMap(sourceId => {
+      const source = currentSnapshot().config.sources.find(candidate => candidate.id === sourceId);
+      return source?.pageIds.map(pageId => ({ sourceId, pageId })) ?? [];
+    });
+  const publicMirroredEvent = <Event extends { source: { url: string } }>(event: Event) => ({
+    ...event,
+    source: { ...event.source, url: null },
+  });
   const setLegacyHeaders = (context: Context<AppEnvironment>, available: boolean) => {
     context.header('Deprecation', 'true');
     context.header('Link', '</about#v1-compatibility>; rel="deprecation"');
@@ -414,6 +430,35 @@ export const createApp = ({
     }
     context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
     return context.json({ data });
+  });
+
+  app.get('/api/v1/public/pages/:slug/mirrored-events', context => {
+    const page = findPage(context.req.param('slug'));
+    if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+    context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+    return context.json({
+      data: database
+        ? listMirroredEvents(database, mirroredFiltersForPage(page)).map(publicMirroredEvent)
+        : [],
+    });
+  });
+
+  app.get('/api/v1/public/pages/:slug/mirrored-events/:id', context => {
+    const page = findPage(context.req.param('slug'));
+    if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+    const event = database
+      ? getMirroredEventTimeline(database, mirroredFiltersForPage(page), context.req.param('id'))
+      : null;
+    if (!event) {
+      return errorResponse(
+        context,
+        404,
+        'MIRRORED_EVENT_NOT_FOUND',
+        'Mirrored source event not found'
+      );
+    }
+    context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+    return context.json({ data: publicMirroredEvent(event) });
   });
 
   app.get('/api/v1/public/pages/:slug/maintenance', context => {

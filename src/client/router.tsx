@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router';
 import { AppShell, RootErrorBoundary } from './app-shell';
-import { loadPublicBootstrap, loadStatusSnapshot } from './api';
+import { loadPublicBootstrap, loadStatusPage } from './api';
 import { About } from './routes/about';
 import { LegacyMonitorRedirect } from './routes/legacy-monitor';
 import { PublicHome } from './routes/public-home';
@@ -18,7 +18,7 @@ export const router = createBrowserRouter([
       { index: true, Component: PublicHome },
       { path: 'about', Component: About },
       { path: 'monitor/:monitorId', Component: LegacyMonitorRedirect },
-      { path: ':pageId', loader: loadStatusSnapshot, Component: StatusPage },
+      { path: ':pageId', loader: loadStatusPage, Component: StatusPage },
       {
         path: 'status/:pageSlug/metrics',
         lazy: () => import('./routes/metric-explorer'),
@@ -27,7 +27,7 @@ export const router = createBrowserRouter([
         path: 'status/:pageSlug/methodology',
         lazy: () => import('./routes/methodology'),
       },
-      { path: 'status/:pageSlug/*', loader: loadStatusSnapshot, Component: StatusPage },
+      { path: 'status/:pageSlug/*', loader: loadStatusPage, Component: StatusPage },
     ],
   },
 ]);

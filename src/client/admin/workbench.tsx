@@ -484,6 +484,7 @@ export const Workbench = ({
                 pages={data.pages}
                 incidents={data.incidents}
                 events={data.events}
+                mirroredEvents={data.mirroredEvents}
                 onCommitted={reload}
               />
             ) : null}

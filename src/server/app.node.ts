@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import type { SourceSnapshotState } from './adapters/source-store.js';
 import { createApp } from './app.js';
+import { openDatabase } from './db/database.js';
+import { migrateDatabase } from './db/migrator.js';
+import { reconcileMirroredEvents } from './events/mirrored-repository.js';
 
 const snapshot = {
   mode: 'compatibility' as const,
@@ -76,6 +81,104 @@ test('keeps public email subscription disabled until a verified runtime is activ
   assert.equal(nonce.status, 503);
   const nonceBody = (await nonce.json()) as { error: { code: string } };
   assert.equal(nonceBody.error.code, 'SUBSCRIPTIONS_NOT_READY');
+});
+
+test('serves mirrored source history only through its read-only origin boundary', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-mirrored-api-'));
+  const databasePath = resolve(directory, 'mirrored-api.sqlite3');
+  const { database } = openDatabase(databasePath);
+  try {
+    await migrateDatabase(database, {
+      directory: resolve(process.cwd(), 'migrations'),
+      databasePath,
+    });
+    const sourceSnapshot = {
+      sourceId: 'primary',
+      pageId: 'main',
+      title: 'Example Status',
+      description: '',
+      status: 'major_outage' as const,
+      fetchedAt: '2026-07-25T03:00:00.000Z',
+      sourceUpdatedAt: '2026-07-25T02:59:00.000Z',
+      extensions: {},
+      capabilities: {
+        currentStatus: true,
+        heartbeatSeries: false,
+        latencySeries: false,
+        uptimeWindows: [],
+        incidents: 'current' as const,
+        maintenance: false,
+        groups: false,
+        tags: false,
+        nativeMetrics: false,
+        historicalDays: null,
+      },
+      groups: [],
+      services: [],
+      incidents: [
+        {
+          id: 'primary:incident:upstream-1',
+          sourceEventId: 'upstream-1',
+          kind: 'incident' as const,
+          title: 'Upstream incident',
+          content: 'Provider is investigating',
+          severity: 'warning' as const,
+          startedAt: '2026-07-25T02:50:00.000Z',
+          updatedAt: '2026-07-25T02:59:00.000Z',
+          rawStatus: 'investigating',
+        },
+      ],
+    };
+    reconcileMirroredEvents(database, sourceSnapshot, {
+      sourceUrl: 'https://status.example.com/main?private=value',
+    });
+    reconcileMirroredEvents(
+      database,
+      { ...sourceSnapshot, sourceId: 'unmapped' },
+      {
+        sourceUrl: 'https://unmapped.example.com',
+      }
+    );
+    const app = createApp({
+      snapshot,
+      schemaVersion: 10,
+      buildVersion: '2.0.0-test',
+      database,
+    });
+
+    const list = await app.request('/api/v1/public/pages/main/mirrored-events');
+    assert.equal(list.status, 200);
+    const listBody = (await list.json()) as {
+      data: Array<{
+        id: string;
+        origin: string;
+        notificationEligible: boolean;
+        source: { id: string; url: string | null };
+      }>;
+    };
+    assert.equal(listBody.data.length, 1);
+    assert.equal(listBody.data[0]?.source.id, 'primary');
+    assert.equal(listBody.data[0]?.source.url, null);
+    assert.equal(listBody.data[0]?.origin, 'mirrored');
+    assert.equal(listBody.data[0]?.notificationEligible, false);
+
+    const detail = await app.request(
+      `/api/v1/public/pages/main/mirrored-events/${listBody.data[0]?.id}`
+    );
+    assert.equal(detail.status, 200);
+    const detailBody = (await detail.json()) as {
+      data: { entries: Array<{ observationKind: string }> };
+    };
+    assert.deepEqual(
+      detailBody.data.entries.map(entry => entry.observationKind),
+      ['initial']
+    );
+    const native = await app.request('/api/v1/public/pages/main/incidents');
+    assert.deepEqual(await native.json(), { data: [] });
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('serves generic native metrics and methodology only from local extension caches', async () => {
@@ -322,6 +425,8 @@ test('projects local snapshots into the v1 read APIs without an upstream request
       incidents: [
         {
           id: 'incident-1',
+          sourceEventId: 'incident-1',
+          kind: 'incident',
           title: 'Latency',
           content: 'Monitoring',
           severity: 'warning',

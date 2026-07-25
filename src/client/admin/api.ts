@@ -8,9 +8,17 @@ interface AdminSourceBase {
   id: string;
   baseUrl: string;
   pageIds: string[];
+  requestPolicy?: {
+    timeoutMs?: number;
+  };
 }
 
-export type AdminSource = AdminSourceBase &
+export interface AdminSource extends AdminSourceBase {
+  kind: 'uptime-kuma' | 'better-stack' | 'incident-io' | 'uptime-robot' | 'llm-mieru';
+  authenticated: boolean;
+}
+
+export type AdminSourceCandidate = AdminSourceBase &
   (
     | { kind: 'uptime-kuma' | 'better-stack' | 'incident-io' }
     | { kind: 'uptime-robot'; secretRef: string }
@@ -99,6 +107,31 @@ export interface AdminPostmortem extends SharedAdminEvent<'postmortem', Postmort
 }
 
 export type AdminNativeEvent = AdminIncident | AdminMaintenance | AdminNotice | AdminPostmortem;
+
+export interface AdminMirroredEvent {
+  id: string;
+  origin: 'mirrored';
+  notificationEligible: false;
+  type: 'incident' | 'maintenance';
+  presence: 'present' | 'absent';
+  version: number;
+  title: string;
+  content: string;
+  severity: 'info' | 'warning' | 'danger' | 'unknown';
+  startedAt: string | null;
+  sourceUpdatedAt: string | null;
+  rawStatus: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  absentAt: string | null;
+  updatedAt: string;
+  source: {
+    id: string;
+    pageId: string;
+    eventId: string;
+    url: string;
+  };
+}
 
 export type SubscriberState =
   | 'pending_confirmation'
@@ -279,6 +312,7 @@ export const getWorkbenchData = async () => {
     pages,
     revisions,
     incidents,
+    mirroredEvents,
     maintenances,
     notices,
     postmortems,
@@ -289,6 +323,7 @@ export const getWorkbenchData = async () => {
     request<{ data: AdminPage[] }>('/api/v1/admin/pages'),
     request<{ data: AdminRevision[] }>('/api/v1/admin/config/revisions'),
     request<{ data: AdminIncident[] }>('/api/v1/admin/events'),
+    request<{ data: AdminMirroredEvent[] }>('/api/v1/admin/mirrored-events'),
     request<{ data: AdminMaintenance[] }>('/api/v1/admin/maintenances'),
     request<{ data: AdminNotice[] }>('/api/v1/admin/notices'),
     request<{ data: AdminPostmortem[] }>('/api/v1/admin/postmortems'),
@@ -305,6 +340,7 @@ export const getWorkbenchData = async () => {
     pages: pages.data,
     revisions: revisions.data,
     incidents: incidents.data,
+    mirroredEvents: mirroredEvents.data,
     events,
   };
 };
@@ -509,7 +545,7 @@ export const suppressSubscriber = (
     body: JSON.stringify({ expectedState }),
   });
 
-export const testSource = (session: AdminSession, source: AdminSource) =>
+export const testSource = (session: AdminSession, source: AdminSourceCandidate) =>
   request<{
     data: {
       token: string;
@@ -539,7 +575,7 @@ export const putSourceToken = (session: AdminSession, resourceId: string, value:
 
 export const createSource = (
   session: AdminSession,
-  input: { expectedRevision: number; source: AdminSource; testToken: string }
+  input: { expectedRevision: number; source: AdminSourceCandidate; testToken: string }
 ) =>
   request<{ data: { revision: number; applyStatus: string } }>('/api/v1/admin/sources', {
     method: 'POST',

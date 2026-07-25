@@ -227,8 +227,20 @@ snapshot once per hour with a three-hour freshness boundary. The public
 `/api/v1/public/pages/:slug/methodology` endpoint and lazy
 `/status/:pageSlug/methodology` disclosure page preserve protocol, metric, coverage, limitation,
 and evidence fields from the same local snapshot. Stale disclosure remains visible as explicit
-last-known-good evidence. Mirrored-event ledger persistence stays disabled until its executable
-contract and storage projection are implemented.
+last-known-good evidence.
+
+Successful source polls now reconcile normalized Incident and Maintenance evidence into the
+Migration 10 Mirrored Event ledger. Identity is stable across polls by Source, Source Page, Event
+Kind, and upstream Event ID. A changed payload, disappearance from an authoritative current/history
+feed, or later reappearance appends a new sequence; an unchanged poll only advances `lastSeenAt`.
+Disappearance is represented as `absent`, never rewritten into a fictional `resolved` Native Event.
+
+Mirrored Events have dedicated Public and Admin read APIs and a visibly read-only surface in both
+workbenches. They retain the upstream ID, sanitized source link, fetch time, source update time, raw
+status, and immutable observation timeline. Public responses redact the Source Base URL by default
+to avoid exposing private topology; authenticated Admin reads receive only a URL with credentials,
+query, and fragment removed. The mirror repository has no Publication or Notification Outbox write
+path, and the Public UI explicitly labels these records as ineligible for secondary notifications.
 
 ## Authentication and managed revisions
 

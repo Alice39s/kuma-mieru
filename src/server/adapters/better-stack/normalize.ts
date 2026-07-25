@@ -105,6 +105,8 @@ export const normalizeBetterStackSnapshot = (input: {
       const rawStatus = report.attributes.aggregate_state;
       return {
         id: `${input.sourceId}:incident:${report.id}`,
+        sourceEventId: report.id,
+        kind: 'incident' as const,
         title: report.attributes.title,
         content: relatedUpdates.map(update => update.attributes.message).join('\n\n'),
         severity:

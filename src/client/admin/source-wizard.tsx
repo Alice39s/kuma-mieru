@@ -8,7 +8,7 @@ import {
   putSourceToken,
   testSource,
   type AdminSession,
-  type AdminSource,
+  type AdminSourceCandidate,
 } from './api';
 import { sourceDraftSchema, type SourceDraftInput } from './schemas';
 
@@ -19,13 +19,13 @@ interface SourceWizardProps {
 }
 
 interface VerifiedDraft {
-  source: AdminSource;
+  source: AdminSourceCandidate;
   token: string;
   expiresAt: string;
   pages: Array<{ pageId: string; title: string; status: string; serviceCount: number }>;
 }
 
-const toSource = (input: SourceDraftInput, secretRef?: string): AdminSource => {
+const toSource = (input: SourceDraftInput, secretRef?: string): AdminSourceCandidate => {
   const common = {
     id: input.id.trim(),
     baseUrl: input.baseUrl.trim(),

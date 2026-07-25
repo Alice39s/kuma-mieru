@@ -35,6 +35,14 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
             baseUrl: 'https://status.example.com',
             pageIds: ['main'],
           },
+          {
+            id: 'secured',
+            kind: 'llm-mieru',
+            baseUrl:
+              'https://reader:private@llm-status.example.com/api?token=must-not-leak#private',
+            pageIds: ['default'],
+            secretRef: 'sec_fixture',
+          },
         ],
         pages: [],
       },
@@ -140,6 +148,36 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     assert.equal(session.status, 200);
     const sessionBody = (await session.json()) as { data: { csrfToken: string } };
     assert.ok(sessionBody.data.csrfToken);
+
+    const sources = await app.request('/api/v1/admin/sources', {
+      headers: { Cookie: cookie },
+    });
+    const sourcesBody = (await sources.json()) as {
+      data: Array<Record<string, unknown>>;
+    };
+    assert.equal(sources.status, 200);
+    assert.deepEqual(
+      sourcesBody.data.map(source => ({
+        id: source.id,
+        baseUrl: source.baseUrl,
+        authenticated: source.authenticated,
+        exposesSecretRef: 'secretRef' in source,
+      })),
+      [
+        {
+          id: 'primary',
+          baseUrl: 'https://status.example.com/',
+          authenticated: false,
+          exposesSecretRef: false,
+        },
+        {
+          id: 'secured',
+          baseUrl: 'https://llm-status.example.com/api',
+          authenticated: true,
+          exposesSecretRef: false,
+        },
+      ]
+    );
 
     const storedSecret = await app.request('/api/v1/admin/secrets/source-token', {
       method: 'POST',

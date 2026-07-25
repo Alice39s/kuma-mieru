@@ -1,13 +1,21 @@
 import {
   CalendarClock,
   Clock3,
+  ExternalLink,
   FileCheck2,
+  History,
   MessageSquareText,
   Siren,
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { AdminIncident, AdminNativeEvent, AdminPage, AdminSession } from './api';
+import type {
+  AdminIncident,
+  AdminMirroredEvent,
+  AdminNativeEvent,
+  AdminPage,
+  AdminSession,
+} from './api';
 import { IncidentComposer, IncidentReview } from './incident-desk';
 import { SecondaryEventComposer, SecondaryEventReview } from './secondary-event-desk';
 
@@ -25,12 +33,14 @@ export const EventWorkspace = ({
   pages,
   incidents,
   events,
+  mirroredEvents,
   onCommitted,
 }: {
   session: AdminSession;
   pages: AdminPage[];
   incidents: AdminIncident[];
   events: AdminNativeEvent[];
+  mirroredEvents: AdminMirroredEvent[];
   onCommitted: () => Promise<void>;
 }) => {
   const [selectedKey, setSelectedKey] = useState<string | null>(
@@ -85,6 +95,35 @@ export const EventWorkspace = ({
           <div className="editor-empty">
             <strong>No native event yet.</strong>
             <p>Signals stay separate until an operator creates a public event draft.</p>
+          </div>
+        )}
+        <header className="mirrored-event-heading">
+          <div>
+            <p className="admin-eyebrow">Read-only source evidence</p>
+            <h2>Mirrored events</h2>
+          </div>
+          <span>{mirroredEvents.length}</span>
+        </header>
+        {mirroredEvents.length > 0 ? (
+          <div className="event-list mirrored-event-list">
+            {mirroredEvents.map(event => (
+              <a href={event.source.url} key={event.id} rel="noreferrer" target="_blank">
+                <History size={17} />
+                <span>
+                  <strong>{event.title}</strong>
+                  <small>
+                    {event.source.id} · {event.type} · {event.presence} · v{event.version} ·
+                    notification disabled
+                  </small>
+                </span>
+                <ExternalLink size={14} />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <div className="editor-empty">
+            <strong>No mirrored source event yet.</strong>
+            <p>Successful source polls append evidence here without creating a native event.</p>
           </div>
         )}
       </section>

@@ -286,6 +286,8 @@ export const fetchLlmMieruSnapshot = async (
     services,
     incidents: incidents.data.map(incident => ({
       id: `${input.sourceId}:incident:${incident.id}`,
+      sourceEventId: incident.id,
+      kind: 'incident' as const,
       title: `${incident.providerRoute} · ${incident.requestedModel}`,
       content: `Automatic incident · ${incident.ruleVersion}`,
       severity: severity(incident.severity),

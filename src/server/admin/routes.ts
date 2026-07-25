@@ -75,6 +75,7 @@ import {
   listPostmortems,
   publishPostmortem,
 } from '../events/postmortem-repository.js';
+import { getMirroredEventTimeline, listMirroredEvents } from '../events/mirrored-repository.js';
 import { createPiiProtector } from '../subscriptions/crypto.js';
 
 const pageCreateSchema = z.object({
@@ -108,6 +109,20 @@ const smtpCredentialSecretSchema = z.object({
   username: z.string().min(1).max(1_024),
   password: z.string().min(1).max(16_384),
 });
+
+const redactSourceForRead = (source: z.infer<typeof sourceSchema>) => {
+  const baseUrl = new URL(source.baseUrl);
+  baseUrl.username = '';
+  baseUrl.password = '';
+  baseUrl.search = '';
+  baseUrl.hash = '';
+  const readableBase = { ...source, baseUrl: baseUrl.toString() };
+  if ('secretRef' in readableBase) {
+    const { secretRef, ...readable } = readableBase;
+    return { ...readable, authenticated: Boolean(secretRef) };
+  }
+  return { ...readableBase, authenticated: false };
+};
 const smtpTestSchema = z.object({ smtp: smtpDeliverySchema });
 const smtpTestMessageSchema = z.object({ recipient: z.email().max(320) });
 const smtpUpdateSchema = z.object({
@@ -322,7 +337,9 @@ export const registerAdminRoutes = (
   app.get('/api/v1/admin/sources', async context => {
     const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
     if (!authorization.ok) return authorization.response;
-    return context.json({ data: currentSnapshot().config.sources });
+    return context.json({
+      data: currentSnapshot().config.sources.map(redactSourceForRead),
+    });
   });
 
   app.post('/api/v1/admin/secrets/source-token', async context => {
@@ -606,6 +623,33 @@ export const registerAdminRoutes = (
       return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
     }
     return context.json({ data: listIncidents(database) });
+  });
+
+  app.get('/api/v1/admin/mirrored-events', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    const filters = currentSnapshot().config.sources.flatMap(source =>
+      source.pageIds.map(pageId => ({ sourceId: source.id, pageId }))
+    );
+    return context.json({ data: listMirroredEvents(database, filters) });
+  });
+
+  app.get('/api/v1/admin/mirrored-events/:id', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    const filters = currentSnapshot().config.sources.flatMap(source =>
+      source.pageIds.map(pageId => ({ sourceId: source.id, pageId }))
+    );
+    const event = getMirroredEventTimeline(database, filters, context.req.param('id'));
+    return event
+      ? context.json({ data: event })
+      : errorResponse(context, 404, 'MIRRORED_EVENT_NOT_FOUND', 'Mirrored source event not found');
   });
 
   app.post('/api/v1/admin/incidents', async context => {

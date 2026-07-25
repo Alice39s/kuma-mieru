@@ -164,6 +164,8 @@ export const normalizeIncidentIoSummary = (input: {
     incidents: [
       ...input.payload.ongoing_incidents.map(incident => ({
         id: `${input.sourceId}:incident:${incident.id}`,
+        sourceEventId: incident.id,
+        kind: 'incident' as const,
         title: incident.name,
         content: incident.last_update_message,
         severity:
@@ -179,6 +181,8 @@ export const normalizeIncidentIoSummary = (input: {
       })),
       ...input.payload.in_progress_maintenances.map(maintenance => ({
         id: `${input.sourceId}:maintenance:${maintenance.id}`,
+        sourceEventId: maintenance.id,
+        kind: 'maintenance' as const,
         title: maintenance.name,
         content: maintenance.last_update_message,
         severity: 'info' as const,
@@ -188,6 +192,8 @@ export const normalizeIncidentIoSummary = (input: {
       })),
       ...input.payload.scheduled_maintenances.map(maintenance => ({
         id: `${input.sourceId}:maintenance:${maintenance.id}`,
+        sourceEventId: maintenance.id,
+        kind: 'maintenance' as const,
         title: maintenance.name,
         content: maintenance.last_update_message,
         severity: 'info' as const,

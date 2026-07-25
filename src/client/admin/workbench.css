@@ -726,7 +726,8 @@
 .event-list {
   display: grid;
 }
-.event-list > button {
+.event-list > button,
+.event-list > a {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -737,9 +738,11 @@
   padding: 1rem 1.2rem;
   color: var(--admin-ink);
   cursor: pointer;
+  text-decoration: none;
   text-align: left;
 }
-.event-list > button:last-child {
+.event-list > button:last-child,
+.event-list > a:last-child {
   border-bottom: 0;
 }
 .event-list > button.is-selected {
@@ -760,6 +763,12 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+}
+.mirrored-event-heading {
+  border-top: 1px solid var(--admin-line);
+}
+.mirrored-event-list > a {
+  cursor: alias;
 }
 .event-action-column {
   display: grid;

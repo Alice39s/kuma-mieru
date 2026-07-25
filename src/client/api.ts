@@ -50,7 +50,14 @@ export interface SourceSnapshotState {
       observedAt: string | null;
       uptime24h: number | null;
     }>;
-    incidents: Array<{ id: string; title: string; content: string; severity: string }>;
+    incidents: Array<{
+      id: string;
+      sourceEventId: string;
+      kind: 'incident' | 'maintenance';
+      title: string;
+      content: string;
+      severity: string;
+    }>;
   };
   health: {
     state: 'healthy' | 'stale' | 'unavailable';
@@ -94,6 +101,45 @@ export const loadStatusSnapshot = async ({
     meta: { status: 'ok' | 'partial' };
   }>;
 };
+
+export interface PublicMirroredEvent {
+  id: string;
+  origin: 'mirrored';
+  notificationEligible: false;
+  type: 'incident' | 'maintenance';
+  presence: 'present' | 'absent';
+  version: number;
+  title: string;
+  content: string;
+  severity: 'info' | 'warning' | 'danger' | 'unknown';
+  startedAt: string | null;
+  sourceUpdatedAt: string | null;
+  rawStatus: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  absentAt: string | null;
+  updatedAt: string;
+  source: {
+    id: string;
+    pageId: string;
+    eventId: string;
+    url: string | null;
+  };
+}
+
+export const loadStatusPage = async (input: { params: Record<string, string | undefined> }) => {
+  const slug = input.params.pageSlug ?? input.params.pageId;
+  if (!slug) return { snapshot: null, mirroredEvents: [] };
+  const [snapshot, mirrored] = await Promise.all([
+    loadStatusSnapshot(input),
+    getJson<{ data: PublicMirroredEvent[] }>(
+      `/api/v1/public/pages/${encodeURIComponent(slug)}/mirrored-events`
+    ),
+  ]);
+  return { snapshot, mirroredEvents: mirrored.data };
+};
+
+export type StatusPagePayload = Awaited<ReturnType<typeof loadStatusPage>>;
 
 export type PublicBootstrap = Awaited<ReturnType<typeof loadPublicBootstrap>>;
 

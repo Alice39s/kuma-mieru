@@ -106,37 +106,54 @@ export const methodologySnapshotSchema = z
   })
   .passthrough();
 
-export const normalizedSnapshotSchema = z.object({
-  sourceId: z.string(),
-  pageId: z.string(),
-  title: z.string(),
-  description: z.string(),
-  status: normalizedStatusSchema,
-  fetchedAt: z.string(),
-  sourceUpdatedAt: z.string().nullable(),
-  extensions: z.record(z.string(), z.unknown()).default({}),
-  capabilities: sourceCapabilitiesSchema,
-  groups: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      position: z.number(),
-      serviceIds: z.array(z.string()),
-    })
-  ),
-  services: z.array(normalizedServiceSchema),
-  incidents: z.array(
-    z.object({
-      id: z.string(),
-      title: z.string(),
-      content: z.string(),
-      severity: z.enum(['info', 'warning', 'danger', 'unknown']),
-      startedAt: z.string().nullable(),
-      updatedAt: z.string().nullable(),
-      rawStatus: z.string(),
-    })
-  ),
-});
+export const normalizedSnapshotSchema = z
+  .object({
+    sourceId: z.string(),
+    pageId: z.string(),
+    title: z.string(),
+    description: z.string(),
+    status: normalizedStatusSchema,
+    fetchedAt: z.string().datetime({ offset: true }),
+    sourceUpdatedAt: z.string().nullable(),
+    extensions: z.record(z.string(), z.unknown()).default({}),
+    capabilities: sourceCapabilitiesSchema,
+    groups: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        position: z.number(),
+        serviceIds: z.array(z.string()),
+      })
+    ),
+    services: z.array(normalizedServiceSchema),
+    incidents: z.array(
+      z.object({
+        id: z.string(),
+        sourceEventId: z.string().min(1).max(512),
+        kind: z.enum(['incident', 'maintenance']),
+        title: z.string(),
+        content: z.string(),
+        severity: z.enum(['info', 'warning', 'danger', 'unknown']),
+        startedAt: z.string().nullable(),
+        updatedAt: z.string().nullable(),
+        rawStatus: z.string(),
+      })
+    ),
+  })
+  .superRefine((snapshot, context) => {
+    const eventKeys = new Set<string>();
+    snapshot.incidents.forEach((event, index) => {
+      const key = `${event.kind}\0${event.sourceEventId}`;
+      if (eventKeys.has(key)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['incidents', index, 'sourceEventId'],
+          message: 'Source events must have a unique kind and sourceEventId',
+        });
+      }
+      eventKeys.add(key);
+    });
+  });
 
 export type NormalizedStatus = z.infer<typeof normalizedStatusSchema>;
 export type SourceCapabilities = z.infer<typeof sourceCapabilitiesSchema>;

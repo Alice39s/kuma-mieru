@@ -1,20 +1,26 @@
-import { BarChart3, BookOpen, CheckCircle2, ChevronLeft, RadioTower } from 'lucide-react';
+import {
+  BarChart3,
+  BookOpen,
+  CheckCircle2,
+  ChevronLeft,
+  ExternalLink,
+  History,
+  RadioTower,
+} from 'lucide-react';
 import { Link, useLoaderData, useParams, useRouteLoaderData } from 'react-router';
-import type { PublicBootstrap, SourceSnapshotState } from '../api';
+import type { PublicBootstrap, StatusPagePayload } from '../api';
 
 export const StatusPage = () => {
   const data = useRouteLoaderData('root') as PublicBootstrap;
-  const payload = useLoaderData() as {
-    data: SourceSnapshotState[];
-    meta: { status: 'ok' | 'partial' };
-  } | null;
+  const payload = useLoaderData() as StatusPagePayload;
+  const snapshot = payload.snapshot;
   const { pageId, pageSlug } = useParams();
   const slug = pageSlug ?? pageId;
   const page = data.pages.find(candidate => candidate.slug === slug || candidate.id === slug);
   const hasNativeMetrics =
-    payload?.data.some(item => item.snapshot.capabilities.nativeMetrics) ?? false;
+    snapshot?.data.some(item => item.snapshot.capabilities.nativeMetrics) ?? false;
   const hasMethodology =
-    payload?.data.some(item => {
+    snapshot?.data.some(item => {
       const extension = item.snapshot.extensions['llm-mieru'];
       if (typeof extension !== 'object' || extension === null || Array.isArray(extension)) {
         return false;
@@ -49,8 +55,8 @@ export const StatusPage = () => {
         <div className="border-b border-black/5 p-7 sm:p-10">
           <div className="flex items-center gap-3 text-sm font-semibold text-emerald-800">
             <CheckCircle2 size={18} />
-            {payload
-              ? payload.meta.status === 'ok'
+            {snapshot
+              ? snapshot.meta.status === 'ok'
                 ? 'Live snapshot healthy'
                 : 'Showing partial data'
               : 'Waiting for first snapshot'}
@@ -82,9 +88,9 @@ export const StatusPage = () => {
           </div>
         </div>
         <div className="p-7 sm:p-10">
-          {payload ? (
+          {snapshot ? (
             <div className="space-y-3">
-              {payload.data.flatMap(item =>
+              {snapshot.data.flatMap(item =>
                 item.snapshot.services.map(service => (
                   <div
                     key={service.id}
@@ -113,6 +119,62 @@ export const StatusPage = () => {
               to a visitor-triggered upstream request.
             </div>
           )}
+          {payload.mirroredEvents.length > 0 ? (
+            <section className="mt-10 border-t border-black/5 pt-8">
+              <div className="flex items-start justify-between gap-5">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/35">
+                    Read-only source history
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold tracking-[-0.025em]">
+                    Mirrored events
+                  </h2>
+                </div>
+                <span className="inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-3 py-1.5 text-xs font-medium text-black/55">
+                  <History size={14} /> No secondary notifications
+                </span>
+              </div>
+              <div className="mt-5 space-y-3">
+                {payload.mirroredEvents.map(event => (
+                  <article
+                    className="rounded-2xl border border-black/5 bg-[#f7f8f6] p-5"
+                    key={event.id}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-black/35">
+                          {event.type} · {event.presence} · v{event.version}
+                        </span>
+                        <h3 className="mt-1 font-semibold">{event.title}</h3>
+                      </div>
+                      {event.source.url ? (
+                        <a
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-800"
+                          href={event.source.url}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          Original source <ExternalLink size={13} />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-black/35">
+                          Source {event.source.id} · upstream ID retained
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-black/55">
+                      {event.content || 'The source did not provide a public update body.'}
+                    </p>
+                    <p className="mt-3 text-xs text-black/35">
+                      {event.presence === 'absent'
+                        ? `No longer advertised by the source since ${new Date(event.absentAt ?? event.updatedAt).toLocaleString()}; this is not presented as a resolved native incident.`
+                        : `Last observed ${new Date(event.lastSeenAt).toLocaleString()} · upstream status ${event.rawStatus}`}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       </section>
     </div>
