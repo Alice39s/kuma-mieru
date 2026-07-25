@@ -14,6 +14,7 @@ import {
   llmMieruMetricQuerySchema,
   llmMieruServicesSchema,
   llmMieruStatusSnapshotSchema,
+  type LlmMieruIncidents,
 } from './schemas.js';
 
 const supportedApiMajor = '1';
@@ -160,6 +161,49 @@ export const fetchLlmMieruMethodology = (
   );
 };
 
+export const fetchLlmMieruIncidents = async (
+  input: { baseUrl: string; token?: string; limit?: number },
+  requester: SourceJsonRequester
+) => {
+  if (
+    input.limit !== undefined &&
+    (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 100)
+  ) {
+    throw Object.assign(new Error('LLM-Mieru incident page limit must be between 1 and 100'), {
+      code: 'invalid_page_limit',
+    });
+  }
+  const incidents: LlmMieruIncidents['data'] = [];
+  const seenCursors = new Set<string>();
+  const options = requestOptions(input.token);
+  let cursor: string | undefined;
+
+  for (let page = 0; page < 100; page += 1) {
+    const url = endpoint(input.baseUrl, '/api/v1/incidents');
+    if (input.limit !== undefined) url.searchParams.set('limit', String(input.limit));
+    if (cursor !== undefined) url.searchParams.set('cursor', cursor);
+    const response = await requester.request(
+      url,
+      `incidents:page:${page}`,
+      llmMieruIncidentsSchema,
+      options
+    );
+    incidents.push(...response.data);
+    if (response.nextCursor === undefined) return { data: incidents };
+    if (seenCursors.has(response.nextCursor)) {
+      throw Object.assign(new Error('LLM-Mieru returned a repeated incident cursor'), {
+        code: 'invalid_cursor_cycle',
+      });
+    }
+    seenCursors.add(response.nextCursor);
+    cursor = response.nextCursor;
+  }
+
+  throw Object.assign(new Error('LLM-Mieru incident pagination exceeded 100 pages'), {
+    code: 'pagination_limit_exceeded',
+  });
+};
+
 export const fetchLlmMieruSnapshot = async (
   input: { sourceId: string; baseUrl: string; pageId: string; token?: string },
   requester: SourceJsonRequester
@@ -195,11 +239,12 @@ export const fetchLlmMieruSnapshot = async (
       options
     ),
     meta.features.includes('automatic-incidents')
-      ? requester.request(
-          endpoint(input.baseUrl, '/api/v1/incidents'),
-          'incidents',
-          llmMieruIncidentsSchema,
-          options
+      ? fetchLlmMieruIncidents(
+          {
+            baseUrl: input.baseUrl,
+            token: input.token,
+          },
+          requester
         )
       : Promise.resolve({ data: [] }),
   ]);

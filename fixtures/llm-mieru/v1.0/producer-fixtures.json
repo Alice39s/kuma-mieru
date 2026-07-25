@@ -1,0 +1,1040 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": "1.0",
+  "frozenAt": "2026-07-25T00:00:00Z",
+  "compatibility": {
+    "currentProducer": "1.0",
+    "previousMinor": {
+      "state": "not_applicable",
+      "reasonCode": "first_published_minor_has_no_predecessor",
+      "activationRule": "required when a producer newer than API 1.0 is released"
+    }
+  },
+  "capabilityGates": [
+    {
+      "id": "incident-cursor-multipage",
+      "state": "implemented",
+      "reasonCode": "opaque_opened_at_incident_id_keyset"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "full-five-region",
+      "classification": "producer_valid",
+      "responses": [
+        {
+          "request": "GET /api/v1/meta",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=30, stale-while-revalidate=30"
+          },
+          "body": {
+            "apiVersion": "1.0",
+            "schemaVersion": "1.0",
+            "instanceId": "fixture-full",
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "protocolVersions": ["1.0"],
+            "features": [
+              "coverage",
+              "metric-catalog",
+              "metric-query",
+              "status-snapshot",
+              "service-catalog",
+              "model-catalog",
+              "automatic-incidents",
+              "methodology"
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/coverage",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=15, stale-while-revalidate=30"
+          },
+          "body": {
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "data": [
+              {
+                "targetAlias": "openai-primary",
+                "providerRoute": "openai-global",
+                "requestedModel": "gpt-fixture",
+                "scenario": "availability",
+                "observedRegion": "cn-east-sha",
+                "macroRegion": "east-asia",
+                "protocolVersion": "1.0",
+                "coverageState": "active",
+                "reasonCode": "fresh_evidence",
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z",
+                  "staleAfter": "2026-07-25T00:09:00Z"
+                },
+                "limitations": []
+              },
+              {
+                "targetAlias": "openai-primary",
+                "providerRoute": "openai-global",
+                "requestedModel": "gpt-fixture",
+                "scenario": "availability",
+                "observedRegion": "ap-northeast-tyo",
+                "macroRegion": "east-asia",
+                "protocolVersion": "1.0",
+                "coverageState": "active",
+                "reasonCode": "fresh_evidence",
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z",
+                  "staleAfter": "2026-07-25T00:09:00Z"
+                },
+                "limitations": []
+              },
+              {
+                "targetAlias": "openai-primary",
+                "providerRoute": "openai-global",
+                "requestedModel": "gpt-fixture",
+                "scenario": "availability",
+                "observedRegion": "us-west-sjc",
+                "macroRegion": "north-america",
+                "protocolVersion": "1.0",
+                "coverageState": "active",
+                "reasonCode": "fresh_evidence",
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z",
+                  "staleAfter": "2026-07-25T00:09:00Z"
+                },
+                "limitations": []
+              },
+              {
+                "targetAlias": "openai-primary",
+                "providerRoute": "openai-global",
+                "requestedModel": "gpt-fixture",
+                "scenario": "availability",
+                "observedRegion": "us-east-iad",
+                "macroRegion": "north-america",
+                "protocolVersion": "1.0",
+                "coverageState": "active",
+                "reasonCode": "fresh_evidence",
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z",
+                  "staleAfter": "2026-07-25T00:09:00Z"
+                },
+                "limitations": []
+              },
+              {
+                "targetAlias": "openai-primary",
+                "providerRoute": "openai-global",
+                "requestedModel": "gpt-fixture",
+                "scenario": "availability",
+                "observedRegion": "eu-central-ber",
+                "macroRegion": "europe",
+                "protocolVersion": "1.0",
+                "coverageState": "active",
+                "reasonCode": "fresh_evidence",
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z",
+                  "staleAfter": "2026-07-25T00:09:00Z"
+                },
+                "limitations": []
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/catalog/providers",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=60, stale-while-revalidate=120"
+          },
+          "body": {
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "data": [
+              {
+                "id": "provider-11111111111111111111111111111111",
+                "route": "openai-global",
+                "modelCount": 1,
+                "recentDriftCount": 0,
+                "firstSeenAt": "2026-07-01T00:00:00Z",
+                "lastSeenAt": "2026-07-24T23:59:00Z"
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/catalog/models",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=60, stale-while-revalidate=120"
+          },
+          "body": {
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "data": [
+              {
+                "id": "model-22222222222222222222222222222222",
+                "targetAlias": "openai-primary",
+                "providerRoute": "openai-global",
+                "requestedModel": "gpt-fixture",
+                "resolvedModel": "gpt-fixture-2026-07",
+                "lifecycle": "active",
+                "firstSeenAt": "2026-07-01T00:00:00Z",
+                "lastSeenAt": "2026-07-24T23:59:00Z",
+                "discoveryMissingObservations": 0,
+                "capabilityDeclarations": [
+                  {
+                    "id": "tool_call",
+                    "supported": true,
+                    "source": "api",
+                    "observedAt": "2026-07-24T00:00:00Z"
+                  }
+                ],
+                "preflightEvidence": [],
+                "capabilities": [
+                  {
+                    "id": "tool_call",
+                    "state": "verified",
+                    "evidenceSource": "standard_probe",
+                    "evidenceScenario": "tool_min",
+                    "verifiedObservations": 3,
+                    "failingObservations": 0,
+                    "firstObservedAt": "2026-07-24T00:00:00Z",
+                    "lastObservedAt": "2026-07-24T23:59:00Z",
+                    "candidateCount": 0
+                  }
+                ],
+                "recentDrift": []
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/services",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=15, stale-while-revalidate=30"
+          },
+          "body": {
+            "data": [
+              {
+                "id": "openai-global/gpt-fixture",
+                "providerRoute": "openai-global",
+                "requestedModel": "gpt-fixture",
+                "status": "degraded",
+                "protocolVersion": "1.0",
+                "observedAt": "2026-07-24T23:59:00Z",
+                "regions": [
+                  {
+                    "observedRegion": "ap-northeast-tyo",
+                    "macroRegion": "east-asia",
+                    "status": "degraded",
+                    "coverageState": "active",
+                    "freshnessState": "fresh",
+                    "sampleCount": 10,
+                    "consumerSuccessCount": 9
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/status/snapshot",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=15, stale-while-revalidate=30"
+          },
+          "body": {
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "coverageGeneratedAt": "2026-07-25T00:00:00Z",
+            "data": [
+              {
+                "id": "openai-global/gpt-fixture",
+                "providerRoute": "openai-global",
+                "requestedModel": "gpt-fixture",
+                "status": "degraded",
+                "protocolVersion": "1.0",
+                "observedAt": "2026-07-24T23:59:00Z",
+                "ruleVersion": "availability-v1",
+                "evidence": {
+                  "eligibleRegions": 5,
+                  "failedRegions": 0,
+                  "degradedRegions": 1,
+                  "failedMacroRegions": 0
+                },
+                "regions": [
+                  {
+                    "observedRegion": "cn-east-sha",
+                    "macroRegion": "east-asia",
+                    "status": "operational",
+                    "coverageState": "active",
+                    "freshnessState": "fresh",
+                    "sampleCount": 10,
+                    "consumerSuccessCount": 10
+                  },
+                  {
+                    "observedRegion": "ap-northeast-tyo",
+                    "macroRegion": "east-asia",
+                    "status": "degraded",
+                    "coverageState": "active",
+                    "freshnessState": "fresh",
+                    "sampleCount": 10,
+                    "consumerSuccessCount": 9
+                  },
+                  {
+                    "observedRegion": "us-west-sjc",
+                    "macroRegion": "north-america",
+                    "status": "operational",
+                    "coverageState": "active",
+                    "freshnessState": "fresh",
+                    "sampleCount": 10,
+                    "consumerSuccessCount": 10
+                  },
+                  {
+                    "observedRegion": "us-east-iad",
+                    "macroRegion": "north-america",
+                    "status": "operational",
+                    "coverageState": "active",
+                    "freshnessState": "fresh",
+                    "sampleCount": 10,
+                    "consumerSuccessCount": 10
+                  },
+                  {
+                    "observedRegion": "eu-central-ber",
+                    "macroRegion": "europe",
+                    "status": "operational",
+                    "coverageState": "active",
+                    "freshnessState": "fresh",
+                    "sampleCount": 10,
+                    "consumerSuccessCount": 10
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/metrics/catalog",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=300, stale-while-revalidate=600"
+          },
+          "body": {
+            "data": [
+              {
+                "id": "ttft_visible_ms",
+                "unit": "milliseconds",
+                "minimumSamples": {
+                  "p50": 10,
+                  "p95": 30
+                }
+              },
+              {
+                "id": "probe_cost_micros",
+                "unit": "currency_micros",
+                "minimumSamples": 1,
+                "estimateKind": "reviewed_price_upper_bound"
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/metrics/query?metric=ttft_visible_ms&window=5m",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=15, stale-while-revalidate=30"
+          },
+          "body": {
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "metric": "ttft_visible_ms",
+            "data": [
+              {
+                "window": {
+                  "start": "2026-07-24T23:55:00Z",
+                  "end": "2026-07-25T00:00:00Z"
+                },
+                "dimensions": {
+                  "targetAlias": "openai-primary",
+                  "providerRoute": "openai-global",
+                  "requestedModel": "gpt-fixture",
+                  "scenario": "perf_10",
+                  "observedRegion": "cn-east-sha"
+                },
+                "protocolVersion": "1.0",
+                "sampleCount": 10,
+                "eligibleCount": 10,
+                "value": {
+                  "p50": 420
+                },
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z"
+                },
+                "coverageState": "active",
+                "limitations": ["p95_insufficient_samples"]
+              },
+              {
+                "window": {
+                  "start": "2026-07-24T23:55:00Z",
+                  "end": "2026-07-25T00:00:00Z"
+                },
+                "dimensions": {
+                  "targetAlias": "openai-primary",
+                  "providerRoute": "openai-global",
+                  "requestedModel": "gpt-fixture",
+                  "scenario": "perf_10",
+                  "observedRegion": "ap-northeast-tyo"
+                },
+                "protocolVersion": "1.0",
+                "sampleCount": 10,
+                "eligibleCount": 10,
+                "value": {
+                  "p50": 510
+                },
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z"
+                },
+                "coverageState": "active",
+                "limitations": ["p95_insufficient_samples"]
+              },
+              {
+                "window": {
+                  "start": "2026-07-24T23:55:00Z",
+                  "end": "2026-07-25T00:00:00Z"
+                },
+                "dimensions": {
+                  "targetAlias": "openai-primary",
+                  "providerRoute": "openai-global",
+                  "requestedModel": "gpt-fixture",
+                  "scenario": "perf_10",
+                  "observedRegion": "us-west-sjc"
+                },
+                "protocolVersion": "1.0",
+                "sampleCount": 10,
+                "eligibleCount": 10,
+                "value": {
+                  "p50": 380
+                },
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z"
+                },
+                "coverageState": "active",
+                "limitations": ["p95_insufficient_samples"]
+              },
+              {
+                "window": {
+                  "start": "2026-07-24T23:55:00Z",
+                  "end": "2026-07-25T00:00:00Z"
+                },
+                "dimensions": {
+                  "targetAlias": "openai-primary",
+                  "providerRoute": "openai-global",
+                  "requestedModel": "gpt-fixture",
+                  "scenario": "perf_10",
+                  "observedRegion": "us-east-iad"
+                },
+                "protocolVersion": "1.0",
+                "sampleCount": 10,
+                "eligibleCount": 10,
+                "value": {
+                  "p50": 460
+                },
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z"
+                },
+                "coverageState": "active",
+                "limitations": ["p95_insufficient_samples"]
+              },
+              {
+                "window": {
+                  "start": "2026-07-24T23:55:00Z",
+                  "end": "2026-07-25T00:00:00Z"
+                },
+                "dimensions": {
+                  "targetAlias": "openai-primary",
+                  "providerRoute": "openai-global",
+                  "requestedModel": "gpt-fixture",
+                  "scenario": "perf_10",
+                  "observedRegion": "eu-central-ber"
+                },
+                "protocolVersion": "1.0",
+                "sampleCount": 10,
+                "eligibleCount": 10,
+                "value": {
+                  "p50": 490
+                },
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z"
+                },
+                "coverageState": "active",
+                "limitations": ["p95_insufficient_samples"]
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/metrics/query?metric=probe_cost_micros&window=5m",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=15, stale-while-revalidate=30"
+          },
+          "body": {
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "metric": "probe_cost_micros",
+            "data": [
+              {
+                "window": {
+                  "start": "2026-07-24T23:55:00Z",
+                  "end": "2026-07-25T00:00:00Z"
+                },
+                "dimensions": {
+                  "targetAlias": "openai-primary",
+                  "providerRoute": "openai-global",
+                  "requestedModel": "gpt-fixture",
+                  "scenario": "availability",
+                  "observedRegion": "ap-northeast-tyo"
+                },
+                "protocolVersion": "1.0",
+                "sampleCount": 1,
+                "eligibleCount": 1,
+                "value": {
+                  "currency": "USD",
+                  "estimatedUpperBound": 12,
+                  "reserved": 12,
+                  "successfulReserved": 12,
+                  "reservedPerConsumerSuccess": 12,
+                  "consumerSuccessCount": 1,
+                  "pricedSampleCount": 1,
+                  "budgetSkippedCount": 0
+                },
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z"
+                },
+                "coverageState": "active",
+                "limitations": []
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/incidents",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=15, stale-while-revalidate=30"
+          },
+          "body": {
+            "data": [
+              {
+                "id": "incident-fixture-1",
+                "providerRoute": "openai-global",
+                "requestedModel": "gpt-fixture",
+                "state": "open",
+                "severity": "degraded",
+                "ruleVersion": "availability-v1",
+                "openedAt": "2026-07-24T23:55:00Z",
+                "updatedAt": "2026-07-24T23:59:00Z",
+                "resolvedAt": null,
+                "latestEvidence": {
+                  "eligibleRegions": 5,
+                  "failedRegions": 0,
+                  "degradedRegions": 1,
+                  "failedMacroRegions": 0,
+                  "affectedRegions": ["ap-northeast-tyo"]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/incidents/incident-fixture-1",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=15, stale-while-revalidate=30"
+          },
+          "body": {
+            "data": {
+              "id": "incident-fixture-1",
+              "providerRoute": "openai-global",
+              "requestedModel": "gpt-fixture",
+              "state": "open",
+              "severity": "degraded",
+              "ruleVersion": "availability-v1",
+              "openedAt": "2026-07-24T23:55:00Z",
+              "updatedAt": "2026-07-24T23:59:00Z",
+              "resolvedAt": null,
+              "latestEvidence": {
+                "eligibleRegions": 5,
+                "failedRegions": 0,
+                "degradedRegions": 1,
+                "failedMacroRegions": 0,
+                "affectedRegions": ["ap-northeast-tyo"]
+              },
+              "events": [
+                {
+                  "sequence": 1,
+                  "type": "opened",
+                  "occurredAt": "2026-07-24T23:55:00Z",
+                  "status": "degraded",
+                  "evidence": {
+                    "eligibleRegions": 5,
+                    "failedRegions": 0,
+                    "degradedRegions": 1,
+                    "failedMacroRegions": 0,
+                    "affectedRegions": ["ap-northeast-tyo"]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "request": "GET /api/v1/methodology/protocols",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=60, stale-while-revalidate=120"
+          },
+          "body": {
+            "methodologyVersion": "1.0",
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "product": {
+              "name": "LLM-Mieru",
+              "measurementKind": "third_party_synthetic"
+            },
+            "sourceKinds": ["synthetic_probe"],
+            "statusSemantics": {
+              "unknownIsHealthy": false
+            },
+            "freshnessPolicy": {
+              "missingEvidence": "unknown"
+            },
+            "protocols": [
+              {
+                "id": "standard",
+                "version": "1.0"
+              }
+            ],
+            "metrics": [],
+            "coverage": [],
+            "performanceBaselines": [],
+            "thresholdSet": null,
+            "thresholdHistory": [],
+            "limitations": ["fixture_not_live_provider_evidence"],
+            "evidenceLinks": ["docs/contracts/llm-measurement-protocol.md"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "status-only",
+      "classification": "producer_valid",
+      "responses": [
+        {
+          "request": "GET /api/v1/meta",
+          "status": 200,
+          "headers": {},
+          "body": {
+            "apiVersion": "1.0",
+            "schemaVersion": "1.0",
+            "instanceId": "fixture-status-only",
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "protocolVersions": ["1.0"],
+            "features": ["coverage", "status-snapshot", "service-catalog"]
+          }
+        },
+        {
+          "request": "GET /api/v1/coverage",
+          "status": 200,
+          "headers": {},
+          "body": {
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "data": [
+              {
+                "targetAlias": "status-only",
+                "providerRoute": "status-only",
+                "requestedModel": "model",
+                "scenario": "availability",
+                "observedRegion": "ap-northeast-tyo",
+                "macroRegion": "east-asia",
+                "protocolVersion": "1.0",
+                "coverageState": "active",
+                "reasonCode": "scheduled",
+                "freshness": {
+                  "state": "fresh",
+                  "observedAt": "2026-07-24T23:59:00Z"
+                },
+                "limitations": []
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/services",
+          "status": 200,
+          "headers": {},
+          "body": {
+            "data": [
+              {
+                "id": "status-only/model",
+                "providerRoute": "status-only",
+                "requestedModel": "model",
+                "status": "operational",
+                "protocolVersion": "1.0",
+                "observedAt": "2026-07-24T23:59:00Z",
+                "regions": [
+                  {
+                    "observedRegion": "ap-northeast-tyo",
+                    "macroRegion": "east-asia",
+                    "status": "operational",
+                    "coverageState": "active",
+                    "freshnessState": "fresh",
+                    "sampleCount": 10,
+                    "consumerSuccessCount": 10
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/status/snapshot",
+          "status": 200,
+          "headers": {},
+          "body": {
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "coverageGeneratedAt": "2026-07-25T00:00:00Z",
+            "data": [
+              {
+                "id": "status-only/model",
+                "providerRoute": "status-only",
+                "requestedModel": "model",
+                "status": "operational",
+                "protocolVersion": "1.0",
+                "observedAt": "2026-07-24T23:59:00Z",
+                "regions": [
+                  {
+                    "observedRegion": "ap-northeast-tyo",
+                    "macroRegion": "east-asia",
+                    "status": "operational",
+                    "coverageState": "active",
+                    "freshnessState": "fresh",
+                    "sampleCount": 10,
+                    "consumerSuccessCount": 10
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "unknown-stale-unsupported",
+      "classification": "producer_valid",
+      "responses": [
+        {
+          "request": "GET /api/v1/coverage",
+          "status": 200,
+          "headers": {},
+          "body": {
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "data": [
+              {
+                "targetAlias": "unknown-target",
+                "providerRoute": "unknown",
+                "requestedModel": "model-a",
+                "scenario": "availability",
+                "observedRegion": "cn-east-sha",
+                "macroRegion": "east-asia",
+                "protocolVersion": "1.0",
+                "coverageState": "unknown",
+                "reasonCode": "plan_not_active",
+                "freshness": {
+                  "state": "unknown"
+                },
+                "limitations": ["missing_current_plan"]
+              },
+              {
+                "targetAlias": "stale-target",
+                "providerRoute": "stale-route",
+                "requestedModel": "model-b",
+                "scenario": "perf_10",
+                "observedRegion": "ap-northeast-tyo",
+                "macroRegion": "east-asia",
+                "protocolVersion": "1.0",
+                "coverageState": "stale",
+                "reasonCode": "evidence_stale",
+                "freshness": {
+                  "state": "stale",
+                  "observedAt": "2026-07-24T22:00:00Z",
+                  "staleAfter": "2026-07-24T22:10:00Z"
+                },
+                "limitations": ["evidence_stale"]
+              },
+              {
+                "targetAlias": "unsupported-target",
+                "providerRoute": "unknown",
+                "requestedModel": "model-c",
+                "scenario": "tool_min",
+                "observedRegion": "eu-central-ber",
+                "macroRegion": "europe",
+                "protocolVersion": "1.0",
+                "coverageState": "unsupported",
+                "reasonCode": "rejected_by_local_policy",
+                "freshness": {
+                  "state": "unknown"
+                },
+                "limitations": ["scenario_not_allowed"]
+              }
+            ]
+          }
+        },
+        {
+          "request": "GET /api/v1/status/snapshot",
+          "status": 200,
+          "headers": {},
+          "body": {
+            "generatedAt": "2026-07-25T00:00:00Z",
+            "coverageGeneratedAt": "2026-07-25T00:00:00Z",
+            "data": [
+              {
+                "id": "unknown/model-a",
+                "providerRoute": "unknown",
+                "requestedModel": "model-a",
+                "status": "unknown",
+                "protocolVersion": "1.0",
+                "observedAt": "2026-07-24T22:00:00Z",
+                "regions": [
+                  {
+                    "observedRegion": "cn-east-sha",
+                    "macroRegion": "east-asia",
+                    "status": "unknown",
+                    "coverageState": "unknown",
+                    "freshnessState": "unknown",
+                    "sampleCount": 0,
+                    "consumerSuccessCount": 0
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "incident-cursor-multipage",
+      "classification": "producer_valid",
+      "responses": [
+        {
+          "request": "GET /api/v1/incidents?limit=1",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=15, stale-while-revalidate=30"
+          },
+          "body": {
+            "data": [
+              {
+                "id": "incident-fixture-2",
+                "providerRoute": "openai-global",
+                "requestedModel": "gpt-fixture",
+                "state": "resolved",
+                "severity": "partial_outage",
+                "ruleVersion": "availability-v1",
+                "openedAt": "2026-07-24T23:00:00Z",
+                "updatedAt": "2026-07-24T23:30:00Z",
+                "resolvedAt": "2026-07-24T23:30:00Z",
+                "latestEvidence": {
+                  "eligibleRegions": 5,
+                  "failedRegions": 0,
+                  "degradedRegions": 0,
+                  "failedMacroRegions": 0,
+                  "performanceEvaluatedWindows": 0,
+                  "performanceBreachedWindows": 0,
+                  "performanceEvaluatedMetrics": 0,
+                  "performanceDegradedRegions": 0,
+                  "semanticEvaluatedWindows": 0,
+                  "semanticErrorWindows": 0,
+                  "semanticEligibleRuns": 0,
+                  "semanticErrorRuns": 0,
+                  "semanticDegradedRegions": 0,
+                  "affectedRegions": []
+                }
+              }
+            ],
+            "nextCursor": "eyJ2ZXJzaW9uIjoxLCJvcGVuZWRBdCI6IjIwMjYtMDctMjRUMjM6MDA6MDBaIiwiaWQiOiJpbmNpZGVudC1maXh0dXJlLTIifQ"
+          }
+        },
+        {
+          "request": "GET /api/v1/incidents?limit=1&cursor=eyJ2ZXJzaW9uIjoxLCJvcGVuZWRBdCI6IjIwMjYtMDctMjRUMjM6MDA6MDBaIiwiaWQiOiJpbmNpZGVudC1maXh0dXJlLTIifQ",
+          "status": 200,
+          "headers": {
+            "Cache-Control": "public, max-age=15, stale-while-revalidate=30"
+          },
+          "body": {
+            "data": [
+              {
+                "id": "incident-fixture-1",
+                "providerRoute": "openai-global",
+                "requestedModel": "gpt-fixture",
+                "state": "open",
+                "severity": "major_outage",
+                "ruleVersion": "availability-v1",
+                "openedAt": "2026-07-24T22:00:00Z",
+                "updatedAt": "2026-07-25T00:00:00Z",
+                "resolvedAt": null,
+                "latestEvidence": {
+                  "eligibleRegions": 5,
+                  "failedRegions": 3,
+                  "degradedRegions": 0,
+                  "failedMacroRegions": 2,
+                  "performanceEvaluatedWindows": 0,
+                  "performanceBreachedWindows": 0,
+                  "performanceEvaluatedMetrics": 0,
+                  "performanceDegradedRegions": 0,
+                  "semanticEvaluatedWindows": 0,
+                  "semanticErrorWindows": 0,
+                  "semanticEligibleRuns": 0,
+                  "semanticErrorRuns": 0,
+                  "semanticDegradedRegions": 0,
+                  "affectedRegions": ["ap-northeast-tyo", "us-east-iad", "us-west-sjc"]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "transportCases": [
+    {
+      "id": "unauthorized",
+      "outcome": "http",
+      "status": 401,
+      "headers": {
+        "Cache-Control": "no-store",
+        "WWW-Authenticate": "Bearer realm=\"llm-mieru-read\", error=\"invalid_token\""
+      },
+      "body": {
+        "error": {
+          "code": "READ_TOKEN_INVALID",
+          "message": "Read API authorization failed",
+          "path": "/api/v1/meta"
+        }
+      },
+      "consumerExpectation": "auth_failed"
+    },
+    {
+      "id": "forbidden",
+      "outcome": "http",
+      "status": 403,
+      "headers": {
+        "Cache-Control": "no-store"
+      },
+      "body": {
+        "error": {
+          "code": "READ_SCOPE_FORBIDDEN",
+          "message": "Read API authorization failed",
+          "path": "/api/v1/metrics/catalog"
+        }
+      },
+      "consumerExpectation": "auth_forbidden"
+    },
+    {
+      "id": "rate-limited",
+      "outcome": "http",
+      "status": 429,
+      "headers": {
+        "Cache-Control": "no-store",
+        "Retry-After": "1"
+      },
+      "body": {
+        "error": {
+          "code": "RATE_LIMITED",
+          "message": "Request rate limit exceeded",
+          "path": "/api/v1/status/snapshot"
+        }
+      },
+      "consumerExpectation": "rate_limited"
+    },
+    {
+      "id": "server-error",
+      "outcome": "http",
+      "status": 500,
+      "headers": {
+        "Cache-Control": "no-store"
+      },
+      "body": {
+        "error": {
+          "code": "STATUS_SNAPSHOT_FAILED",
+          "message": "Status snapshot failed",
+          "path": "/api/v1/status/snapshot"
+        }
+      },
+      "consumerExpectation": "upstream_failed"
+    },
+    {
+      "id": "not-modified",
+      "outcome": "http",
+      "status": 304,
+      "headers": {
+        "Cache-Control": "public, max-age=15, stale-while-revalidate=30",
+        "ETag": "\"sha256-0000000000000000000000000000000000000000000000000000000000000000\""
+      },
+      "consumerExpectation": "reuse_cached_representation"
+    },
+    {
+      "id": "timeout",
+      "outcome": "timeout",
+      "timeoutMilliseconds": 5000,
+      "consumerExpectation": "serve_last_known_good_then_stale"
+    },
+    {
+      "id": "malformed",
+      "outcome": "malformed",
+      "status": 200,
+      "rawBody": "{",
+      "consumerExpectation": "malformed_response"
+    },
+    {
+      "id": "oversized",
+      "outcome": "oversized",
+      "status": 200,
+      "bodyBytes": 1048577,
+      "consumerExpectation": "body_too_large"
+    },
+    {
+      "id": "unsupported-protocol",
+      "outcome": "http",
+      "status": 200,
+      "headers": {},
+      "body": {
+        "apiVersion": "1.0",
+        "schemaVersion": "1.0",
+        "instanceId": "fixture-unsupported-protocol",
+        "generatedAt": "2026-07-25T00:00:00Z",
+        "protocolVersions": ["2.0"],
+        "features": ["status-snapshot", "metric-query"]
+      },
+      "consumerExpectation": "hide_unsupported_protocol_metrics"
+    }
+  ],
+  "consumerAdversarialCases": [
+    {
+      "id": "unknown-status-enum",
+      "classification": "consumer_adversarial_not_producer_valid",
+      "rawBody": "{\"generatedAt\":\"2026-07-25T00:00:00Z\",\"coverageGeneratedAt\":\"2026-07-25T00:00:00Z\",\"data\":[{\"status\":\"future_status\"}]}",
+      "consumerExpectation": "unknown_enum_must_not_map_to_healthy"
+    },
+    {
+      "id": "unknown-optional-field",
+      "classification": "consumer_forward_compatibility",
+      "rawBody": "{\"apiVersion\":\"1.0\",\"schemaVersion\":\"1.0\",\"instanceId\":\"fixture\",\"generatedAt\":\"2026-07-25T00:00:00Z\",\"protocolVersions\":[\"1.0\"],\"features\":[],\"futureOptionalField\":true}",
+      "consumerExpectation": "ignore_unknown_optional_field"
+    }
+  ]
+}

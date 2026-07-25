@@ -75,6 +75,7 @@ export const llmMieruIncidentsSchema = z.object({
       latestEvidence: z.record(z.string(), z.unknown()),
     })
   ),
+  nextCursor: z.string().min(1).max(512).optional(),
 });
 
 export const llmMieruMetricCatalogSchema = z.object({
