@@ -165,8 +165,78 @@ test('keeps Viewer access read-only across configuration and event surfaces', as
 
   await page.getByRole('button', { name: 'Events' }).click();
   await expect(page.getByRole('heading', { name: 'Events are read-only.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Event templates' })).toBeVisible();
+  await expect(page.getByText('Template library is read-only.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'New template' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Create incident draft' })).toHaveCount(0);
   await assertAccessible(page);
+});
+
+test('copies an exact active template into an editable incident and explicit review', async ({
+  page,
+}) => {
+  const state = await installAdminApi(page, { role: 'publisher' });
+  await page.goto('/admin/');
+  await page.getByRole('button', { name: 'Events' }).click();
+
+  const incidentForm = page.getByRole('button', { name: 'Create incident draft' }).locator('..');
+  await incidentForm
+    .getByLabel('Start from template (optional)')
+    .selectOption('template-api-degradation');
+  await expect(incidentForm.getByLabel('Public title')).toHaveValue('API latency elevated');
+  await expect(incidentForm.getByLabel('Investigating update')).toHaveValue(
+    'We are investigating elevated latency in the inference API.'
+  );
+  await expect(incidentForm.getByLabel('Affected component IDs')).toHaveValue('api, inference');
+
+  await incidentForm.getByLabel('Public title').fill('API latency elevated in SJC');
+  await incidentForm.getByRole('button', { name: 'Create incident draft' }).click();
+
+  await expect(page.getByRole('heading', { name: 'API latency elevated in SJC' })).toBeVisible();
+  expect(state.incidents).toHaveLength(1);
+  expect(state.incidents[0]).toMatchObject({
+    title: 'API latency elevated in SJC',
+    template: {
+      id: 'template-api-degradation',
+      version: 1,
+      defaultNotifySubscribers: true,
+    },
+  });
+  await expect(page.getByText('Notify subscribers', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Suggested by template v1; still explicit for this publication.')
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Review publication' }).click();
+  expect(state.mutationHeaders).toHaveLength(2);
+  expect(state.mutationHeaders.every(headers => headers.csrf === 'e2e-csrf-token')).toBe(true);
+  expect(state.publications).toHaveLength(0);
+  await assertAccessible(page);
+});
+
+test('renders a stable responsive event template workbench', async ({ page }) => {
+  await installAdminApi(page);
+  await page.goto('/admin/');
+  await page.getByRole('button', { name: 'Events' }).click();
+  await page
+    .locator('.template-version-list')
+    .getByRole('button', { name: /API degradation/u })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Event templates' })).toBeVisible();
+  await expect(page.getByLabel('Template name')).toHaveValue('API degradation');
+
+  await waitForFonts(page);
+  await assertAccessible(page);
+  await page.locator('#admin-main').focus();
+  await page.addStyleTag({
+    content: '.admin-skip-link { display: none !important; }',
+  });
+  await expect(page).toHaveScreenshot('admin-events.png', {
+    animations: 'disabled',
+    caret: 'hide',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
 });
 
 test('lets an Editor create drafts without exposing publication or subscriber controls', async ({

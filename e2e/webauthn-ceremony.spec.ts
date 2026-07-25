@@ -81,8 +81,13 @@ test.use({ ignoreHTTPSErrors: true });
 
 test('completes a real WebAuthn registration and passkey sign-in ceremony', async ({
   context,
+  isMobile,
   page,
 }, testInfo) => {
+  test.skip(
+    isMobile,
+    'The WebAuthn ceremony is viewport-independent and runs once to avoid duplicate virtual-authenticator contention.'
+  );
   test.setTimeout(90_000);
 
   const directory = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-webauthn-'));

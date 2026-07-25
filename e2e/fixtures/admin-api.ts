@@ -1,6 +1,14 @@
 import type { Page, Route } from '@playwright/test';
 
 type AdminRole = 'owner' | 'publisher' | 'editor' | 'viewer';
+type EventTemplateType = 'incident' | 'maintenance' | 'notice' | 'postmortem';
+type EventTemplateState = 'active' | 'archived';
+
+interface AppliedEventTemplate {
+  id: string;
+  version: number;
+  defaultNotifySubscribers: boolean;
+}
 
 interface AdminSource {
   id: string;
@@ -35,6 +43,7 @@ interface AdminIncident {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  template: AppliedEventTemplate | null;
   latestEntry: {
     sequence: number;
     state: 'investigating' | 'identified' | 'monitoring' | 'resolved';
@@ -42,6 +51,34 @@ interface AdminIncident {
     body: string;
     affectedComponentIds: string[];
     occurredAt: string;
+    recordedAt: string;
+    actorId: string;
+  };
+}
+
+interface AdminEventTemplate {
+  id: string;
+  name: string;
+  eventType: EventTemplateType;
+  state: EventTemplateState;
+  version: number;
+  title: string;
+  body: string;
+  affectedComponentIds: string[];
+  defaultNotifySubscribers: boolean;
+  noticeKind: 'information' | 'warning' | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  latestEntry: {
+    sequence: number;
+    state: EventTemplateState;
+    name: string;
+    title: string;
+    body: string;
+    affectedComponentIds: string[];
+    defaultNotifySubscribers: boolean;
+    noticeKind: 'information' | 'warning' | null;
     recordedAt: string;
     actorId: string;
   };
@@ -162,6 +199,7 @@ export interface AdminApiOptions {
 export interface AdminApiState {
   authenticated: boolean;
   deliveries: AdminDelivery[];
+  eventTemplates: AdminEventTemplate[];
   incidents: AdminIncident[];
   mutationHeaders: Array<{ csrf: string | null; origin: string | null }>;
   oidcMappings: AdminOidcMapping[];
@@ -218,6 +256,7 @@ const referenceIncident: AdminIncident = {
   createdBy: 'editor-e2e-reference',
   createdAt: '2026-07-25T01:30:00.000Z',
   updatedAt: '2026-07-25T01:30:00.000Z',
+  template: null,
   latestEntry: {
     sequence: 1,
     state: 'investigating',
@@ -227,6 +266,34 @@ const referenceIncident: AdminIncident = {
     occurredAt: '2026-07-25T01:30:00.000Z',
     recordedAt: '2026-07-25T01:30:00.000Z',
     actorId: 'editor-e2e-reference',
+  },
+};
+
+const referenceEventTemplate: AdminEventTemplate = {
+  id: 'template-api-degradation',
+  name: 'API degradation',
+  eventType: 'incident',
+  state: 'active',
+  version: 1,
+  title: 'API latency elevated',
+  body: 'We are investigating elevated latency in the inference API.',
+  affectedComponentIds: ['api', 'inference'],
+  defaultNotifySubscribers: true,
+  noticeKind: null,
+  createdBy: 'owner-e2e-reference',
+  createdAt: '2026-07-25T01:20:00.000Z',
+  updatedAt: '2026-07-25T01:20:00.000Z',
+  latestEntry: {
+    sequence: 1,
+    state: 'active',
+    name: 'API degradation',
+    title: 'API latency elevated',
+    body: 'We are investigating elevated latency in the inference API.',
+    affectedComponentIds: ['api', 'inference'],
+    defaultNotifySubscribers: true,
+    noticeKind: null,
+    recordedAt: '2026-07-25T01:20:00.000Z',
+    actorId: 'owner-e2e-reference',
   },
 };
 
@@ -286,6 +353,7 @@ export const installAdminApi = async (
   const state: AdminApiState = {
     authenticated: !setupRequired,
     deliveries: options.withDelivery ? [{ ...referenceDelivery }] : [],
+    eventTemplates: options.empty ? [] : [{ ...referenceEventTemplate }],
     incidents: options.withIncident ? [{ ...referenceIncident }] : [],
     mutationHeaders: [],
     oidcMappings: [],
@@ -532,7 +600,7 @@ export const installAdminApi = async (
     if (pathname === '/api/v1/meta' && method === 'GET') {
       return fulfillJson(route, {
         version: '2.0.0-e2e',
-        schemaVersion: 13,
+        schemaVersion: 18,
         config: {
           mode: 'managed',
           revision: state.revision,
@@ -573,6 +641,98 @@ export const installAdminApi = async (
       return fulfillJson(route, { data: state.incidents });
     }
 
+    if (pathname === '/api/v1/admin/event-templates' && method === 'GET') {
+      return fulfillJson(route, { data: state.eventTemplates });
+    }
+
+    if (pathname === '/api/v1/admin/event-templates' && method === 'POST') {
+      recordMutationBoundary(route, state);
+      const input = parseBody<{
+        name: string;
+        eventType: EventTemplateType;
+        title: string;
+        body: string;
+        affectedComponentIds: string[];
+        defaultNotifySubscribers: boolean;
+        noticeKind: 'information' | 'warning' | null;
+      }>(route);
+      const version = 1;
+      const recordedAt = '2026-07-25T02:00:00.000Z';
+      const template: AdminEventTemplate = {
+        id: `template-${state.eventTemplates.length + 1}`,
+        ...input,
+        state: 'active',
+        version,
+        createdBy: `${state.role}-e2e-reference`,
+        createdAt: recordedAt,
+        updatedAt: recordedAt,
+        latestEntry: {
+          sequence: version,
+          state: 'active',
+          name: input.name,
+          title: input.title,
+          body: input.body,
+          affectedComponentIds: input.affectedComponentIds,
+          defaultNotifySubscribers: input.defaultNotifySubscribers,
+          noticeKind: input.noticeKind,
+          recordedAt,
+          actorId: `${state.role}-e2e-reference`,
+        },
+      };
+      state.eventTemplates.unshift(template);
+      return fulfillJson(route, { data: template }, 201);
+    }
+
+    const eventTemplateUpdate = pathname.match(
+      /^\/api\/v1\/admin\/event-templates\/([^/]+)\/updates$/
+    );
+    if (eventTemplateUpdate && method === 'POST') {
+      recordMutationBoundary(route, state);
+      const templateId = decodeURIComponent(eventTemplateUpdate[1] ?? '');
+      const index = state.eventTemplates.findIndex(template => template.id === templateId);
+      if (index < 0) {
+        return fulfillJson(route, { error: { code: 'EVENT_TEMPLATE_NOT_FOUND' } }, 404);
+      }
+      const current = state.eventTemplates[index] as AdminEventTemplate;
+      const input = parseBody<{
+        expectedVersion: number;
+        state: EventTemplateState;
+        name: string;
+        eventType: EventTemplateType;
+        title: string;
+        body: string;
+        affectedComponentIds: string[];
+        defaultNotifySubscribers: boolean;
+        noticeKind: 'information' | 'warning' | null;
+      }>(route);
+      if (input.expectedVersion !== current.version) {
+        return fulfillJson(route, { error: { code: 'EVENT_TEMPLATE_VERSION_CONFLICT' } }, 409);
+      }
+      const { expectedVersion: _expectedVersion, ...next } = input;
+      const version = current.version + 1;
+      const recordedAt = '2026-07-25T02:05:00.000Z';
+      const updated: AdminEventTemplate = {
+        ...current,
+        ...next,
+        version,
+        updatedAt: recordedAt,
+        latestEntry: {
+          sequence: version,
+          state: next.state,
+          name: next.name,
+          title: next.title,
+          body: next.body,
+          affectedComponentIds: next.affectedComponentIds,
+          defaultNotifySubscribers: next.defaultNotifySubscribers,
+          noticeKind: next.noticeKind,
+          recordedAt,
+          actorId: `${state.role}-e2e-reference`,
+        },
+      };
+      state.eventTemplates[index] = updated;
+      return fulfillJson(route, { data: updated });
+    }
+
     if (
       [
         '/api/v1/admin/mirrored-events',
@@ -608,13 +768,33 @@ export const installAdminApi = async (
         title: string;
         body: string;
         affectedComponentIds: string[];
+        template?: { id: string; version: number };
       }>(route);
+      const sourceTemplate = input.template
+        ? state.eventTemplates.find(
+            template =>
+              template.id === input.template?.id &&
+              template.version === input.template.version &&
+              template.state === 'active' &&
+              template.eventType === 'incident'
+          )
+        : null;
+      if (input.template && !sourceTemplate) {
+        return fulfillJson(route, { error: { code: 'EVENT_TEMPLATE_VERSION_CONFLICT' } }, 409);
+      }
       const incident: AdminIncident = {
         ...referenceIncident,
         id: `incident-${state.incidents.length + 1}`,
         pageId: input.pageId,
         title: input.title,
         createdBy: `${state.role}-e2e-reference`,
+        template: sourceTemplate
+          ? {
+              id: sourceTemplate.id,
+              version: sourceTemplate.version,
+              defaultNotifySubscribers: sourceTemplate.defaultNotifySubscribers,
+            }
+          : null,
         latestEntry: {
           ...referenceIncident.latestEntry,
           title: input.title,
