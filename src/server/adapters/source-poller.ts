@@ -13,6 +13,7 @@ import {
 } from './metric-store.js';
 import { fetchSourceSnapshot } from './registry.js';
 import { getSourceSnapshot, recordSourceFailure, saveSourceSnapshot } from './source-store.js';
+import { reconcileSignalAutomation } from '../events/automation-repository.js';
 import { reconcileMirroredEvents } from '../events/mirrored-repository.js';
 
 export interface SourcePollerOptions {
@@ -75,7 +76,24 @@ export const startSourcePoller = ({
         try {
           const snapshot = await fetchSourceSnapshot(source, pageId, requester, secretStore);
           saveSourceSnapshot(database, snapshot, new Date(Date.now() + staleAfterMs));
-          reconcileMirroredEvents(database, snapshot, { sourceUrl: source.baseUrl });
+          try {
+            reconcileMirroredEvents(database, snapshot, { sourceUrl: source.baseUrl });
+          } catch (mirrorError) {
+            console.error('Mirrored event reconciliation failed', {
+              sourceId: source.id,
+              pageId,
+              errorCode: errorCode(mirrorError),
+            });
+          }
+          try {
+            reconcileSignalAutomation(database, config, snapshot);
+          } catch (automationError) {
+            console.error('Signal automation reconciliation failed', {
+              sourceId: source.id,
+              pageId,
+              errorCode: errorCode(automationError),
+            });
+          }
           consecutiveFailures = 0;
           if (source.kind === 'llm-mieru') {
             const llmMetadata = snapshot.extensions['llm-mieru'];

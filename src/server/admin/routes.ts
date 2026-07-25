@@ -27,6 +27,7 @@ import {
 import {
   sourcePatchSchema as sourcePatchValueSchema,
   sourceSchema,
+  resolveSignalAutomationConfig,
   smtpDeliverySchema,
   statusPageSchema,
 } from '../config/schema.js';
@@ -41,6 +42,12 @@ import {
   listIncidents,
   publishIncident,
 } from '../events/repository.js';
+import {
+  acceptAutomationSuggestion,
+  getAutomationSuggestion,
+  ignoreAutomationSuggestion,
+  listAutomationSuggestions,
+} from '../events/automation-repository.js';
 import { createPublicationReviewService } from '../events/review.js';
 import {
   incidentCreateSchema,
@@ -131,6 +138,16 @@ const smtpUpdateSchema = z.object({
   testToken: z.string().min(1).optional(),
 });
 const idempotencyKeySchema = z.string().min(8).max(200);
+const automationSuggestionStateSchema = z
+  .enum(['pending', 'accepted', 'ignored', 'superseded'])
+  .optional();
+const automationSuggestionAcceptSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+  expectedNativeEventVersion: z.number().int().positive().optional(),
+});
+const automationSuggestionIgnoreSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+});
 const adminListLimitSchema = z.coerce.number().int().min(1).max(500).default(200);
 const deliveryRetrySchema = z.object({ expectedState: z.enum(['failed', 'dead_letter']) });
 const subscriberSuppressSchema = z.object({ expectedState: z.literal('active') });
@@ -603,6 +620,7 @@ export const registerAdminRoutes = (
       ? 404
       : code.includes('conflict') ||
           code.includes('already') ||
+          code.includes('resolved') ||
           code.includes('stale') ||
           code.includes('reused')
         ? 409
@@ -650,6 +668,86 @@ export const registerAdminRoutes = (
     return event
       ? context.json({ data: event })
       : errorResponse(context, 404, 'MIRRORED_EVENT_NOT_FOUND', 'Mirrored source event not found');
+  });
+
+  app.get('/api/v1/admin/automation/suggestions', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const state = automationSuggestionStateSchema.parse(context.req.query('state'));
+      return context.json({ data: listAutomationSuggestions(database, state) });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.get('/api/v1/admin/automation/suggestions/:id', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    const suggestion = getAutomationSuggestion(database, context.req.param('id'));
+    return suggestion
+      ? context.json({ data: suggestion })
+      : errorResponse(
+          context,
+          404,
+          'AUTOMATION_SUGGESTION_NOT_FOUND',
+          'Automation suggestion not found'
+        );
+  });
+
+  app.post('/api/v1/admin/automation/suggestions/:id/accept', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const idempotencyKey = idempotencyKeySchema.parse(context.req.header('idempotency-key'));
+      const input = automationSuggestionAcceptSchema.parse(await context.req.json());
+      const result = acceptAutomationSuggestion(
+        database,
+        {
+          suggestionId: context.req.param('id'),
+          expectedVersion: input.expectedVersion,
+          expectedNativeEventVersion: input.expectedNativeEventVersion,
+          idempotencyKey,
+        },
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: result }, 201);
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/automation/suggestions/:id/ignore', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const input = automationSuggestionIgnoreSchema.parse(await context.req.json());
+      const suggestion = ignoreAutomationSuggestion(
+        database,
+        {
+          suggestionId: context.req.param('id'),
+          expectedVersion: input.expectedVersion,
+          cooldownMs: resolveSignalAutomationConfig(currentSnapshot().config.events?.automation)
+            .cooldownMs,
+        },
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: suggestion });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
   });
 
   app.post('/api/v1/admin/incidents', async context => {

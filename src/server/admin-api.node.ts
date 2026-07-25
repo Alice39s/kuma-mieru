@@ -11,6 +11,8 @@ import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 import { openDatabase } from './db/database.js';
 import { migrateDatabase } from './db/migrator.js';
 import { createSmtpTestService } from './delivery/smtp-config.js';
+import { reconcileSignalAutomation } from './events/automation-repository.js';
+import type { NormalizedSnapshot } from './adapters/types.js';
 import { createSecretStore } from './secrets/store.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
 
@@ -253,6 +255,125 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     assert.equal(created.status, 201);
     assert.equal(runtime.revision, initial.revision + 1);
     assert.equal(runtime.config.pages[0]?.id, 'public');
+
+    const automationSnapshot = (minute: number): NormalizedSnapshot => {
+      const fetchedAt = `2026-07-25T08:0${minute}:00.000Z`;
+      return {
+        sourceId: 'primary',
+        pageId: 'main',
+        title: 'Status',
+        description: '',
+        status: 'major_outage',
+        fetchedAt,
+        sourceUpdatedAt: fetchedAt,
+        extensions: {},
+        capabilities: {
+          currentStatus: true,
+          heartbeatSeries: true,
+          latencySeries: true,
+          uptimeWindows: ['24h'],
+          incidents: 'current',
+          maintenance: true,
+          groups: true,
+          tags: true,
+          nativeMetrics: false,
+          historicalDays: 1,
+        },
+        groups: [{ id: 'api', name: 'API', position: 0, serviceIds: ['api'] }],
+        services: [
+          {
+            id: 'api',
+            sourceId: 'primary',
+            upstreamId: '42',
+            name: 'Inference API',
+            groupId: 'api',
+            tags: [],
+            status: 'major_outage',
+            rawStatus: 0,
+            latencyMs: 250,
+            observedAt: fetchedAt,
+            uptime24h: 0.9,
+          },
+        ],
+        incidents: [],
+      };
+    };
+    for (const minute of [0, 1, 2]) {
+      reconcileSignalAutomation(database, runtime.config, automationSnapshot(minute), {
+        now: () => new Date(`2026-07-25T08:0${minute}:00.000Z`),
+      });
+    }
+    const suggestions = await app.request('/api/v1/admin/automation/suggestions?state=pending', {
+      headers: { Cookie: cookie },
+    });
+    const suggestionsBody = (await suggestions.json()) as {
+      data: Array<{
+        id: string;
+        state: string;
+        version: number;
+        notificationEligible: boolean;
+      }>;
+    };
+    assert.equal(suggestions.status, 200);
+    assert.equal(suggestionsBody.data.length, 1);
+    assert.equal(suggestionsBody.data[0]?.notificationEligible, false);
+    const suggestion = suggestionsBody.data[0]!;
+
+    const untrustedAcceptance = await app.request(
+      `/api/v1/admin/automation/suggestions/${suggestion.id}/accept`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: cookie,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': 'automation-api-accept',
+          'X-Kuma-CSRF': sessionBody.data.csrfToken,
+        },
+        body: JSON.stringify({ expectedVersion: suggestion.version }),
+      }
+    );
+    assert.equal(untrustedAcceptance.status, 403);
+
+    const acceptedSuggestion = await app.request(
+      `/api/v1/admin/automation/suggestions/${suggestion.id}/accept`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: cookie,
+          Origin: baseURL,
+          'Sec-Fetch-Site': 'same-origin',
+          'Content-Type': 'application/json',
+          'Idempotency-Key': 'automation-api-accept',
+          'X-Kuma-CSRF': sessionBody.data.csrfToken,
+        },
+        body: JSON.stringify({ expectedVersion: suggestion.version }),
+      }
+    );
+    const acceptedSuggestionBody = (await acceptedSuggestion.json()) as {
+      data: {
+        suggestion: { state: string };
+        incident: { state: string; version: number };
+      };
+    };
+    assert.equal(acceptedSuggestion.status, 201);
+    assert.equal(acceptedSuggestionBody.data.suggestion.state, 'accepted');
+    assert.equal(acceptedSuggestionBody.data.incident.state, 'investigating');
+    assert.equal(
+      (
+        database.prepare('SELECT COUNT(*) AS count FROM event_publications').get() as {
+          count: number;
+        }
+      ).count,
+      0
+    );
+    assert.equal(
+      (
+        database.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get() as {
+          count: number;
+        }
+      ).count,
+      0
+    );
 
     const conflict = await app.request('/api/v1/admin/pages', {
       method: 'POST',
@@ -817,6 +938,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       .all() as Array<{ result: string; error_code: string }>;
     assert.deepEqual(attempts, [
       { result: 'failed', error_code: 'SOURCE_ALREADY_EXISTS' },
+      { result: 'denied', error_code: 'UNTRUSTED_ORIGIN' },
       { result: 'denied', error_code: 'UNTRUSTED_ORIGIN' },
       { result: 'failed', error_code: 'CONFIG_REVISION_CONFLICT' },
       { result: 'failed', error_code: 'PUBLICATION_REVIEW_INVALID' },

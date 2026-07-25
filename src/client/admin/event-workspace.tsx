@@ -1,20 +1,27 @@
 import {
   CalendarClock,
+  Check,
   Clock3,
   ExternalLink,
   FileCheck2,
   History,
   MessageSquareText,
   Siren,
+  WandSparkles,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type {
-  AdminIncident,
-  AdminMirroredEvent,
-  AdminNativeEvent,
-  AdminPage,
-  AdminSession,
+import { toast } from 'sonner';
+import {
+  acceptAutomationSuggestion,
+  ignoreAutomationSuggestion,
+  type AdminAutomationSuggestion,
+  type AdminIncident,
+  type AdminMirroredEvent,
+  type AdminNativeEvent,
+  type AdminPage,
+  type AdminSession,
 } from './api';
 import { IncidentComposer, IncidentReview } from './incident-desk';
 import { SecondaryEventComposer, SecondaryEventReview } from './secondary-event-desk';
@@ -33,6 +40,7 @@ export const EventWorkspace = ({
   pages,
   incidents,
   events,
+  automationSuggestions,
   mirroredEvents,
   onCommitted,
 }: {
@@ -40,12 +48,14 @@ export const EventWorkspace = ({
   pages: AdminPage[];
   incidents: AdminIncident[];
   events: AdminNativeEvent[];
+  automationSuggestions: AdminAutomationSuggestion[];
   mirroredEvents: AdminMirroredEvent[];
   onCommitted: () => Promise<void>;
 }) => {
   const [selectedKey, setSelectedKey] = useState<string | null>(
     events[0] ? eventKey(events[0]) : null
   );
+  const [busySuggestionId, setBusySuggestionId] = useState<string | null>(null);
   useEffect(() => {
     if (!selectedKey || !events.some(event => eventKey(event) === selectedKey)) {
       setSelectedKey(events[0] ? eventKey(events[0]) : null);
@@ -54,6 +64,41 @@ export const EventWorkspace = ({
   const selected = events.find(event => eventKey(event) === selectedKey) ?? null;
   const canDraft = session.role !== 'viewer';
   const canPublish = session.role === 'owner' || session.role === 'publisher';
+  const acceptSuggestion = async (suggestion: AdminAutomationSuggestion) => {
+    setBusySuggestionId(suggestion.id);
+    try {
+      const result = await acceptAutomationSuggestion(session, suggestion);
+      toast.success(
+        suggestion.kind === 'recovery'
+          ? 'Recovery appended as a private native update'
+          : 'Suggestion accepted as a private incident draft',
+        { description: `Native incident ${result.data.incident.id.slice(0, 12)} is not published.` }
+      );
+      await onCommitted();
+    } catch (error) {
+      toast.error('Suggestion was not accepted', {
+        description: error instanceof Error ? error.message : 'Refresh the evidence and retry.',
+      });
+    } finally {
+      setBusySuggestionId(null);
+    }
+  };
+  const ignoreSuggestion = async (suggestion: AdminAutomationSuggestion) => {
+    setBusySuggestionId(suggestion.id);
+    try {
+      await ignoreAutomationSuggestion(session, suggestion);
+      toast.success('Suggestion ignored', {
+        description: 'The configured cooldown now suppresses an immediate repeat.',
+      });
+      await onCommitted();
+    } catch (error) {
+      toast.error('Suggestion was not ignored', {
+        description: error instanceof Error ? error.message : 'Refresh the evidence and retry.',
+      });
+    } finally {
+      setBusySuggestionId(null);
+    }
+  };
 
   return (
     <div className="event-workspace">
@@ -95,6 +140,64 @@ export const EventWorkspace = ({
           <div className="editor-empty">
             <strong>No native event yet.</strong>
             <p>Signals stay separate until an operator creates a public event draft.</p>
+          </div>
+        )}
+        <header className="mirrored-event-heading">
+          <div>
+            <p className="admin-eyebrow">Debounced and private</p>
+            <h2>Automation suggestions</h2>
+          </div>
+          <span>{automationSuggestions.length}</span>
+        </header>
+        {automationSuggestions.length > 0 ? (
+          <div className="automation-suggestion-list">
+            {automationSuggestions.map(suggestion => (
+              <article key={suggestion.id}>
+                <div className="automation-suggestion-copy">
+                  <WandSparkles size={17} />
+                  <span>
+                    <strong>{suggestion.title}</strong>
+                    <small>
+                      {suggestion.kind} · {suggestion.evidence.consecutiveCount}/
+                      {suggestion.evidence.requiredCount} observations · {suggestion.ruleVersion}
+                    </small>
+                  </span>
+                </div>
+                <p>{suggestion.body}</p>
+                {canDraft ? (
+                  <div className="automation-suggestion-actions">
+                    <button
+                      className="admin-primary-button"
+                      disabled={busySuggestionId === suggestion.id}
+                      onClick={() => void acceptSuggestion(suggestion)}
+                      type="button"
+                    >
+                      <Check size={15} />
+                      {suggestion.kind === 'recovery'
+                        ? 'Append private recovery'
+                        : 'Create private draft'}
+                    </button>
+                    <button
+                      className="admin-secondary-button"
+                      disabled={busySuggestionId === suggestion.id}
+                      onClick={() => void ignoreSuggestion(suggestion)}
+                      type="button"
+                    >
+                      <X size={15} /> Ignore
+                    </button>
+                  </div>
+                ) : (
+                  <small>
+                    Viewer access is read-only. No suggestion can publish automatically.
+                  </small>
+                )}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="editor-empty">
+            <strong>No pending suggestion.</strong>
+            <p>Signals must pass the configured consecutive-observation threshold first.</p>
           </div>
         )}
         <header className="mirrored-event-heading">

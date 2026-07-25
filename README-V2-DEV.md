@@ -242,6 +242,21 @@ to avoid exposing private topology; authenticated Admin reads receive only a URL
 query, and fragment removed. The mirror repository has no Publication or Notification Outbox write
 path, and the Public UI explicitly labels these records as ineligible for secondary notifications.
 
+Migration 11 adds the separate Signal Automation ledger. Each new successful Source snapshot stores
+one idempotent `SignalObservation` per mapped Page and Service, then evaluates the fixed
+`signal-suggest-v1` rule. The backward-compatible default is `suggest-draft`: three consecutive
+degraded/partial/major observations create a private degradation suggestion, while two consecutive
+operational observations can create a recovery suggestion for an accepted native incident.
+Maintenance is suppressed, unknown/pending/paused evidence cannot create a suggestion, stale
+snapshots do not advance the counter, and an ignored suggestion starts a bounded cooldown.
+
+Every evaluation records its Rule Version, thresholds, evidence and decision. Suggestions are
+visible to all Admin roles, but only Owner/Publisher/Editor can accept or ignore them through
+same-origin CSRF-protected mutations. Accepting degradation creates an unpublished Native Incident
+draft; accepting recovery appends an unpublished resolved update only after the linked Native Event
+version is reviewed explicitly. Neither path creates a Publication or Notification Outbox item.
+There is no `auto_publish` runtime mode in this foundation slice.
+
 ## Authentication and managed revisions
 
 Better Auth is mounted at `/api/auth/*` with public sign-up disabled. The first startup with no users

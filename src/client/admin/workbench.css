@@ -770,6 +770,47 @@
 .mirrored-event-list > a {
   cursor: alias;
 }
+.automation-suggestion-list {
+  display: grid;
+}
+.automation-suggestion-list > article {
+  padding: 1.15rem 1.2rem;
+  border-bottom: 1px solid var(--admin-line);
+  background: rgba(166, 95, 23, 0.045);
+}
+.automation-suggestion-copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+}
+.automation-suggestion-copy strong,
+.automation-suggestion-copy small {
+  display: block;
+}
+.automation-suggestion-copy small,
+.automation-suggestion-list > article > small {
+  margin-top: 0.2rem;
+  color: var(--admin-muted);
+  font-size: 0.63rem;
+}
+.automation-suggestion-list p {
+  margin: 0.8rem 0 0;
+  color: var(--admin-muted);
+  font-size: 0.72rem;
+  line-height: 1.65;
+}
+.automation-suggestion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+.automation-suggestion-actions button {
+  width: auto;
+  min-height: 2.2rem;
+  padding: 0.5rem 0.75rem;
+}
 .event-action-column {
   display: grid;
   gap: 2rem;

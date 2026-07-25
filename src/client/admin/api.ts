@@ -133,6 +133,34 @@ export interface AdminMirroredEvent {
   };
 }
 
+export interface AdminAutomationSuggestion {
+  id: string;
+  origin: 'automation';
+  notificationEligible: false;
+  kind: 'degradation' | 'recovery';
+  state: 'pending' | 'accepted' | 'ignored' | 'superseded';
+  version: number;
+  pageId: string;
+  sourceId: string;
+  sourcePageId: string;
+  serviceId: string;
+  serviceName: string;
+  title: string;
+  body: string;
+  ruleVersion: string;
+  evidence: {
+    normalizedStatus: string;
+    rawStatus: string | number;
+    observedAt: string;
+    consecutiveCount: number;
+    requiredCount: number;
+  };
+  nativeEventId: string | null;
+  nativeEventVersion: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type SubscriberState =
   | 'pending_confirmation'
   | 'active'
@@ -313,6 +341,7 @@ export const getWorkbenchData = async () => {
     revisions,
     incidents,
     mirroredEvents,
+    automationSuggestions,
     maintenances,
     notices,
     postmortems,
@@ -324,6 +353,9 @@ export const getWorkbenchData = async () => {
     request<{ data: AdminRevision[] }>('/api/v1/admin/config/revisions'),
     request<{ data: AdminIncident[] }>('/api/v1/admin/events'),
     request<{ data: AdminMirroredEvent[] }>('/api/v1/admin/mirrored-events'),
+    request<{ data: AdminAutomationSuggestion[] }>(
+      '/api/v1/admin/automation/suggestions?state=pending'
+    ),
     request<{ data: AdminMaintenance[] }>('/api/v1/admin/maintenances'),
     request<{ data: AdminNotice[] }>('/api/v1/admin/notices'),
     request<{ data: AdminPostmortem[] }>('/api/v1/admin/postmortems'),
@@ -341,9 +373,41 @@ export const getWorkbenchData = async () => {
     revisions: revisions.data,
     incidents: incidents.data,
     mirroredEvents: mirroredEvents.data,
+    automationSuggestions: automationSuggestions.data,
     events,
   };
 };
+
+export const acceptAutomationSuggestion = (
+  session: AdminSession,
+  suggestion: AdminAutomationSuggestion
+) =>
+  request<{ data: { suggestion: AdminAutomationSuggestion; incident: AdminIncident } }>(
+    `/api/v1/admin/automation/suggestions/${suggestion.id}/accept`,
+    {
+      method: 'POST',
+      headers: { ...mutationHeaders(session), 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify({
+        expectedVersion: suggestion.version,
+        ...(suggestion.nativeEventVersion
+          ? { expectedNativeEventVersion: suggestion.nativeEventVersion }
+          : {}),
+      }),
+    }
+  );
+
+export const ignoreAutomationSuggestion = (
+  session: AdminSession,
+  suggestion: AdminAutomationSuggestion
+) =>
+  request<{ data: AdminAutomationSuggestion }>(
+    `/api/v1/admin/automation/suggestions/${suggestion.id}/ignore`,
+    {
+      method: 'POST',
+      headers: mutationHeaders(session),
+      body: JSON.stringify({ expectedVersion: suggestion.version }),
+    }
+  );
 
 export const createIncident = (
   session: AdminSession,

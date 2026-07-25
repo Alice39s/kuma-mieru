@@ -113,6 +113,23 @@ export const smtpDeliverySchema = z.discriminatedUnion('enabled', [
   enabledSmtpDeliverySchema,
 ]);
 
+export const signalAutomationSchema = z
+  .object({
+    defaultAction: z.enum(['suggest-draft', 'disabled']).default('suggest-draft'),
+    degradedConsecutive: z.number().int().min(2).max(20).default(3),
+    recoveryConsecutive: z.number().int().min(2).max(20).default(2),
+    cooldownMs: z
+      .number()
+      .int()
+      .min(60_000)
+      .max(24 * 60 * 60_000)
+      .default(15 * 60_000),
+  })
+  .prefault({});
+
+export const resolveSignalAutomationConfig = (input?: unknown) =>
+  signalAutomationSchema.parse(input);
+
 export const canonicalConfigSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -124,6 +141,11 @@ export const canonicalConfigSchema = z
     delivery: z
       .object({
         smtp: smtpDeliverySchema.optional(),
+      })
+      .optional(),
+    events: z
+      .object({
+        automation: signalAutomationSchema.optional(),
       })
       .optional(),
     sources: z.array(sourceSchema),
@@ -184,3 +206,4 @@ export type ConfigMode = z.infer<typeof configModeSchema>;
 export type CanonicalConfig = z.infer<typeof canonicalConfigSchema>;
 export type SmtpDeliveryConfig = z.infer<typeof smtpDeliverySchema>;
 export type EnabledSmtpDeliveryConfig = z.infer<typeof enabledSmtpDeliverySchema>;
+export type SignalAutomationConfig = z.infer<typeof signalAutomationSchema>;
