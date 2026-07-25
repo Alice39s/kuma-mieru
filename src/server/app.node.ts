@@ -150,6 +150,15 @@ test('canonicalizes public page paths and serves cacheable page-specific OG imag
   const legacy = await app.request('/public');
   assert.equal(legacy.status, 308);
   assert.equal(legacy.headers.get('location'), '/status/main/');
+  const incidentDetail = await app.request('/status/main/incidents/incident-1?from=feed');
+  assert.equal(incidentDetail.status, 308);
+  assert.equal(
+    incidentDetail.headers.get('location'),
+    '/status/main/incidents/incident-1/?from=feed'
+  );
+  const maintenanceDetail = await app.request('/status/main/maintenance/window-1');
+  assert.equal(maintenanceDetail.status, 308);
+  assert.equal(maintenanceDetail.headers.get('location'), '/status/main/maintenance/window-1/');
 
   const image = await app.request('/status/main/metrics/opengraph.png');
   assert.equal(image.status, 200);

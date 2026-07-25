@@ -105,7 +105,7 @@ const materializeMessage = (
   if (row.kind === 'subscription_confirmation') {
     const confirmToken = String(payload.confirmToken);
     const confirmationUrl = new URL(
-      `/api/v1/public/subscriptions/confirm/${encodeURIComponent(confirmToken)}`,
+      `/subscriptions/confirm/${encodeURIComponent(confirmToken)}`,
       baseUrl
     ).toString();
     return {
@@ -119,10 +119,14 @@ const materializeMessage = (
   if (!row.publication_json) throw new Error('Event publication payload is missing');
   const publication = JSON.parse(row.publication_json) as PublicationSnapshot;
   const manageUrl = new URL(
-    `/api/v1/public/subscriptions/manage/${encodeURIComponent(String(payload.manageToken))}`,
+    `/subscriptions/manage/${encodeURIComponent(String(payload.manageToken))}`,
     baseUrl
   ).toString();
-  const unsubscribeUrl = new URL(
+  const unsubscribePageUrl = new URL(
+    `/subscriptions/unsubscribe/${encodeURIComponent(String(payload.unsubscribeToken))}`,
+    baseUrl
+  ).toString();
+  const oneClickUnsubscribeUrl = new URL(
     `/api/v1/public/subscriptions/unsubscribe/${encodeURIComponent(String(payload.unsubscribeToken))}`,
     baseUrl
   ).toString();
@@ -133,10 +137,10 @@ const materializeMessage = (
   return {
     to: email,
     subject: `${publication.title} — ${publication.state}`,
-    text: `${publication.body}\n\nStatus: ${publication.state}\nOccurred: ${publication.occurredAt}\nPublished: ${publication.publishedAt}\n\nView incident: ${incidentUrl}\nManage subscription: ${manageUrl}\nUnsubscribe: ${unsubscribeUrl}`,
+    text: `${publication.body}\n\nStatus: ${publication.state}\nOccurred: ${publication.occurredAt}\nPublished: ${publication.publishedAt}\n\nView incident: ${incidentUrl}\nManage subscription: ${manageUrl}\nUnsubscribe: ${unsubscribePageUrl}`,
     messageId: messageIdFor(row.id, publicBaseUrl),
     headers: {
-      'List-Unsubscribe': `<${unsubscribeUrl}>`,
+      'List-Unsubscribe': `<${oneClickUnsubscribeUrl}>`,
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
     },
   };

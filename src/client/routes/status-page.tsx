@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { Link, useLoaderData, useParams, useRouteLoaderData } from 'react-router';
 import type { PublicBootstrap, StatusPagePayload } from '../api';
+import { PublicEventTimeline } from '../public-event-timeline';
+import { PublicSubscription } from '../public-subscription';
 import {
   presentationForStatus,
   statusForPublicEvidence,
@@ -45,6 +47,13 @@ export const StatusPage = () => {
       const features = (extension as Record<string, unknown>).upstreamFeatures;
       return Array.isArray(features) && features.includes('methodology');
     }) ?? false;
+  const publicServices = [
+    ...new Map<string, { id: string; name: string }>(
+      (snapshot?.data ?? [])
+        .flatMap(item => item.snapshot.services)
+        .map(service => [service.id, { id: service.id, name: service.name }] as const)
+    ).values(),
+  ].sort((left, right) => left.name.localeCompare(right.name));
 
   if (!page) {
     return (
@@ -192,6 +201,7 @@ export const StatusPage = () => {
                 : 'The source poller is preparing the first local snapshot. This page will not fall back to a visitor-triggered upstream request.'}
             </div>
           )}
+          <PublicEventTimeline pageSlug={page.slug} publications={payload.publications} />
           {payload.mirroredEvents.length > 0 ? (
             <section className="mt-10 border-t border-black/5 pt-8">
               <div className="flex items-start justify-between gap-5">
@@ -247,6 +257,9 @@ export const StatusPage = () => {
                 ))}
               </div>
             </section>
+          ) : null}
+          {data.meta.capabilities.emailSubscriptions ? (
+            <PublicSubscription pageSlug={page.slug} services={publicServices} />
           ) : null}
         </div>
       </section>

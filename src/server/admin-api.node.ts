@@ -875,6 +875,22 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     const publicNoticesBody = (await publicNotices.json()) as { data: unknown[] };
     assert.equal(publicNotices.status, 200);
     assert.equal(publicNoticesBody.data.length, 1);
+    const publicEvents = await app.request('/api/v1/public/pages/main/events');
+    const publicEventsBody = (await publicEvents.json()) as {
+      data: Array<{ publicationId: string; type: string; publishedAt: string }>;
+    };
+    assert.equal(publicEvents.status, 200);
+    assert.equal(publicEventsBody.data.length, 4);
+    assert.deepEqual(
+      new Set(publicEventsBody.data.map(event => event.type)),
+      new Set(['incident', 'maintenance', 'notice', 'postmortem'])
+    );
+    assert.equal(
+      publicEventsBody.data.every(
+        event => event.publicationId.length > 0 && Number.isFinite(Date.parse(event.publishedAt))
+      ),
+      true
+    );
 
     const rss = await app.request('/status/main/rss.xml');
     assert.equal(rss.status, 200);
@@ -900,6 +916,19 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
           .get() as { count: number }
       ).count,
       1
+    );
+    const unsubscribePreview = await app.request(
+      `/api/v1/public/subscriptions/unsubscribe/${confirmationPayload.unsubscribeToken}`
+    );
+    assert.equal(unsubscribePreview.status, 200);
+    assert.equal(unsubscribePreview.headers.get('cache-control'), 'no-store');
+    assert.equal(
+      (
+        database
+          .prepare('SELECT state FROM email_subscriptions WHERE email_hash = ?')
+          .get(protector.emailHash('subscriber@example.com')) as { state: string }
+      ).state,
+      'active'
     );
     const unsubscribed = await app.request(
       `/api/v1/public/subscriptions/unsubscribe/${confirmationPayload.unsubscribeToken}`,

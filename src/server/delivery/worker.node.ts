@@ -51,6 +51,7 @@ test('sends queued confirmation mail with a stable Message-ID', async () => {
     assert.deepEqual(result, { processed: 1, sent: 1, failed: 0 });
     assert.equal(messages[0]?.to, 'recipient@example.com');
     assert.equal(messages[0]?.text.includes('/subscriptions/confirm/'), true);
+    assert.equal(messages[0]?.text.includes('/api/v1/public/subscriptions/confirm/'), false);
     assert.equal(messages[0]?.messageId.endsWith('@status.example.com>'), true);
     const outbox = database
       .prepare('SELECT id, state, attempts, sent_at FROM notification_outbox')

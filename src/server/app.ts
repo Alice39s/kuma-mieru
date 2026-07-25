@@ -292,6 +292,24 @@ export const createApp = ({
       ? canonicalRedirect(context, `/status/${encodeURIComponent(page.slug)}/methodology/`)
       : context.notFound();
   });
+  app.get('/status/:slug/incidents/:eventId', context => {
+    const page = findPage(context.req.param('slug'));
+    return page
+      ? canonicalRedirect(
+          context,
+          `/status/${encodeURIComponent(page.slug)}/incidents/${encodeURIComponent(context.req.param('eventId'))}/`
+        )
+      : context.notFound();
+  });
+  app.get('/status/:slug/maintenance/:eventId', context => {
+    const page = findPage(context.req.param('slug'));
+    return page
+      ? canonicalRedirect(
+          context,
+          `/status/${encodeURIComponent(page.slug)}/maintenance/${encodeURIComponent(context.req.param('eventId'))}/`
+        )
+      : context.notFound();
+  });
 
   app.use(
     '/api/v1/public/*',
@@ -579,6 +597,13 @@ export const createApp = ({
     return context.json({ data: database ? listPublishedIncidents(database, page.id) : [] });
   });
 
+  app.get('/api/v1/public/pages/:slug/events', context => {
+    const page = findPage(context.req.param('slug'));
+    if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+    context.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+    return context.json({ data: database ? listPublishedEvents(database, page.id) : [] });
+  });
+
   app.get('/api/v1/public/pages/:slug/incidents/:id', context => {
     const page = findPage(context.req.param('slug'));
     if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
@@ -858,6 +883,22 @@ export const createApp = ({
     }
   });
 
+  app.get('/api/v1/public/subscriptions/unsubscribe/:token', context => {
+    setTokenPageHeaders(context);
+    const view =
+      database && piiProtector
+        ? inspectSubscriptionToken(
+            database,
+            piiProtector,
+            context.req.param('token'),
+            'unsubscribe'
+          )
+        : null;
+    return view?.state === 'active'
+      ? context.json({ data: view })
+      : errorResponse(context, 404, 'SUBSCRIPTION_TOKEN_INVALID', 'Subscription token is invalid');
+  });
+
   app.get('/api/v1/public/pages/:slug/snapshot', context => {
     const page = findPage(context.req.param('slug'));
     if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
@@ -1052,6 +1093,11 @@ export const createApp = ({
 
   if (publicDirectory) {
     const root = resolve(publicDirectory);
+    app.use('/subscriptions/*', async (context, next) => {
+      await next();
+      context.header('Cache-Control', 'no-store');
+      context.header('Referrer-Policy', 'no-referrer');
+    });
     app.use('/assets/*', async (context, next) => {
       await next();
       if (context.res.status < 400) {

@@ -78,6 +78,25 @@ const getJson = async <T>(path: string): Promise<T> => {
   return response.json() as Promise<T>;
 };
 
+const mutateJson = async <T>(
+  path: string,
+  method: 'POST' | 'PATCH',
+  body?: unknown
+): Promise<T> => {
+  const response = await fetch(path, {
+    method,
+    headers: {
+      Accept: 'application/json',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+  return response.json() as Promise<T>;
+};
+
 export const loadPublicBootstrap = async () => {
   const [meta, pages] = await Promise.all([
     getJson<RuntimeMeta>('/api/v1/meta'),
@@ -129,21 +148,163 @@ export interface PublicMirroredEvent {
   };
 }
 
+interface PublicPublicationBase {
+  publicationId: string;
+  eventId: string;
+  eventSequence: number;
+  pageId: string;
+  title: string;
+  body: string;
+  affectedComponentIds: string[];
+  occurredAt: string;
+  recordedAt: string;
+  publishedAt: string;
+}
+
+export type PublicPublication =
+  | (PublicPublicationBase & {
+      type: 'incident';
+      state: 'investigating' | 'identified' | 'monitoring' | 'resolved';
+    })
+  | (PublicPublicationBase & {
+      type: 'maintenance';
+      state: 'draft' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+      scheduledStartAt: string;
+      scheduledEndAt: string;
+    })
+  | (PublicPublicationBase & {
+      type: 'notice';
+      state: 'draft' | 'published' | 'expired' | 'withdrawn';
+      kind: 'information' | 'warning';
+      startsAt: string | null;
+      endsAt: string | null;
+    })
+  | (PublicPublicationBase & {
+      type: 'postmortem';
+      state: 'draft' | 'reviewed' | 'published';
+      incidentId: string;
+    });
+
 export const loadStatusPage = async (input: { params: Record<string, string | undefined> }) => {
   const slug = input.params.pageSlug ?? input.params.pageId;
-  if (!slug) return { snapshot: null, mirroredEvents: [] };
-  const [snapshot, mirrored] = await Promise.all([
+  if (!slug) return { snapshot: null, publications: [], mirroredEvents: [] };
+  const [snapshot, publications, mirrored] = await Promise.all([
     loadStatusSnapshot(input),
+    getJson<{ data: PublicPublication[] }>(
+      `/api/v1/public/pages/${encodeURIComponent(slug)}/events`
+    ),
     getJson<{ data: PublicMirroredEvent[] }>(
       `/api/v1/public/pages/${encodeURIComponent(slug)}/mirrored-events`
     ),
   ]);
-  return { snapshot, mirroredEvents: mirrored.data };
+  return { snapshot, publications: publications.data, mirroredEvents: mirrored.data };
 };
 
 export type StatusPagePayload = Awaited<ReturnType<typeof loadStatusPage>>;
 
 export type PublicBootstrap = Awaited<ReturnType<typeof loadPublicBootstrap>>;
+
+export const loadPublicEventDetail = async (input: {
+  params: Record<string, string | undefined>;
+  request: Request;
+}) => {
+  const slug = input.params.pageSlug;
+  const eventId = input.params.eventId;
+  if (!slug || !eventId) throw new Error('Event route is incomplete');
+  const kind = new URL(input.request.url).pathname.includes('/maintenance/')
+    ? 'maintenance'
+    : 'incident';
+  const publications = await getJson<{ data: PublicPublication[] }>(
+    `/api/v1/public/pages/${encodeURIComponent(slug)}/${kind === 'maintenance' ? 'maintenance' : 'incidents'}/${encodeURIComponent(eventId)}`
+  );
+  const data = publications.data.filter(
+    (publication): publication is PublicPublication =>
+      publication.type === kind && publication.eventId === eventId
+  );
+  if (data.length === 0) throw new Error('Published event not found');
+  const postmortems =
+    kind === 'incident'
+      ? await getJson<{ data: PublicPublication[] }>(
+          `/api/v1/public/pages/${encodeURIComponent(slug)}/incidents/${encodeURIComponent(eventId)}/postmortems`
+        )
+      : { data: [] };
+  return { kind, publications: data, postmortems: postmortems.data };
+};
+
+export interface SubscriptionTokenView {
+  subscriptionId: string;
+  purpose: 'confirm' | 'manage' | 'unsubscribe';
+  pageId: string;
+  incidentId: string | null;
+  componentIds: string[];
+  state: 'pending_confirmation' | 'active' | 'unsubscribed' | 'suppressed' | 'expired';
+  expiresAt: string;
+}
+
+export type SubscriptionPurpose = SubscriptionTokenView['purpose'];
+
+export const requestPublicEmailSubscription = async (
+  pageSlug: string,
+  input: { email: string; componentIds: string[]; incidentId?: string; website?: string }
+) => {
+  const nonce = await getJson<{ data: { nonce: string; expiresAt: string } }>(
+    `/api/v1/public/pages/${encodeURIComponent(pageSlug)}/subscriptions/email/nonce`
+  );
+  return mutateJson<{ data: { accepted: true; message: string } }>(
+    `/api/v1/public/pages/${encodeURIComponent(pageSlug)}/subscriptions/email`,
+    'POST',
+    { ...input, nonce: nonce.data.nonce }
+  );
+};
+
+export const loadSubscriptionAction = async (input: {
+  params: Record<string, string | undefined>;
+}) => {
+  const token = input.params.token;
+  if (!token) throw new Error('Subscription token is missing');
+  const purpose = input.params.purpose as SubscriptionPurpose | undefined;
+  if (!purpose || !['confirm', 'manage', 'unsubscribe'].includes(purpose)) {
+    throw new Error('Subscription action is invalid');
+  }
+  const response = await getJson<{ data: SubscriptionTokenView }>(
+    `/api/v1/public/subscriptions/${purpose}/${encodeURIComponent(token)}`
+  );
+  const bootstrap = await loadPublicBootstrap();
+  const page = bootstrap.pages.find(candidate => candidate.id === response.data.pageId);
+  const snapshot = page ? await loadStatusSnapshot({ params: { pageSlug: page.slug } }) : null;
+  return {
+    token,
+    purpose,
+    view: response.data,
+    page,
+    services:
+      snapshot?.data.flatMap(source =>
+        source.snapshot.services.map(service => ({ id: service.id, name: service.name }))
+      ) ?? [],
+  };
+};
+
+export const confirmPublicEmailSubscription = (token: string) =>
+  mutateJson<{ data: SubscriptionTokenView }>(
+    `/api/v1/public/subscriptions/confirm/${encodeURIComponent(token)}`,
+    'POST'
+  );
+
+export const updatePublicEmailSubscription = (
+  token: string,
+  input: { componentIds: string[]; incidentId: string | null }
+) =>
+  mutateJson<{ data: SubscriptionTokenView }>(
+    `/api/v1/public/subscriptions/manage/${encodeURIComponent(token)}`,
+    'PATCH',
+    input
+  );
+
+export const unsubscribePublicEmail = (token: string) =>
+  mutateJson<{ data: { unsubscribed: true } }>(
+    `/api/v1/public/subscriptions/unsubscribe/${encodeURIComponent(token)}`,
+    'POST'
+  );
 
 export interface MetricDefinition {
   id: string;
