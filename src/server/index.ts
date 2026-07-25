@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
+import { parsePrivateAddressCidrs } from './adapters/http-client.js';
 import { getMetricWindowStates } from './adapters/metric-store.js';
 import { getMethodologyState } from './adapters/methodology-store.js';
 import { startSourcePoller } from './adapters/source-poller.js';
@@ -63,6 +64,7 @@ const trustedOrigins = (process.env.KUMA_MIERU_TRUSTED_ORIGINS ?? baseURL)
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
+const privateAddressCidrs = parsePrivateAddressCidrs(process.env.KUMA_MIERU_PRIVATE_SOURCE_CIDRS);
 
 const runtimeLock = await acquireRuntimeLock({
   dataDirectory,
@@ -138,7 +140,7 @@ const deliveryRuntime = createDeliveryRuntime({
 });
 const sourceTest = createSourceTestService({
   secret: authSecret,
-  allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
+  privateAddressCidrs,
   secretStore,
 });
 if (runtimeSnapshot.mode === 'file') {
@@ -148,7 +150,7 @@ let stopSourcePoller = startSourcePoller({
   database,
   config: runtimeSnapshot.config,
   secretStore,
-  allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
+  privateAddressCidrs,
 });
 deliveryRuntime.apply(runtimeSnapshot.config);
 const applyRuntimeSnapshot = (nextSnapshot: typeof runtimeSnapshot) => {
@@ -156,7 +158,7 @@ const applyRuntimeSnapshot = (nextSnapshot: typeof runtimeSnapshot) => {
     database,
     config: nextSnapshot.config,
     secretStore,
-    allowPrivateAddresses: process.env.KUMA_MIERU_ALLOW_PRIVATE_SOURCES === 'true',
+    privateAddressCidrs,
   });
   const stopPreviousPoller = stopSourcePoller;
   deliveryRuntime.apply(nextSnapshot.config);

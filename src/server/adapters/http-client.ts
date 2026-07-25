@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { BlockList, isIP } from 'node:net';
 import type Database from 'better-sqlite3';
 import { Agent, fetch as undiciFetch, interceptors, type Dispatcher } from 'undici';
 import type { z } from 'zod';
@@ -29,7 +29,7 @@ export interface HttpJsonResponse {
 }
 
 export interface HttpJsonClientOptions {
-  allowPrivateAddresses?: boolean;
+  privateAddressCidrs?: readonly string[];
   timeoutMs?: number;
   maxBodyBytes?: number;
   maxRedirects?: number;
@@ -79,9 +79,91 @@ const isPrivateAddress = (input: string) => {
   return false;
 };
 
+const privateCidrRanges = [
+  { network: '10.0.0.0', prefix: 8, family: 4 },
+  { network: '100.64.0.0', prefix: 10, family: 4 },
+  { network: '127.0.0.0', prefix: 8, family: 4 },
+  { network: '169.254.0.0', prefix: 16, family: 4 },
+  { network: '172.16.0.0', prefix: 12, family: 4 },
+  { network: '192.168.0.0', prefix: 16, family: 4 },
+  { network: '198.18.0.0', prefix: 15, family: 4 },
+  { network: '::', prefix: 128, family: 6 },
+  { network: '::1', prefix: 128, family: 6 },
+  { network: 'fc00::', prefix: 7, family: 6 },
+  { network: 'fe80::', prefix: 10, family: 6 },
+] as const;
+
+const privateCidrRules = privateCidrRanges.map(range => {
+  const blockList = new BlockList();
+  blockList.addSubnet(range.network, range.prefix, range.family === 4 ? 'ipv4' : 'ipv6');
+  return { ...range, blockList };
+});
+
+const isContainedPrivateCidr = (address: string, prefix: number, family: 4 | 6) =>
+  privateCidrRules.some(
+    rule =>
+      rule.family === family &&
+      prefix >= rule.prefix &&
+      rule.blockList.check(address, family === 4 ? 'ipv4' : 'ipv6')
+  );
+
+const createPrivateAddressAllowlist = (cidrs: readonly string[]) => {
+  if (cidrs.length > 64) {
+    throw requestError(
+      'invalid_private_source_cidrs',
+      'At most 64 private source CIDRs are allowed'
+    );
+  }
+  const allowlist = new BlockList();
+  for (const cidr of new Set(cidrs)) {
+    const separator = cidr.lastIndexOf('/');
+    const address = cidr.slice(0, separator).trim().toLowerCase();
+    const prefixText = cidr.slice(separator + 1).trim();
+    const family = isIP(address);
+    const prefix = Number(prefixText);
+    const maximumPrefix = family === 4 ? 32 : 128;
+    if (
+      separator <= 0 ||
+      (family !== 4 && family !== 6) ||
+      prefixText === '' ||
+      !Number.isInteger(prefix) ||
+      prefix < 0 ||
+      prefix > maximumPrefix
+    ) {
+      throw requestError('invalid_private_source_cidrs', `Invalid private source CIDR: ${cidr}`);
+    }
+    if (!isContainedPrivateCidr(address, prefix, family)) {
+      throw requestError(
+        'invalid_private_source_cidrs',
+        `Private source CIDR is outside the supported private ranges: ${cidr}`
+      );
+    }
+    allowlist.addSubnet(address, prefix, family === 4 ? 'ipv4' : 'ipv6');
+  }
+  return allowlist;
+};
+
+export const parsePrivateAddressCidrs = (input: string | undefined) => {
+  const cidrs = (input ?? '')
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean);
+  createPrivateAddressAllowlist(cidrs);
+  return cidrs;
+};
+
+const isAllowlisted = (allowlist: BlockList, input: string) => {
+  const address = input.replaceAll('[', '').replaceAll(']', '').toLowerCase();
+  if (address.startsWith('::ffff:') && isIP(address.slice(7)) === 4) {
+    return allowlist.check(address.slice(7), 'ipv4');
+  }
+  const family = isIP(address);
+  return family !== 0 && allowlist.check(address, family === 4 ? 'ipv4' : 'ipv6');
+};
+
 const resolveTarget = async (
   url: URL,
-  allowPrivateAddresses: boolean,
+  privateAddressAllowlist: BlockList,
   resolveHost: ResolveHost
 ): Promise<ResolvedAddress[]> => {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
@@ -91,9 +173,6 @@ const resolveTarget = async (
     throw requestError('embedded_credentials', 'Source URL must not contain credentials');
   }
   const hostname = url.hostname.replaceAll('[', '').replaceAll(']', '');
-  if (hostname.toLowerCase() === 'localhost' && !allowPrivateAddresses) {
-    throw requestError('private_address_blocked', 'Private source address is not allowed');
-  }
   const resolved = isIP(hostname)
     ? [{ address: hostname, family: isIP(hostname) }]
     : await resolveHost(hostname, { all: true, verbatim: true });
@@ -105,7 +184,12 @@ const resolveTarget = async (
   if (addresses.length === 0) {
     throw requestError('dns_resolution_failed', 'Source hostname did not resolve to an IP address');
   }
-  if (!allowPrivateAddresses && addresses.some(result => isPrivateAddress(result.address))) {
+  if (
+    addresses.some(
+      result =>
+        isPrivateAddress(result.address) && !isAllowlisted(privateAddressAllowlist, result.address)
+    )
+  ) {
     throw requestError('private_address_blocked', 'Private source address is not allowed');
   }
   return addresses;
@@ -151,7 +235,7 @@ const readLimitedBody = async (response: Response, maxBodyBytes: number) => {
 export const createHttpJsonClient = (options: HttpJsonClientOptions = {}) => {
   const fetchImplementation = options.fetchImplementation ?? (undiciFetch as PinnedFetch);
   const resolveHost = options.resolveHost ?? (lookup as ResolveHost);
-  const allowPrivateAddresses = options.allowPrivateAddresses ?? false;
+  const privateAddressAllowlist = createPrivateAddressAllowlist(options.privateAddressCidrs ?? []);
   const timeoutMs = options.timeoutMs ?? 10_000;
   const maxBodyBytes = options.maxBodyBytes ?? 2 * 1024 * 1024;
   const maxRedirects = options.maxRedirects ?? 3;
@@ -160,7 +244,7 @@ export const createHttpJsonClient = (options: HttpJsonClientOptions = {}) => {
     let url = new URL(inputUrl);
     let requestHeaders = { ...headers };
     for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
-      const addresses = await resolveTarget(url, allowPrivateAddresses, resolveHost);
+      const addresses = await resolveTarget(url, privateAddressAllowlist, resolveHost);
       const dispatcher = createPinnedDispatcher(addresses);
       try {
         const response = await fetchImplementation(url, {

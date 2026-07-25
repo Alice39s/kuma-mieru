@@ -91,9 +91,11 @@ the candidate hash. Partial writes, invalid schemas, unresolved Secret Reference
 source dry-runs retain the last-known-good snapshot and active pollers.
 
 Private, loopback, link-local, and reserved source addresses are blocked by default. Self-hosted
-Uptime Kuma instances on a trusted private network require
-`KUMA_MIERU_ALLOW_PRIVATE_SOURCES=true`. Redirect targets are validated again and URLs containing
-credentials are always rejected.
+Uptime Kuma instances on a trusted private network require an explicit comma-separated CIDR list,
+for example `KUMA_MIERU_PRIVATE_SOURCE_CIDRS=10.20.30.5/32,fd00:1234::/64`. A private address not
+contained by that list is rejected; there is no global allow-all switch. Every request and redirect
+target is resolved, validated, and pinned to its validated address set before connecting. URLs
+containing credentials are always rejected.
 
 ### v1 compatibility migration
 

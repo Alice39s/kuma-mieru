@@ -126,7 +126,7 @@ test('boots the real server, polls Uptime Kuma, and projects one local snapshot'
         ...process.env,
         HOST: '127.0.0.1',
         PORT: String(appPort),
-        KUMA_MIERU_ALLOW_PRIVATE_SOURCES: 'true',
+        KUMA_MIERU_PRIVATE_SOURCE_CIDRS: '127.0.0.1/32',
         KUMA_MIERU_BACKUP_SCHEDULE_ENABLED: 'false',
         KUMA_MIERU_BASE_URL: `http://127.0.0.1:${appPort}`,
         KUMA_MIERU_CONFIG: configPath,

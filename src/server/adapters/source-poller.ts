@@ -19,7 +19,7 @@ import { reconcileMirroredEvents } from '../events/mirrored-repository.js';
 export interface SourcePollerOptions {
   database: Database.Database;
   config: CanonicalConfig;
-  allowPrivateAddresses?: boolean;
+  privateAddressCidrs?: readonly string[];
   intervalMs?: number;
   staleAfterMs?: number;
   metricStaleMultiplier?: number;
@@ -46,7 +46,7 @@ const methodologyRefreshMs = 60 * 60_000;
 export const startSourcePoller = ({
   database,
   config,
-  allowPrivateAddresses = false,
+  privateAddressCidrs = [],
   intervalMs = 60_000,
   staleAfterMs = 180_000,
   metricStaleMultiplier = 3,
@@ -57,7 +57,7 @@ export const startSourcePoller = ({
 
   for (const source of config.sources) {
     const httpClient = createHttpJsonClient({
-      allowPrivateAddresses,
+      privateAddressCidrs,
       timeoutMs: source.requestPolicy?.timeoutMs,
     });
     for (const pageId of source.pageIds) {

@@ -24,7 +24,7 @@ export interface SourceTestService {
 
 export interface CreateSourceTestServiceOptions {
   secret: string;
-  allowPrivateAddresses?: boolean;
+  privateAddressCidrs?: readonly string[];
   lifetimeMs?: number;
   requester?: SourceJsonRequester;
   secretStore?: SecretStore;
@@ -37,7 +37,7 @@ const sourceHash = (source: CanonicalConfig['sources'][number]) =>
 
 export const createSourceTestService = ({
   secret,
-  allowPrivateAddresses = false,
+  privateAddressCidrs = [],
   lifetimeMs = 5 * 60_000,
   requester,
   secretStore,
@@ -48,7 +48,7 @@ export const createSourceTestService = ({
   const test = async (rawSource: CanonicalConfig['sources'][number]) => {
     const source = sourceSchema.parse(rawSource);
     const httpClient = createHttpJsonClient({
-      allowPrivateAddresses,
+      privateAddressCidrs,
       timeoutMs: source.requestPolicy?.timeoutMs,
     });
     const directRequester: SourceJsonRequester =

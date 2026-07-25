@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import test from 'node:test';
-import { createHttpJsonClient } from './http-client.js';
+import { createHttpJsonClient, parsePrivateAddressCidrs } from './http-client.js';
 
 const listen = (server: Server) =>
   new Promise<number>((resolveListen, rejectListen) => {
@@ -40,9 +40,53 @@ test('blocks direct requests to private addresses before fetch', async () => {
   assert.equal(fetched, false);
 });
 
+test('accepts only valid explicit private source CIDRs', () => {
+  assert.deepEqual(parsePrivateAddressCidrs(' 10.0.0.0/24,fd00::/8 '), ['10.0.0.0/24', 'fd00::/8']);
+  for (const value of [
+    '127.0.0.1',
+    '10.0.0.0/33',
+    'fd00::/129',
+    'not-an-address/24',
+    '0.0.0.0/0',
+    '10.0.0.0/7',
+    '2001:db8::/32',
+  ]) {
+    assert.throws(
+      () => parsePrivateAddressCidrs(value),
+      error =>
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'invalid_private_source_cidrs'
+    );
+  }
+});
+
+test('allows only private addresses contained by the configured CIDRs', async () => {
+  let requests = 0;
+  const client = createHttpJsonClient({
+    privateAddressCidrs: ['10.20.30.0/24'],
+    fetchImplementation: async () => {
+      requests += 1;
+      return Response.json({ ok: true });
+    },
+  });
+  const result = await client(new URL('http://10.20.30.42/status'));
+  assert.deepEqual(result.data, { ok: true });
+  await assert.rejects(client(new URL('http://10.20.31.42/status')), error => {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'private_address_blocked'
+    );
+  });
+  assert.equal(requests, 1);
+});
+
 test('enforces the decompressed response body limit', async () => {
   const client = createHttpJsonClient({
-    allowPrivateAddresses: true,
+    privateAddressCidrs: ['127.0.0.1/32'],
     maxBodyBytes: 16,
     fetchImplementation: async () => Response.json({ payload: 'a'.repeat(100) }),
   });
@@ -70,6 +114,29 @@ test('revalidates redirect targets and blocks a redirect to localhost', async ()
       error.code === 'private_address_blocked'
     );
   });
+});
+
+test('rejects a redirect that leaves an allowed private CIDR', async () => {
+  let requests = 0;
+  const client = createHttpJsonClient({
+    privateAddressCidrs: ['10.20.30.0/24'],
+    fetchImplementation: async () => {
+      requests += 1;
+      return new Response(null, {
+        status: 302,
+        headers: { Location: 'http://10.20.31.1/private' },
+      });
+    },
+  });
+  await assert.rejects(client(new URL('http://10.20.30.1/status')), error => {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'private_address_blocked'
+    );
+  });
+  assert.equal(requests, 1);
 });
 
 test('strips credentials before following a cross-origin redirect', async () => {
@@ -112,7 +179,7 @@ test('pins the connection to the prevalidated address without a second system lo
     const port = await listen(server);
     let resolutions = 0;
     const client = createHttpJsonClient({
-      allowPrivateAddresses: true,
+      privateAddressCidrs: ['127.0.0.1/32'],
       resolveHost: async hostname => {
         assert.equal(hostname, 'source.invalid');
         resolutions += 1;

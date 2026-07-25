@@ -88,7 +88,7 @@ test('polls successful source snapshots into a private debounced suggestion', as
     const stop = startSourcePoller({
       database,
       config,
-      allowPrivateAddresses: true,
+      privateAddressCidrs: ['127.0.0.1/32'],
       intervalMs: 25,
       staleAfterMs: 1_000,
     });
