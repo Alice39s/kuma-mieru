@@ -28,13 +28,27 @@ export interface HttpJsonResponse {
   lastModified: string | null;
 }
 
+export interface HttpBinaryResponse {
+  status: 200 | 304;
+  data: Uint8Array | null;
+  contentType: string | null;
+  etag: string | null;
+  lastModified: string | null;
+  finalUrl: URL;
+}
+
 export interface HttpJsonClientOptions {
   privateAddressCidrs?: readonly string[];
+  allowedOrigins?: readonly string[];
   timeoutMs?: number;
   maxBodyBytes?: number;
   maxRedirects?: number;
   fetchImplementation?: PinnedFetch;
   resolveHost?: ResolveHost;
+}
+
+export interface HttpBinaryClientOptions extends HttpJsonClientOptions {
+  allowedContentTypes: readonly string[];
 }
 
 interface CacheRow {
@@ -164,13 +178,20 @@ const isAllowlisted = (allowlist: BlockList, input: string) => {
 const resolveTarget = async (
   url: URL,
   privateAddressAllowlist: BlockList,
-  resolveHost: ResolveHost
+  resolveHost: ResolveHost,
+  allowedOrigins: ReadonlySet<string> | null
 ): Promise<ResolvedAddress[]> => {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw requestError('unsupported_protocol', 'Source URL must use HTTP or HTTPS');
   }
   if (url.username || url.password) {
     throw requestError('embedded_credentials', 'Source URL must not contain credentials');
+  }
+  if (url.hash) {
+    throw requestError('url_fragment_rejected', 'Source URL must not contain a fragment');
+  }
+  if (allowedOrigins && !allowedOrigins.has(url.origin)) {
+    throw requestError('origin_not_allowed', 'Source redirect left the allowed origin');
   }
   const hostname = url.hostname.replaceAll('[', '').replaceAll(']', '');
   const resolved = isIP(hostname)
@@ -198,11 +219,11 @@ const resolveTarget = async (
 const createPinnedDispatcher = (addresses: ResolvedAddress[]): Dispatcher =>
   new Agent({ connections: 1, pipelining: 1 }).compose(
     interceptors.dns({
-      maxTTL: 0,
+      maxTTL: 60_000,
       lookup: (_origin, _options, callback) => {
         callback(
           null,
-          addresses.map(address => ({ ...address, ttl: 0 }))
+          addresses.map(address => ({ ...address, ttl: 60_000 }))
         );
       },
     })
@@ -232,24 +253,46 @@ const readLimitedBody = async (response: Response, maxBodyBytes: number) => {
   return body;
 };
 
-export const createHttpJsonClient = (options: HttpJsonClientOptions = {}) => {
+interface HttpBodyResponse {
+  status: 200 | 304;
+  body: Uint8Array | null;
+  contentType: string | null;
+  etag: string | null;
+  lastModified: string | null;
+  finalUrl: URL;
+}
+
+const createHttpBodyClient = (
+  options: HttpJsonClientOptions,
+  accept: string,
+  acceptsContentType: (contentType: string) => boolean,
+  invalidContentTypeMessage: string
+) => {
   const fetchImplementation = options.fetchImplementation ?? (undiciFetch as PinnedFetch);
   const resolveHost = options.resolveHost ?? (lookup as ResolveHost);
   const privateAddressAllowlist = createPrivateAddressAllowlist(options.privateAddressCidrs ?? []);
+  const allowedOrigins = options.allowedOrigins
+    ? new Set(options.allowedOrigins.map(origin => new URL(origin).origin))
+    : null;
   const timeoutMs = options.timeoutMs ?? 10_000;
   const maxBodyBytes = options.maxBodyBytes ?? 2 * 1024 * 1024;
   const maxRedirects = options.maxRedirects ?? 3;
 
-  return async (inputUrl: URL, headers: Record<string, string> = {}): Promise<HttpJsonResponse> => {
+  return async (inputUrl: URL, headers: Record<string, string> = {}): Promise<HttpBodyResponse> => {
     let url = new URL(inputUrl);
     let requestHeaders = { ...headers };
     for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
-      const addresses = await resolveTarget(url, privateAddressAllowlist, resolveHost);
+      const addresses = await resolveTarget(
+        url,
+        privateAddressAllowlist,
+        resolveHost,
+        allowedOrigins
+      );
       const dispatcher = createPinnedDispatcher(addresses);
       try {
         const response = await fetchImplementation(url, {
           method: 'GET',
-          headers: { Accept: 'application/json', ...requestHeaders },
+          headers: { Accept: accept, ...requestHeaders },
           redirect: 'manual',
           signal: AbortSignal.timeout(timeoutMs),
           dispatcher,
@@ -277,38 +320,100 @@ export const createHttpJsonClient = (options: HttpJsonClientOptions = {}) => {
           await response.body?.cancel();
           return {
             status: 304,
-            data: null,
+            body: null,
+            contentType: null,
             etag: response.headers.get('etag'),
             lastModified: response.headers.get('last-modified'),
+            finalUrl: url,
           };
         }
         if (!response.ok) {
           await response.body?.cancel();
           throw requestError(`http_${response.status}`, `Source returned HTTP ${response.status}`);
         }
-        const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
-        if (!contentType.includes('application/json') && !contentType.includes('+json')) {
+        const contentType =
+          response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
+        if (!acceptsContentType(contentType)) {
           await response.body?.cancel();
-          throw requestError('invalid_content_type', 'Source did not return JSON');
+          throw requestError('invalid_content_type', invalidContentTypeMessage);
+        }
+        const contentLength = Number(response.headers.get('content-length'));
+        if (Number.isFinite(contentLength) && contentLength > maxBodyBytes) {
+          await response.body?.cancel();
+          throw requestError('body_too_large', `Source response exceeded ${maxBodyBytes} bytes`);
         }
         const body = await readLimitedBody(response, maxBodyBytes);
-        let data: unknown;
-        try {
-          data = JSON.parse(new TextDecoder().decode(body));
-        } catch {
-          throw requestError('invalid_json', 'Source returned invalid JSON');
-        }
         return {
           status: 200,
-          data,
+          body,
+          contentType,
           etag: response.headers.get('etag'),
           lastModified: response.headers.get('last-modified'),
+          finalUrl: url,
         };
       } finally {
         await dispatcher.close();
       }
     }
     throw requestError('redirect_rejected', 'Source redirect limit exceeded');
+  };
+};
+
+export const createHttpJsonClient = (options: HttpJsonClientOptions = {}) => {
+  const requestBody = createHttpBodyClient(
+    options,
+    'application/json',
+    contentType => contentType === 'application/json' || contentType.endsWith('+json'),
+    'Source did not return JSON'
+  );
+  return async (inputUrl: URL, headers: Record<string, string> = {}): Promise<HttpJsonResponse> => {
+    const response = await requestBody(inputUrl, headers);
+    if (response.status === 304) {
+      return {
+        status: 304,
+        data: null,
+        etag: response.etag,
+        lastModified: response.lastModified,
+      };
+    }
+    let data: unknown;
+    try {
+      data = JSON.parse(new TextDecoder().decode(response.body as Uint8Array));
+    } catch {
+      throw requestError('invalid_json', 'Source returned invalid JSON');
+    }
+    return {
+      status: 200,
+      data,
+      etag: response.etag,
+      lastModified: response.lastModified,
+    };
+  };
+};
+
+export const createHttpBinaryClient = (options: HttpBinaryClientOptions) => {
+  const allowedContentTypes = new Set(
+    options.allowedContentTypes.map(contentType => contentType.trim().toLowerCase())
+  );
+  const requestBody = createHttpBodyClient(
+    options,
+    options.allowedContentTypes.join(','),
+    contentType => allowedContentTypes.has(contentType),
+    'Source did not return an allowed binary content type'
+  );
+  return async (
+    inputUrl: URL,
+    headers: Record<string, string> = {}
+  ): Promise<HttpBinaryResponse> => {
+    const response = await requestBody(inputUrl, headers);
+    return {
+      status: response.status,
+      data: response.body,
+      contentType: response.contentType,
+      etag: response.etag,
+      lastModified: response.lastModified,
+      finalUrl: response.finalUrl,
+    };
   };
 };
 

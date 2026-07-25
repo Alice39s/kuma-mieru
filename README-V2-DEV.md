@@ -120,8 +120,10 @@ The compatibility surface also preserves the v1 read routes `/api/config`, `/api
 responses are projected exclusively from the local last-known-good snapshot; they never trigger an
 upstream request from a visitor. An unavailable snapshot returns `503` with `Cache-Control:
 no-store`, legacy responses carry deprecation metadata, and monitor links resolve into the canonical
-v2 status page instead of maintaining a second public renderer. The icon route serves only the
-packaged fallback within the 2 MiB limit, while the management redirect is derived from the active
+v2 status page instead of maintaining a second public renderer. The icon route can proxy only a
+configured or locally persisted same-origin upstream raster icon through the shared DNS-pinned
+HTTP client, with an exact image content-type allowlist and a 2 MiB decompressed body limit;
+otherwise it serves the packaged fallback. The management redirect is derived from the active
 validated Source rather than accepting an arbitrary request target.
 
 ### Rootless simple image

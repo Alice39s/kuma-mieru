@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import test from 'node:test';
-import { createHttpJsonClient, parsePrivateAddressCidrs } from './http-client.js';
+import {
+  createHttpBinaryClient,
+  createHttpJsonClient,
+  parsePrivateAddressCidrs,
+} from './http-client.js';
 
 const listen = (server: Server) =>
   new Promise<number>((resolveListen, rejectListen) => {
@@ -137,6 +141,70 @@ test('rejects a redirect that leaves an allowed private CIDR', async () => {
     );
   });
   assert.equal(requests, 1);
+});
+
+test('keeps a binary request and every redirect on its allowed origin', async () => {
+  let requests = 0;
+  const client = createHttpBinaryClient({
+    allowedOrigins: ['https://status.example.com'],
+    allowedContentTypes: ['image/png'],
+    resolveHost: async () => [{ address: '203.0.113.10', family: 4 }],
+    fetchImplementation: async () => {
+      requests += 1;
+      return new Response(null, {
+        status: 302,
+        headers: { Location: 'https://cdn.example.com/icon.png' },
+      });
+    },
+  });
+  await assert.rejects(client(new URL('https://status.example.com/icon.png')), error => {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'origin_not_allowed'
+    );
+  });
+  assert.equal(requests, 1);
+});
+
+test('allows a bounded binary response but rejects SVG and URL fragments', async () => {
+  const pngClient = createHttpBinaryClient({
+    allowedOrigins: ['https://status.example.com'],
+    allowedContentTypes: ['image/png'],
+    resolveHost: async () => [{ address: '203.0.113.10', family: 4 }],
+    fetchImplementation: async () =>
+      new Response(new Uint8Array([137, 80, 78, 71]), {
+        headers: { 'Content-Type': 'image/png; charset=binary' },
+      }),
+  });
+  const image = await pngClient(new URL('https://status.example.com/icon.png'));
+  assert.equal(image.contentType, 'image/png');
+  assert.deepEqual(image.data, new Uint8Array([137, 80, 78, 71]));
+
+  const svgClient = createHttpBinaryClient({
+    allowedOrigins: ['https://status.example.com'],
+    allowedContentTypes: ['image/png'],
+    resolveHost: async () => [{ address: '203.0.113.10', family: 4 }],
+    fetchImplementation: async () =>
+      new Response('<svg/>', { headers: { 'Content-Type': 'image/svg+xml' } }),
+  });
+  await assert.rejects(svgClient(new URL('https://status.example.com/icon.svg')), error => {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'invalid_content_type'
+    );
+  });
+  await assert.rejects(pngClient(new URL('https://status.example.com/icon.png#private')), error => {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'url_fragment_rejected'
+    );
+  });
 });
 
 test('strips credentials before following a cross-origin redirect', async () => {

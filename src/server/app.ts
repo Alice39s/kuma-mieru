@@ -28,6 +28,7 @@ import type { SubscriberTombstoneStore } from './retention/tombstone-store.js';
 import type { ReleaseManifest } from './release/manifest.js';
 import type { NormalizedStatus } from './adapters/types.js';
 import type { OgImageInput, OgImageService, OgView } from './og/types.js';
+import type { IconProxyService } from './icon/service.js';
 import {
   getPublishedIncident,
   listPublishedEvents,
@@ -114,6 +115,7 @@ export interface AppOptions {
   isRuntimeLockHeld?: () => boolean;
   releaseManifest?: ReleaseManifest | null;
   ogImageService?: OgImageService;
+  iconProxyService?: IconProxyService;
 }
 
 export const createApp = ({
@@ -145,6 +147,7 @@ export const createApp = ({
   isRuntimeLockHeld = () => true,
   releaseManifest = null,
   ogImageService,
+  iconProxyService,
 }: AppOptions) => {
   const app = new Hono<AppEnvironment>();
   const currentSnapshot = () => getRuntimeSnapshot?.() ?? snapshot;
@@ -156,6 +159,23 @@ export const createApp = ({
     );
   const findLegacyPage = (requested: string | undefined) =>
     (requested ? findPage(requested) : null) ?? currentSnapshot().config.pages[0] ?? null;
+  const iconInputForPage = (page: CanonicalConfig['pages'][number]) => {
+    if (page.icon) {
+      const source = currentSnapshot().config.sources.find(item => item.id === page.sourceRefs[0]);
+      return source ? { icon: page.icon, sourceBaseUrl: source.baseUrl } : null;
+    }
+    for (const state of loadPageSnapshots?.(page) ?? []) {
+      const extension = state.snapshot.extensions['uptime-kuma'];
+      if (!extension || typeof extension !== 'object' || !('icon' in extension)) continue;
+      const icon = extension.icon;
+      if (typeof icon !== 'string') continue;
+      const source = currentSnapshot().config.sources.find(
+        item => item.id === state.snapshot.sourceId
+      );
+      if (source) return { icon, sourceBaseUrl: source.baseUrl };
+    }
+    return null;
+  };
   const ogInputForPage = (page: CanonicalConfig['pages'][number], view: OgView): OgImageInput => {
     const snapshots = loadPageSnapshots?.(page) ?? [];
     const stale = snapshots.length === 0 || snapshots.some(item => item.health.stale);
@@ -524,6 +544,34 @@ export const createApp = ({
 
   app.get('/api/icon', async context => {
     setLegacyHeaders(context, true);
+    const page = findLegacyPage(context.req.query('pageId'));
+    const input = page ? iconInputForPage(page) : null;
+    if (input && iconProxyService) {
+      try {
+        const icon = await iconProxyService.fetch(input);
+        if (icon) {
+          context.header('Content-Type', icon.contentType);
+          context.header('ETag', icon.etag);
+          context.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+          context.header('X-Content-Type-Options', 'nosniff');
+          if (etagMatches(context.req.header('if-none-match'), icon.etag)) {
+            return context.body(null, 304);
+          }
+          const body = new ArrayBuffer(icon.bytes.byteLength);
+          new Uint8Array(body).set(icon.bytes);
+          return context.body(body);
+        }
+      } catch (error) {
+        const errorCode =
+          typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
+            ? error.code
+            : 'icon_proxy_failed';
+        console.warn('Icon proxy failed; serving local fallback', {
+          pageId: page?.id ?? null,
+          errorCode,
+        });
+      }
+    }
     if (!publicDirectory) {
       context.header('Cache-Control', 'no-store');
       return context.body(null, 404);

@@ -627,3 +627,68 @@ test('projects local snapshots into the v1 read APIs without an upstream request
   assert.equal(manage.status, 307);
   assert.equal(manage.headers.get('location'), 'https://status.example.com/manage-status-page');
 });
+
+test('serves a same-origin proxied icon with bounded cache metadata', async () => {
+  const calls: Array<{ icon: string; sourceBaseUrl: string }> = [];
+  const iconSnapshot = {
+    ...snapshot,
+    config: {
+      ...snapshot.config,
+      pages: [{ ...snapshot.config.pages[0], icon: '/brand/icon.png' }],
+    },
+  };
+  const app = createApp({
+    snapshot: iconSnapshot,
+    schemaVersion: 13,
+    buildVersion: '2.0.0-test',
+    iconProxyService: {
+      fetch: async input => {
+        calls.push(input);
+        return {
+          bytes: new Uint8Array([137, 80, 78, 71]),
+          contentType: 'image/png',
+          etag: '"local-icon-etag"',
+        };
+      },
+    },
+  });
+  const icon = await app.request('/api/icon?pageId=main');
+  assert.equal(icon.status, 200);
+  assert.equal(icon.headers.get('content-type'), 'image/png');
+  assert.equal(icon.headers.get('etag'), '"local-icon-etag"');
+  assert.equal(icon.headers.get('x-content-type-options'), 'nosniff');
+  assert.match(icon.headers.get('cache-control') ?? '', /stale-while-revalidate=600/u);
+  assert.deepEqual(new Uint8Array(await icon.arrayBuffer()), new Uint8Array([137, 80, 78, 71]));
+  assert.deepEqual(calls, [
+    { icon: '/brand/icon.png', sourceBaseUrl: 'https://status.example.com' },
+  ]);
+
+  const unchanged = await app.request('/api/icon?pageId=main', {
+    headers: { 'If-None-Match': '"local-icon-etag"' },
+  });
+  assert.equal(unchanged.status, 304);
+  assert.equal(await unchanged.text(), '');
+});
+
+test('uses a locally persisted Uptime Kuma icon without an upstream metadata request', async () => {
+  const calls: Array<{ icon: string; sourceBaseUrl: string }> = [];
+  const state = sourceState('primary', 'operational', false);
+  state.snapshot.extensions = { 'uptime-kuma': { icon: '/upload/status.png' } };
+  const app = createApp({
+    snapshot,
+    schemaVersion: 13,
+    buildVersion: '2.0.0-test',
+    loadPageSnapshots: () => [state],
+    iconProxyService: {
+      fetch: async input => {
+        calls.push(input);
+        return null;
+      },
+    },
+  });
+  const response = await app.request('/api/icon?pageId=main');
+  assert.equal(response.status, 404);
+  assert.deepEqual(calls, [
+    { icon: '/upload/status.png', sourceBaseUrl: 'https://status.example.com' },
+  ]);
+});

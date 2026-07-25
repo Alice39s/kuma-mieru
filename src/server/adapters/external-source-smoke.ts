@@ -5,6 +5,7 @@ import { createHttpJsonClient } from './http-client.js';
 import { fetchIncidentIoSnapshot } from './incident-io/adapter.js';
 import type { NormalizedSnapshot, SourceJsonRequester } from './types.js';
 import { fetchUptimeKumaSnapshot } from './uptime-kuma/adapter.js';
+import { createIconProxyService } from '../icon/service.js';
 
 const targetsEnvironment = 'KUMA_MIERU_EXTERNAL_SOURCE_TARGETS';
 
@@ -24,6 +25,7 @@ const externalSourceTargetSchema = z
     pageId: z.string().trim().min(1).max(256),
     expectedTitle: z.string().min(1).max(512),
     minimumServices: z.number().int().nonnegative().max(100_000).default(0),
+    verifyIcon: z.boolean().default(false),
   })
   .superRefine((target, context) => {
     if (target.kind === 'incident-io' && target.pageId !== 'summary') {
@@ -81,6 +83,7 @@ if (!rawTargets) {
 
 const targets = externalSourceTargetsSchema.parse(JSON.parse(rawTargets));
 const requester = createRequester();
+const iconProxy = createIconProxyService();
 const evidence: Array<{
   id: string;
   kind: ExternalSourceTarget['kind'];
@@ -92,6 +95,7 @@ const evidence: Array<{
   services: number;
   incidents: number;
   capabilities: NormalizedSnapshot['capabilities'];
+  icon: { contentType: string; bytes: number } | null;
 }> = [];
 
 for (const target of targets) {
@@ -105,6 +109,18 @@ for (const target of targets) {
     `${target.id} returned ${snapshot.services.length} services, expected at least ${target.minimumServices}`
   );
   assert.equal(snapshot.capabilities.currentStatus, true);
+  let iconEvidence: { contentType: string; bytes: number } | null = null;
+  if (target.verifyIcon) {
+    const extension = z
+      .object({ icon: z.string().min(1).max(2_048) })
+      .parse(snapshot.extensions['uptime-kuma']);
+    const icon = await iconProxy.fetch({
+      icon: extension.icon,
+      sourceBaseUrl: target.baseUrl,
+    });
+    assert.ok(icon, `${target.id} did not return an allowed same-origin icon`);
+    iconEvidence = { contentType: icon.contentType, bytes: icon.bytes.byteLength };
+  }
   evidence.push({
     id: target.id,
     kind: target.kind,
@@ -116,6 +132,7 @@ for (const target of targets) {
     services: snapshot.services.length,
     incidents: snapshot.incidents.length,
     capabilities: snapshot.capabilities,
+    icon: iconEvidence,
   });
 }
 

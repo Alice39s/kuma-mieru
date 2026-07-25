@@ -4,7 +4,7 @@ import type { z } from 'zod';
 import { fetchUptimeKumaSnapshot, type SourceJsonRequester } from './adapter.js';
 
 const pageV1 = {
-  config: { title: 'Example Status', description: 'Public status' },
+  config: { title: 'Example Status', description: 'Public status', icon: '/upload/icon.png' },
   publicGroupList: [
     {
       id: 10,
@@ -51,6 +51,7 @@ test('normalizes the Uptime Kuma v1 single incident and mixed monitor state', as
   assert.equal(snapshot.services[1]?.status, 'major_outage');
   assert.equal(snapshot.incidents[0]?.id, 'primary:incident:7');
   assert.equal(snapshot.capabilities.tags, true);
+  assert.deepEqual(snapshot.extensions['uptime-kuma'], { icon: '/upload/icon.png' });
 });
 
 test('normalizes the Uptime Kuma v2 incident array without relying on the v1 field', async () => {

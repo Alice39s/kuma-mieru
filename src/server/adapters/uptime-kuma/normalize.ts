@@ -80,7 +80,7 @@ export const normalizeUptimeKumaSnapshot = ({
     status: aggregateStatus(services.map(service => service.status)),
     fetchedAt: fetchedAt.toISOString(),
     sourceUpdatedAt,
-    extensions: {},
+    extensions: page.config.icon ? { 'uptime-kuma': { icon: page.config.icon } } : {},
     capabilities: {
       currentStatus: true,
       heartbeatSeries: true,

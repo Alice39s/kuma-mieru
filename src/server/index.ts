@@ -36,6 +36,7 @@ import {
   loadReleaseManifest,
 } from './release/manifest.js';
 import { createOgImageService } from './og/service.js';
+import { createIconProxyService } from './icon/service.js';
 
 const currentDirectory = fileURLToPath(new URL('.', import.meta.url));
 const dataDirectory = resolve(process.env.KUMA_MIERU_DATA_DIR ?? './data');
@@ -65,6 +66,7 @@ const trustedOrigins = (process.env.KUMA_MIERU_TRUSTED_ORIGINS ?? baseURL)
   .map(origin => origin.trim())
   .filter(Boolean);
 const privateAddressCidrs = parsePrivateAddressCidrs(process.env.KUMA_MIERU_PRIVATE_SOURCE_CIDRS);
+const iconProxyService = createIconProxyService({ privateAddressCidrs });
 
 const runtimeLock = await acquireRuntimeLock({
   dataDirectory,
@@ -224,6 +226,7 @@ const app = createApp({
   isRuntimeLockHeld: runtimeLock.isHeld,
   releaseManifest,
   ogImageService,
+  iconProxyService,
   publicDirectory: process.env.NODE_ENV === 'development' ? undefined : clientDirectory,
   loadPageSnapshots: page =>
     page.sourceRefs.flatMap(sourceId => {

@@ -42,6 +42,7 @@ export const uptimeKumaPageSchema = z
       .object({
         title: z.string().optional().default('Uptime Kuma'),
         description: z.string().optional().default(''),
+        icon: z.string().max(2_048).optional(),
       })
       .passthrough(),
     publicGroupList: z.array(monitorGroupSchema),
