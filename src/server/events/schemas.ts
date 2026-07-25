@@ -9,6 +9,12 @@ export const incidentStateSchema = z.enum([
 
 const occurredAtSchema = z.string().datetime({ offset: true });
 const affectedComponentsSchema = z.array(z.string().min(1).max(200)).max(100).default([]);
+export const eventTemplateReferenceSchema = z
+  .object({
+    id: z.string().uuid(),
+    version: z.number().int().positive(),
+  })
+  .strict();
 
 export const incidentCreateSchema = z.object({
   pageId: z.string().min(1).max(200),
@@ -17,6 +23,7 @@ export const incidentCreateSchema = z.object({
   state: z.literal('investigating').default('investigating'),
   affectedComponentIds: affectedComponentsSchema,
   occurredAt: occurredAtSchema.optional(),
+  template: eventTemplateReferenceSchema.optional(),
 });
 
 export const incidentUpdateSchema = z.object({
@@ -87,6 +94,7 @@ export const maintenanceCreateSchema = z
     state: z.literal('draft').default('draft'),
     affectedComponentIds: affectedComponentsSchema,
     occurredAt: occurredAtSchema.optional(),
+    template: eventTemplateReferenceSchema.optional(),
     ...maintenanceWindowShape,
   })
   .superRefine((input, context) => {
@@ -151,6 +159,7 @@ export const noticeCreateSchema = z
     occurredAt: occurredAtSchema.optional(),
     startsAt: occurredAtSchema.nullable().default(null),
     endsAt: occurredAtSchema.nullable().default(null),
+    template: eventTemplateReferenceSchema.optional(),
   })
   .superRefine(validateNoticeWindow);
 
@@ -180,6 +189,7 @@ export const postmortemCreateSchema = z.object({
   body: z.string().min(1).max(50_000),
   state: z.literal('draft').default('draft'),
   occurredAt: occurredAtSchema.optional(),
+  template: eventTemplateReferenceSchema.optional(),
 });
 
 export const postmortemUpdateSchema = z.object({
@@ -202,6 +212,71 @@ export const publicationSnapshotSchema = z.discriminatedUnion('type', [
   postmortemPublicationSnapshotSchema,
 ]);
 
+export const eventTemplateTypeSchema = z.enum(['incident', 'maintenance', 'notice', 'postmortem']);
+export const eventTemplateStateSchema = z.enum(['active', 'archived']);
+
+const eventTemplateShape = {
+  name: z.string().trim().min(1).max(100),
+  eventType: eventTemplateTypeSchema,
+  title: z.string().trim().min(1).max(200),
+  body: z.string().trim().min(1).max(50_000),
+  affectedComponentIds: z.array(z.string().trim().min(1).max(200)).max(100).default([]),
+  defaultNotifySubscribers: z.boolean().default(false),
+  noticeKind: noticeKindSchema.nullable().default(null),
+};
+
+const validateEventTemplate = (
+  input: {
+    eventType: z.infer<typeof eventTemplateTypeSchema>;
+    affectedComponentIds: string[];
+    noticeKind: z.infer<typeof noticeKindSchema> | null;
+  },
+  context: z.RefinementCtx
+) => {
+  if (new Set(input.affectedComponentIds).size !== input.affectedComponentIds.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['affectedComponentIds'],
+      message: 'Affected component IDs must be unique.',
+    });
+  }
+  if (input.eventType === 'notice' && input.noticeKind === null) {
+    context.addIssue({
+      code: 'custom',
+      path: ['noticeKind'],
+      message: 'Notice templates require a notice kind.',
+    });
+  }
+  if (input.eventType !== 'notice' && input.noticeKind !== null) {
+    context.addIssue({
+      code: 'custom',
+      path: ['noticeKind'],
+      message: 'Only notice templates can define a notice kind.',
+    });
+  }
+  if (input.eventType === 'postmortem' && input.affectedComponentIds.length > 0) {
+    context.addIssue({
+      code: 'custom',
+      path: ['affectedComponentIds'],
+      message: 'Postmortem templates inherit components from their incident.',
+    });
+  }
+};
+
+export const eventTemplateCreateSchema = z
+  .object(eventTemplateShape)
+  .strict()
+  .superRefine(validateEventTemplate);
+
+export const eventTemplateUpdateSchema = z
+  .object({
+    expectedVersion: z.number().int().positive(),
+    state: eventTemplateStateSchema,
+    ...eventTemplateShape,
+  })
+  .strict()
+  .superRefine(validateEventTemplate);
+
 export type IncidentCreateInput = z.infer<typeof incidentCreateSchema>;
 export type IncidentUpdateInput = z.infer<typeof incidentUpdateSchema>;
 export type IncidentState = z.infer<typeof incidentStateSchema>;
@@ -220,3 +295,7 @@ export type PostmortemCreateInput = z.infer<typeof postmortemCreateSchema>;
 export type PostmortemUpdateInput = z.infer<typeof postmortemUpdateSchema>;
 export type PostmortemState = z.infer<typeof postmortemStateSchema>;
 export type PostmortemPublicationSnapshot = z.infer<typeof postmortemPublicationSnapshotSchema>;
+export type EventTemplateType = z.infer<typeof eventTemplateTypeSchema>;
+export type EventTemplateState = z.infer<typeof eventTemplateStateSchema>;
+export type EventTemplateCreateInput = z.infer<typeof eventTemplateCreateSchema>;
+export type EventTemplateUpdateInput = z.infer<typeof eventTemplateUpdateSchema>;

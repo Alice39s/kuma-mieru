@@ -50,16 +50,16 @@ const stopChild = async (child: ChildProcessWithoutNullStreams) => {
   ]);
 };
 
-test('restores schema 16, reapplies tombstones, and reaches readiness on schema 17', async () => {
+test('restores schema 17, reapplies tombstones, and reaches readiness on schema 18', async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-restore-upgrade-runtime-'));
   const dataDirectory = resolve(root, 'data');
   const databasePath = resolve(dataDirectory, 'kuma-mieru.sqlite3');
-  const previousMigrationDirectory = resolve(root, 'schema-16-migrations');
+  const previousMigrationDirectory = resolve(root, 'schema-17-migrations');
   const configPath = resolve(root, 'config.json');
   const migrationNames = (await readdir(migrationDirectory))
     .filter(name => name.endsWith('.up.sql'))
     .sort();
-  assert.equal(migrationNames.length, 17);
+  assert.equal(migrationNames.length, 18);
   await mkdir(previousMigrationDirectory, { recursive: true });
   for (const name of migrationNames.slice(0, -1)) {
     await copyFile(resolve(migrationDirectory, name), resolve(previousMigrationDirectory, name));
@@ -80,12 +80,12 @@ test('restores schema 16, reapplies tombstones, and reaches readiness on schema 
   const initial = openDatabase(databasePath);
   const tombstones = createSubscriberTombstoneStore(dataDirectory);
   try {
-    const schema16 = await migrateDatabase(initial.database, {
+    const schema17 = await migrateDatabase(initial.database, {
       directory: previousMigrationDirectory,
       databasePath,
       appBuild: '2.0.0-previous',
     });
-    assert.equal(schema16.currentVersion, 16);
+    assert.equal(schema17.currentVersion, 17);
     initial.database
       .prepare(
         `INSERT INTO email_subscriptions
@@ -108,10 +108,11 @@ test('restores schema 16, reapplies tombstones, and reaches readiness on schema 
       .prepare(
         `INSERT INTO native_events
           (id, type, page_id, title, state, version, created_by, idempotency_key,
-           request_hash, created_at, updated_at, details_json)
+           request_hash, created_at, updated_at, details_json, lifecycle_due_at)
          VALUES ('restore-upgrade-maintenance', 'maintenance', 'page', 'Upgrade maintenance',
                  'scheduled', 2, 'owner-1', 'restore-upgrade-maintenance', 'request-hash',
-                 '2000-01-01T00:00:00.000Z', '2000-01-01T00:00:01.000Z', ?)`
+                 '2000-01-01T00:00:00.000Z', '2000-01-01T00:00:01.000Z', ?,
+                 '2000-01-02T01:00:00.000Z')`
       )
       .run(maintenanceDetails);
     initial.database
@@ -144,7 +145,7 @@ test('restores schema 16, reapplies tombstones, and reaches readiness on schema 
       databasePath,
       appBuild: '2.0.0-current',
     });
-    assert.equal(firstUpgrade.currentVersion, 17);
+    assert.equal(firstUpgrade.currentVersion, 18);
     assert.ok(firstUpgrade.backupArtifactId);
     assert.equal(
       (
@@ -183,25 +184,25 @@ test('restores schema 16, reapplies tombstones, and reaches readiness on schema 
       migrationDirectory,
       now: () => new Date('2026-07-25T08:00:00.000Z'),
     });
-    assert.equal(restored.schemaVersion, 16);
+    assert.equal(restored.schemaVersion, 17);
     assert.ok(restored.rollbackFileName);
     assert.equal(
       (await readPostRestoreRetentionMarker(dataDirectory))?.backupId,
       firstUpgrade.backupArtifactId
     );
-    const restoredSchema16 = openDatabase(databasePath);
+    const restoredSchema17 = openDatabase(databasePath);
     try {
       assert.equal(
         (
-          restoredSchema16.database
+          restoredSchema17.database
             .prepare('SELECT MAX(version) AS version FROM schema_migrations')
             .get() as { version: number }
         ).version,
-        16
+        17
       );
       assert.equal(
         (
-          restoredSchema16.database
+          restoredSchema17.database
             .prepare(
               "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'backup_deletions'"
             )
@@ -210,7 +211,7 @@ test('restores schema 16, reapplies tombstones, and reaches readiness on schema 
         1
       );
       assert.deepEqual(
-        restoredSchema16.database
+        restoredSchema17.database
           .prepare(
             `SELECT state, email_ciphertext, pii_deleted_at
              FROM email_subscriptions WHERE id = 'restore-upgrade-subscriber'`
@@ -222,9 +223,9 @@ test('restores schema 16, reapplies tombstones, and reaches readiness on schema 
           pii_deleted_at: null,
         }
       );
-      restoredSchema16.database.pragma('wal_checkpoint(TRUNCATE)');
+      restoredSchema17.database.pragma('wal_checkpoint(TRUNCATE)');
     } finally {
-      restoredSchema16.database.close();
+      restoredSchema17.database.close();
     }
     await rm(`${databasePath}-wal`, { force: true });
     await rm(`${databasePath}-shm`, { force: true });
@@ -289,7 +290,28 @@ test('restores schema 16, reapplies tombstones, and reaches readiness on schema 
             .prepare('SELECT MAX(version) AS version FROM schema_migrations')
             .get() as { version: number }
         ).version,
-        17
+        18
+      );
+      assert.deepEqual(
+        readyDatabase.database
+          .prepare(
+            `SELECT name FROM sqlite_master
+             WHERE type = 'table' AND name IN ('event_templates', 'event_template_entries')
+             ORDER BY name`
+          )
+          .all(),
+        [{ name: 'event_template_entries' }, { name: 'event_templates' }]
+      );
+      const nativeEventColumns = readyDatabase.database
+        .prepare('PRAGMA table_info(native_events)')
+        .all() as Array<{ name: string }>;
+      assert.equal(
+        [
+          'source_template_id',
+          'source_template_version',
+          'source_template_notify_suggestion',
+        ].every(name => nativeEventColumns.some(column => column.name === name)),
+        true
       );
       assert.deepEqual(
         readyDatabase.database

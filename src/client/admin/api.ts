@@ -49,6 +49,12 @@ export interface AdminRevision {
 
 export type IncidentState = 'investigating' | 'identified' | 'monitoring' | 'resolved';
 
+export interface AppliedEventTemplate {
+  id: string;
+  version: number;
+  defaultNotifySubscribers: boolean;
+}
+
 export interface AdminIncident {
   id: string;
   type: 'incident';
@@ -59,6 +65,7 @@ export interface AdminIncident {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  template: AppliedEventTemplate | null;
   latestEntry: {
     sequence: number;
     state: IncidentState;
@@ -92,6 +99,7 @@ interface SharedAdminEvent<Type extends string, State extends string> {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  template: AppliedEventTemplate | null;
   latestEntry: SharedEventEntry<State>;
 }
 
@@ -114,6 +122,36 @@ export interface AdminPostmortem extends SharedAdminEvent<'postmortem', Postmort
 }
 
 export type AdminNativeEvent = AdminIncident | AdminMaintenance | AdminNotice | AdminPostmortem;
+
+export type EventTemplateType = AdminNativeEvent['type'];
+export type EventTemplateState = 'active' | 'archived';
+export interface AdminEventTemplate {
+  id: string;
+  name: string;
+  eventType: EventTemplateType;
+  state: EventTemplateState;
+  version: number;
+  title: string;
+  body: string;
+  affectedComponentIds: string[];
+  defaultNotifySubscribers: boolean;
+  noticeKind: 'information' | 'warning' | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  latestEntry: {
+    sequence: number;
+    state: EventTemplateState;
+    name: string;
+    title: string;
+    body: string;
+    affectedComponentIds: string[];
+    defaultNotifySubscribers: boolean;
+    noticeKind: 'information' | 'warning' | null;
+    recordedAt: string;
+    actorId: string;
+  };
+}
 
 export interface AdminMirroredEvent {
   id: string;
@@ -575,6 +613,7 @@ export const getWorkbenchData = async () => {
     maintenances,
     notices,
     postmortems,
+    eventTemplates,
   ] = await Promise.all([
     request<PublicMeta>('/api/v1/meta'),
     request<{ data: AdminMeta['config'] }>('/api/v1/admin/config/status'),
@@ -589,6 +628,7 @@ export const getWorkbenchData = async () => {
     request<{ data: AdminMaintenance[] }>('/api/v1/admin/maintenances'),
     request<{ data: AdminNotice[] }>('/api/v1/admin/notices'),
     request<{ data: AdminPostmortem[] }>('/api/v1/admin/postmortems'),
+    request<{ data: AdminEventTemplate[] }>('/api/v1/admin/event-templates'),
   ]);
   const events: AdminNativeEvent[] = [
     ...incidents.data,
@@ -604,6 +644,7 @@ export const getWorkbenchData = async () => {
     incidents: incidents.data,
     mirroredEvents: mirroredEvents.data,
     automationSuggestions: automationSuggestions.data,
+    eventTemplates: eventTemplates.data,
     events,
   };
 };
@@ -646,6 +687,7 @@ export const createIncident = (
     title: string;
     body: string;
     affectedComponentIds: string[];
+    template?: { id: string; version: number };
   }
 ) =>
   request<{ data: AdminIncident }>('/api/v1/admin/incidents', {
@@ -702,6 +744,45 @@ export const publishIncident = (
       body: JSON.stringify(input),
     }
   );
+
+export const createEventTemplate = (
+  session: AdminSession,
+  input: {
+    name: string;
+    eventType: EventTemplateType;
+    title: string;
+    body: string;
+    affectedComponentIds: string[];
+    defaultNotifySubscribers: boolean;
+    noticeKind: 'information' | 'warning' | null;
+  }
+) =>
+  request<{ data: AdminEventTemplate }>('/api/v1/admin/event-templates', {
+    method: 'POST',
+    headers: { ...mutationHeaders(session), 'Idempotency-Key': crypto.randomUUID() },
+    body: JSON.stringify(input),
+  });
+
+export const updateEventTemplate = (
+  session: AdminSession,
+  templateId: string,
+  input: {
+    expectedVersion: number;
+    state: EventTemplateState;
+    name: string;
+    eventType: EventTemplateType;
+    title: string;
+    body: string;
+    affectedComponentIds: string[];
+    defaultNotifySubscribers: boolean;
+    noticeKind: 'information' | 'warning' | null;
+  }
+) =>
+  request<{ data: AdminEventTemplate }>(`/api/v1/admin/event-templates/${templateId}/updates`, {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
 
 type SecondaryEventType = 'maintenance' | 'notice' | 'postmortem';
 export type SecondaryEvent = AdminMaintenance | AdminNotice | AdminPostmortem;

@@ -398,10 +398,31 @@ responsive workbench. Its Event desk creates append-only Incident drafts and upd
 Owner/Publisher sessions a separate review-and-publish step with an explicit notification choice.
 Forms use React Hook Form and Zod at the client boundary; server validation remains authoritative.
 
-Write controls are rendered only for Owner or Editor sessions in managed mode. Publisher and Viewer
-sessions, as well as file and compatibility mode, receive an explicit read-only surface. Rollback is
-visible only to an Owner in managed mode. Expired sessions return to the sign-in boundary rather
-than leaving stale privileged controls on screen.
+Managed configuration controls are rendered only for Owner or Editor sessions in managed mode.
+Event drafts and templates are writable by Owner, Publisher, and Editor; only Owner or Publisher
+can complete Publication Review. Viewer receives an explicit read-only Event surface, while file
+and compatibility modes keep configuration read-only. Rollback is visible only to an Owner in
+managed mode. Expired sessions return to the sign-in boundary rather than leaving stale privileged
+controls on screen.
+
+## Event templates
+
+Migration 18 adds a private, append-only Event Template library for Incident, Maintenance, Notice,
+and Postmortem drafts. Owner, Publisher, and Editor can create a case-insensitively named active
+template, append a new version, archive it, or restore it as another version. Viewer can inspect the
+library but cannot mutate it. Template history records low-sensitivity metadata in Admin Audit
+without copying title or body content into the audit payload.
+
+Applying a template requires the exact current active version and matching Event type. The client
+copies its title, body, affected components, and Notice kind into editable form values, while the
+server stores only immutable source-template attribution on the new private Event. Later Template
+updates or archival do not mutate an existing Event, and stale or archived references fail closed.
+A Template never creates a Publication, feed entry, or Outbox item.
+
+`defaultNotifySubscribers` is only a drafting suggestion. It initializes the Publication Review
+choice for an Event created from that version, but the Review and Publish requests still require an
+explicit Boolean bound to the short-lived Review Nonce. Automatic lifecycle publications continue
+to force notification off and never inherit a Template suggestion.
 
 ## Native incidents and public delivery
 
@@ -527,6 +548,6 @@ historical files, changed checksums, failed integrity checks, and failed foreign
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
 The current implementation includes the passkey enrollment workbench, owner-scoped user/session
-administration, Generic OIDC access mapping, and automatic one-shot Maintenance/Notice lifecycle
-scheduling. Recurring maintenance remains outside this slice and must stay disabled until its
-separate scheduling and review contract is implemented.
+administration, Generic OIDC access mapping, append-only Event Templates, and automatic one-shot
+Maintenance/Notice lifecycle scheduling. Recurring maintenance remains outside this slice and must
+stay disabled until its separate scheduling and review contract is implemented.

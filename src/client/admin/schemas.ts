@@ -80,6 +80,17 @@ export const incidentUpdateDraftSchema = z.object({
   affectedComponentIds: z.string(),
 });
 
+export const eventTemplateDraftSchema = z.object({
+  name: z.string().trim().min(1, 'Template name is required.').max(100),
+  eventType: z.enum(['incident', 'maintenance', 'notice', 'postmortem']),
+  state: z.enum(['active', 'archived']),
+  title: z.string().trim().min(1, 'Public title is required.').max(200),
+  body: z.string().trim().min(1, 'Public copy is required.').max(50_000),
+  affectedComponentIds: z.string(),
+  defaultNotifySubscribers: z.boolean(),
+  noticeKind: z.enum(['information', 'warning']),
+});
+
 export const secondaryEventDraftSchema = z
   .object({
     type: z.enum(['maintenance', 'notice', 'postmortem']),
@@ -225,6 +236,7 @@ export type IncidentDraftInput = z.infer<typeof incidentDraftSchema>;
 export type IncidentUpdateDraftInput = z.infer<typeof incidentUpdateDraftSchema>;
 export type SecondaryEventDraftInput = z.infer<typeof secondaryEventDraftSchema>;
 export type SecondaryEventUpdateDraftInput = z.infer<typeof secondaryEventUpdateDraftSchema>;
+export type EventTemplateDraftInput = z.infer<typeof eventTemplateDraftSchema>;
 export type RetentionPolicyDraftInput = z.infer<typeof retentionPolicyDraftSchema>;
 export type BackupDeleteConfirmationInput = z.infer<typeof backupDeleteConfirmationSchema>;
 export type RetentionRunConfirmationInput = z.infer<typeof retentionRunConfirmationSchema>;

@@ -17,11 +17,17 @@ import {
   createSecondaryEvent,
   publishSecondaryEvent,
   reviewSecondaryEventPublication,
+  type AdminEventTemplate,
   type AdminIncident,
   type AdminPage,
   type AdminSession,
   type SecondaryEvent,
 } from './api';
+import {
+  activeEventTemplates,
+  copyEventTemplate,
+  suggestedNotifySubscribers,
+} from './event-template-model';
 import {
   secondaryEventDraftSchema,
   secondaryEventUpdateDraftSchema,
@@ -75,13 +81,16 @@ export const SecondaryEventComposer = ({
   session,
   pages,
   incidents,
+  templates,
   onCommitted,
 }: {
   session: AdminSession;
   pages: AdminPage[];
   incidents: AdminIncident[];
+  templates: AdminEventTemplate[];
   onCommitted: () => Promise<void>;
 }) => {
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const resolvedIncidents = incidents.filter(incident => incident.state === 'resolved');
   const form = useForm<SecondaryEventDraftInput>({
     resolver: zodResolver(secondaryEventDraftSchema),
@@ -100,9 +109,31 @@ export const SecondaryEventComposer = ({
     },
   });
   const type = form.watch('type');
+  const matchingTemplates = activeEventTemplates(templates, type);
+  const selectedTemplate =
+    matchingTemplates.find(template => template.id === selectedTemplateId) ?? null;
+  useEffect(() => {
+    if (
+      selectedTemplateId &&
+      !templates.some(
+        template =>
+          template.id === selectedTemplateId &&
+          template.state === 'active' &&
+          template.eventType === type
+      )
+    ) {
+      setSelectedTemplateId('');
+    }
+  }, [selectedTemplateId, templates, type]);
   const Icon = eventIcon[type];
   const submit = form.handleSubmit(async input => {
-    const shared = { title: input.title.trim(), body: input.body.trim() };
+    const shared = {
+      title: input.title.trim(),
+      body: input.body.trim(),
+      ...(selectedTemplate
+        ? { template: { id: selectedTemplate.id, version: selectedTemplate.version } }
+        : {}),
+    };
     const payload =
       input.type === 'maintenance'
         ? {
@@ -126,6 +157,7 @@ export const SecondaryEventComposer = ({
       await createSecondaryEvent(session, input.type, payload);
       toast.success(`${input.type} draft created`);
       form.reset({ ...form.getValues(), title: '', body: '', affectedComponentIds: '' });
+      setSelectedTemplateId('');
       await onCommitted();
     } catch (error) {
       toast.error('Native event was not created', {
@@ -151,6 +183,39 @@ export const SecondaryEventComposer = ({
             <option value="notice">Notice</option>
             <option value="postmortem">Postmortem</option>
           </select>
+        </label>
+        <label className="admin-field">
+          <span>Start from template (optional)</span>
+          <select
+            value={selectedTemplateId}
+            onChange={event => {
+              const template =
+                matchingTemplates.find(candidate => candidate.id === event.target.value) ?? null;
+              setSelectedTemplateId(template?.id ?? '');
+              if (!template) return;
+              const copied = copyEventTemplate(template);
+              form.setValue('title', copied.title, { shouldDirty: true });
+              form.setValue('body', copied.body, { shouldDirty: true });
+              form.setValue('affectedComponentIds', copied.affectedComponentIds, {
+                shouldDirty: true,
+              });
+              form.setValue('noticeKind', copied.noticeKind, { shouldDirty: true });
+            }}
+          >
+            <option value="">Blank {type} draft</option>
+            {matchingTemplates.map(template => (
+              <option key={template.id} value={template.id}>
+                {template.name} · v{template.version}
+              </option>
+            ))}
+          </select>
+          {selectedTemplate ? (
+            <small>
+              Copies v{selectedTemplate.version}; email suggestion:{' '}
+              {selectedTemplate.defaultNotifySubscribers ? 'notify' : 'no email'}. Schedule and
+              visibility dates remain specific to this event.
+            </small>
+          ) : null}
         </label>
         {type === 'postmortem' ? (
           <label className="admin-field">
@@ -262,7 +327,7 @@ export const SecondaryEventReview = ({
   canPublish: boolean;
   onCommitted: () => Promise<void>;
 }) => {
-  const [notifySubscribers, setNotifySubscribers] = useState(false);
+  const [notifySubscribers, setNotifySubscribers] = useState(suggestedNotifySubscribers(event));
   const [review, setReview] = useState<
     Awaited<ReturnType<typeof reviewSecondaryEventPublication>>['data'] | null
   >(null);
@@ -292,6 +357,7 @@ export const SecondaryEventReview = ({
       startsAt: event.type === 'notice' ? localDateTime(event.startsAt) : '',
       endsAt: event.type === 'notice' ? localDateTime(event.endsAt) : '',
     });
+    setNotifySubscribers(suggestedNotifySubscribers(event));
     setReview(null);
   }, [event, form]);
   const allowedStates =
@@ -467,7 +533,11 @@ export const SecondaryEventReview = ({
             {notifySubscribers ? <Bell size={17} /> : <BellOff size={17} />}
             <span>
               <strong>{notifySubscribers ? 'Notify subscribers' : 'Publish without email'}</strong>
-              <small>Explicit for this publication only.</small>
+              <small>
+                {event.template
+                  ? `Suggested by template v${event.template.version}; still explicit for this publication.`
+                  : 'This choice is explicit for this publication only.'}
+              </small>
             </span>
           </button>
           {!review ? (

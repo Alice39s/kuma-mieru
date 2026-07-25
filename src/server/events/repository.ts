@@ -13,6 +13,11 @@ import {
   type IncidentPublicationSnapshot,
   type PublicationSnapshot,
 } from './schemas.js';
+import {
+  parseAppliedEventTemplate,
+  resolveEventTemplateApplication,
+  type AppliedEventTemplate,
+} from './template-repository.js';
 
 interface EventRow {
   id: string;
@@ -24,6 +29,9 @@ interface EventRow {
   created_at: string;
   updated_at: string;
   request_hash: string;
+  source_template_id: string | null;
+  source_template_version: number | null;
+  source_template_notify_suggestion: number | null;
 }
 
 interface EntryRow {
@@ -53,6 +61,7 @@ export interface IncidentRecord {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  template: AppliedEventTemplate | null;
   publicationDetails: Record<string, never>;
   latestEntry: {
     sequence: number;
@@ -73,6 +82,7 @@ export interface PublishableEventRecord {
   title: string;
   state: string;
   version: number;
+  template: AppliedEventTemplate | null;
   publicationDetails: Record<string, unknown>;
   subscriptionScopeEventId?: string;
   latestEntry: {
@@ -134,6 +144,7 @@ const parseIncident = (database: Database.Database, row: EventRow): IncidentReco
   createdBy: row.created_by,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+  template: parseAppliedEventTemplate(row),
   publicationDetails: {},
   latestEntry: getEntry(database, row.id, row.version),
 });
@@ -144,7 +155,8 @@ export const getIncident = (
 ): IncidentRecord | null => {
   const row = database
     .prepare(
-      `SELECT id, page_id, title, state, version, created_by, created_at, updated_at, request_hash
+      `SELECT id, page_id, title, state, version, created_by, created_at, updated_at, request_hash,
+              source_template_id, source_template_version, source_template_notify_suggestion
        FROM native_events WHERE id = ? AND type = 'incident'`
     )
     .get(eventId) as EventRow | undefined;
@@ -154,7 +166,8 @@ export const getIncident = (
 export const listIncidents = (database: Database.Database, limit = 100): IncidentRecord[] => {
   const rows = database
     .prepare(
-      `SELECT id, page_id, title, state, version, created_by, created_at, updated_at, request_hash
+      `SELECT id, page_id, title, state, version, created_by, created_at, updated_at, request_hash,
+              source_template_id, source_template_version, source_template_notify_suggestion
        FROM native_events WHERE type = 'incident'
        ORDER BY updated_at DESC LIMIT ?`
     )
@@ -200,7 +213,8 @@ export const createIncident = (
   return database.transaction(() => {
     const existing = database
       .prepare(
-        `SELECT id, page_id, title, state, version, created_by, created_at, updated_at, request_hash
+        `SELECT id, page_id, title, state, version, created_by, created_at, updated_at, request_hash,
+                source_template_id, source_template_version, source_template_notify_suggestion
          FROM native_events WHERE created_by = ? AND idempotency_key = ?`
       )
       .get(audit.actorId, idempotencyKey) as EventRow | undefined;
@@ -214,6 +228,7 @@ export const createIncident = (
       return parseIncident(database, existing);
     }
 
+    const template = resolveEventTemplateApplication(database, input.template, 'incident');
     const id = randomUUID();
     const recordedAt = new Date().toISOString();
     const occurredAt = input.occurredAt ?? recordedAt;
@@ -221,8 +236,9 @@ export const createIncident = (
       .prepare(
         `INSERT INTO native_events
           (id, type, page_id, title, state, version, created_by, idempotency_key,
-           request_hash, created_at, updated_at)
-         VALUES (?, 'incident', ?, ?, ?, 1, ?, ?, ?, ?, ?)`
+           request_hash, created_at, updated_at, source_template_id, source_template_version,
+           source_template_notify_suggestion)
+         VALUES (?, 'incident', ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -233,7 +249,10 @@ export const createIncident = (
         idempotencyKey,
         requestHash,
         recordedAt,
-        recordedAt
+        recordedAt,
+        template?.id ?? null,
+        template?.version ?? null,
+        template ? (template.defaultNotifySubscribers ? 1 : 0) : null
       );
     database
       .prepare(

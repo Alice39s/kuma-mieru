@@ -683,6 +683,48 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     );
     assert.equal(confirmed.status, 200);
 
+    const eventTemplateCreated = await app.request('/api/v1/admin/event-templates', {
+      method: 'POST',
+      headers: {
+        ...mutationHeaders,
+        'Idempotency-Key': 'event-template-create-admin-api-0001',
+      },
+      body: JSON.stringify({
+        name: 'API degradation',
+        eventType: 'incident',
+        title: 'API latency elevated',
+        body: 'We are investigating elevated latency.',
+        affectedComponentIds: ['primary'],
+        defaultNotifySubscribers: true,
+        noticeKind: null,
+      }),
+    });
+    assert.equal(eventTemplateCreated.status, 201);
+    assert.equal(eventTemplateCreated.headers.get('cache-control'), 'no-store');
+    const eventTemplate = (await eventTemplateCreated.json()) as {
+      data: {
+        id: string;
+        version: number;
+        state: string;
+        defaultNotifySubscribers: boolean;
+      };
+    };
+    assert.equal(eventTemplate.data.version, 1);
+    assert.equal(eventTemplate.data.state, 'active');
+    assert.equal(eventTemplate.data.defaultNotifySubscribers, true);
+    const eventTemplates = await app.request('/api/v1/admin/event-templates?state=active', {
+      headers: { Cookie: cookie },
+    });
+    const eventTemplatesBody = (await eventTemplates.json()) as {
+      data: Array<{ id: string; body: string }>;
+    };
+    assert.equal(eventTemplates.status, 200);
+    assert.equal(eventTemplates.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(
+      eventTemplatesBody.data.map(template => template.id),
+      [eventTemplate.data.id]
+    );
+
     const incidentCreated = await app.request('/api/v1/admin/incidents', {
       method: 'POST',
       headers: { ...mutationHeaders, 'Idempotency-Key': 'incident-create-admin-api-0001' },
@@ -691,11 +733,23 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
         title: 'API latency elevated',
         body: 'We are investigating elevated latency.',
         affectedComponentIds: ['primary'],
+        template: { id: eventTemplate.data.id, version: eventTemplate.data.version },
       }),
     });
     assert.equal(incidentCreated.status, 201);
-    const incident = (await incidentCreated.json()) as { data: { id: string; version: number } };
+    const incident = (await incidentCreated.json()) as {
+      data: {
+        id: string;
+        version: number;
+        template: { id: string; version: number; defaultNotifySubscribers: boolean };
+      };
+    };
     assert.equal(incident.data.version, 1);
+    assert.deepEqual(incident.data.template, {
+      id: eventTemplate.data.id,
+      version: 1,
+      defaultNotifySubscribers: true,
+    });
 
     const reviewResponse = await app.request(`/api/v1/admin/incidents/${incident.data.id}/review`, {
       method: 'POST',
@@ -1226,6 +1280,47 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     assert.ok(publisherSetCookie);
     const publisherCookie = publisherSetCookie.split(';')[0];
     const publisherToken = publisherCookie.slice(publisherCookie.indexOf('=') + 1);
+    const publisherSession = await app.request('/api/v1/admin/session', {
+      headers: { Cookie: publisherCookie },
+    });
+    assert.equal(publisherSession.status, 200);
+    const publisherSessionBody = (await publisherSession.json()) as {
+      data: { csrfToken: string };
+    };
+    const publisherMutationHeaders = {
+      Cookie: publisherCookie,
+      'Content-Type': 'application/json',
+      Origin: baseURL,
+      'Sec-Fetch-Site': 'same-origin',
+      'X-Kuma-CSRF': publisherSessionBody.data.csrfToken,
+    };
+    const publisherTemplates = await app.request('/api/v1/admin/event-templates', {
+      headers: { Cookie: publisherCookie },
+    });
+    assert.equal(publisherTemplates.status, 200);
+    const templateVersionTwo = await app.request(
+      `/api/v1/admin/event-templates/${eventTemplate.data.id}/updates`,
+      {
+        method: 'POST',
+        headers: publisherMutationHeaders,
+        body: JSON.stringify({
+          expectedVersion: 1,
+          state: 'active',
+          name: 'API degradation',
+          eventType: 'incident',
+          title: 'API latency remains elevated',
+          body: 'We are continuing to investigate elevated latency.',
+          affectedComponentIds: ['primary'],
+          defaultNotifySubscribers: false,
+          noticeKind: null,
+        }),
+      }
+    );
+    assert.equal(templateVersionTwo.status, 200);
+    const templateVersionTwoBody = (await templateVersionTwo.json()) as {
+      data: { version: number };
+    };
+    assert.equal(templateVersionTwoBody.data.version, 2);
 
     const publisherUsers = await app.request('/api/v1/admin/users', {
       headers: { Cookie: publisherCookie },
@@ -1313,6 +1408,69 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     });
     assert.equal(revokedPublisherSession.status, 401);
 
+    const changedOperatorToViewer = await app.request(
+      `/api/v1/admin/users/${createdOperatorBody.data.id}/role`,
+      {
+        method: 'PUT',
+        headers: mutationHeaders,
+        body: JSON.stringify({ expectedRole: 'editor', role: 'viewer' }),
+      }
+    );
+    assert.equal(changedOperatorToViewer.status, 200);
+    const viewerSignIn = await app.request('/api/v1/auth/sign-in', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: baseURL,
+        'Sec-Fetch-Site': 'same-origin',
+      },
+      body: JSON.stringify({
+        email: 'publisher@example.com',
+        password: 'publisher-password-secure',
+      }),
+    });
+    assert.equal(viewerSignIn.status, 200);
+    const viewerSetCookie = viewerSignIn.headers.get('set-cookie');
+    assert.ok(viewerSetCookie);
+    const viewerCookie = viewerSetCookie.split(';')[0];
+    const viewerSession = await app.request('/api/v1/admin/session', {
+      headers: { Cookie: viewerCookie },
+    });
+    assert.equal(viewerSession.status, 200);
+    const viewerSessionBody = (await viewerSession.json()) as {
+      data: { csrfToken: string; role: string };
+    };
+    assert.equal(viewerSessionBody.data.role, 'viewer');
+    const viewerTemplates = await app.request('/api/v1/admin/event-templates', {
+      headers: { Cookie: viewerCookie },
+    });
+    assert.equal(viewerTemplates.status, 200);
+    const viewerTemplateUpdate = await app.request(
+      `/api/v1/admin/event-templates/${eventTemplate.data.id}/updates`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: viewerCookie,
+          'Content-Type': 'application/json',
+          Origin: baseURL,
+          'Sec-Fetch-Site': 'same-origin',
+          'X-Kuma-CSRF': viewerSessionBody.data.csrfToken,
+        },
+        body: JSON.stringify({
+          expectedVersion: 2,
+          state: 'archived',
+          name: 'API degradation',
+          eventType: 'incident',
+          title: 'API latency remains elevated',
+          body: 'We are continuing to investigate elevated latency.',
+          affectedComponentIds: ['primary'],
+          defaultNotifySubscribers: false,
+          noticeKind: null,
+        }),
+      }
+    );
+    assert.equal(viewerTemplateUpdate.status, 403);
+
     database
       .prepare(`UPDATE "user" SET role = 'publisher' WHERE email = 'owner@example.com'`)
       .run();
@@ -1346,6 +1504,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       { result: 'failed', error_code: 'PUBLICATION_REVIEW_INVALID' },
       { result: 'denied', error_code: 'FORBIDDEN' },
       { result: 'failed', error_code: 'ADMIN_CURRENT_SESSION_REVOKE_FORBIDDEN' },
+      { result: 'denied', error_code: 'FORBIDDEN' },
       { result: 'denied', error_code: 'FORBIDDEN' },
     ]);
   } finally {

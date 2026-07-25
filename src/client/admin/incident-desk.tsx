@@ -8,10 +8,16 @@ import {
   createIncident,
   publishIncident,
   reviewIncidentPublication,
+  type AdminEventTemplate,
   type AdminIncident,
   type AdminPage,
   type AdminSession,
 } from './api';
+import {
+  activeEventTemplates,
+  copyEventTemplate,
+  suggestedNotifySubscribers,
+} from './event-template-model';
 import {
   incidentDraftSchema,
   incidentUpdateDraftSchema,
@@ -35,12 +41,18 @@ const stateTransitions: Record<AdminIncident['state'], AdminIncident['state'][]>
 export const IncidentComposer = ({
   session,
   pages,
+  templates,
   onCommitted,
 }: {
   session: AdminSession;
   pages: AdminPage[];
+  templates: AdminEventTemplate[];
   onCommitted: () => Promise<void>;
 }) => {
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const incidentTemplates = activeEventTemplates(templates, 'incident');
+  const selectedTemplate =
+    incidentTemplates.find(template => template.id === selectedTemplateId) ?? null;
   const form = useForm<IncidentDraftInput>({
     resolver: zodResolver(incidentDraftSchema),
     defaultValues: {
@@ -57,6 +69,9 @@ export const IncidentComposer = ({
         title: input.title.trim(),
         body: input.body.trim(),
         affectedComponentIds: componentIds(input.affectedComponentIds),
+        ...(selectedTemplate
+          ? { template: { id: selectedTemplate.id, version: selectedTemplate.version } }
+          : {}),
       });
       toast.success(`Incident draft ${result.data.id.slice(0, 8)} created`);
       form.reset({
@@ -65,6 +80,7 @@ export const IncidentComposer = ({
         body: '',
         affectedComponentIds: '',
       });
+      setSelectedTemplateId('');
       await onCommitted();
     } catch (error) {
       toast.error('Incident draft was not created', {
@@ -97,6 +113,38 @@ export const IncidentComposer = ({
                 </option>
               ))}
             </select>
+          </label>
+          <label className="admin-field">
+            <span>Start from template (optional)</span>
+            <select
+              value={selectedTemplateId}
+              onChange={event => {
+                const template =
+                  incidentTemplates.find(candidate => candidate.id === event.target.value) ?? null;
+                setSelectedTemplateId(template?.id ?? '');
+                if (!template) return;
+                const copied = copyEventTemplate(template);
+                form.setValue('title', copied.title, { shouldDirty: true });
+                form.setValue('body', copied.body, { shouldDirty: true });
+                form.setValue('affectedComponentIds', copied.affectedComponentIds, {
+                  shouldDirty: true,
+                });
+              }}
+            >
+              <option value="">Blank incident draft</option>
+              {incidentTemplates.map(template => (
+                <option key={template.id} value={template.id}>
+                  {template.name} · v{template.version}
+                </option>
+              ))}
+            </select>
+            {selectedTemplate ? (
+              <small>
+                Copies v{selectedTemplate.version}; email suggestion:{' '}
+                {selectedTemplate.defaultNotifySubscribers ? 'notify' : 'no email'}. You can edit
+                every copied field.
+              </small>
+            ) : null}
           </label>
           <label className="admin-field">
             <span>Public title</span>
@@ -141,7 +189,7 @@ export const IncidentReview = ({
   canPublish: boolean;
   onCommitted: () => Promise<void>;
 }) => {
-  const [notifySubscribers, setNotifySubscribers] = useState(false);
+  const [notifySubscribers, setNotifySubscribers] = useState(suggestedNotifySubscribers(incident));
   const [review, setReview] = useState<
     Awaited<ReturnType<typeof reviewIncidentPublication>>['data'] | null
   >(null);
@@ -159,6 +207,7 @@ export const IncidentReview = ({
       body: '',
       affectedComponentIds: incident.latestEntry.affectedComponentIds.join(', '),
     });
+    setNotifySubscribers(suggestedNotifySubscribers(incident));
     setReview(null);
   }, [form, incident]);
 
@@ -268,7 +317,11 @@ export const IncidentReview = ({
             {notifySubscribers ? <Bell size={17} /> : <BellOff size={17} />}
             <span>
               <strong>{notifySubscribers ? 'Notify subscribers' : 'Publish without email'}</strong>
-              <small>This choice is explicit for this publication only.</small>
+              <small>
+                {incident.template
+                  ? `Suggested by template v${incident.template.version}; still explicit for this publication.`
+                  : 'This choice is explicit for this publication only.'}
+              </small>
             </span>
           </button>
           {!review ? (

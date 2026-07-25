@@ -76,6 +76,9 @@ import {
   incidentPublishSchema,
   incidentReviewSchema,
   incidentUpdateSchema,
+  eventTemplateCreateSchema,
+  eventTemplateStateSchema,
+  eventTemplateUpdateSchema,
   maintenanceCreateSchema,
   maintenanceUpdateSchema,
   noticeCreateSchema,
@@ -104,6 +107,12 @@ import {
   listPostmortems,
   publishPostmortem,
 } from '../events/postmortem-repository.js';
+import {
+  appendEventTemplateUpdate,
+  createEventTemplate,
+  getEventTemplate,
+  listEventTemplates,
+} from '../events/template-repository.js';
 import { getMirroredEventTimeline, listMirroredEvents } from '../events/mirrored-repository.js';
 import { createPiiProtector } from '../subscriptions/crypto.js';
 import { adminAuditErrorCode, listAdminAudit } from './audit-repository.js';
@@ -164,6 +173,7 @@ const idempotencyKeySchema = z.string().min(8).max(200);
 const automationSuggestionStateSchema = z
   .enum(['pending', 'accepted', 'ignored', 'superseded'])
   .optional();
+const eventTemplateQuerySchema = z.object({ state: eventTemplateStateSchema.optional() }).strict();
 const automationSuggestionAcceptSchema = z.object({
   expectedVersion: z.number().int().positive(),
   expectedNativeEventVersion: z.number().int().positive().optional(),
@@ -457,6 +467,8 @@ export const registerAdminRoutes = (
   app.use('/api/v1/admin/users/*', noStore);
   app.use('/api/v1/admin/security', noStore);
   app.use('/api/v1/admin/security/*', noStore);
+  app.use('/api/v1/admin/event-templates', noStore);
+  app.use('/api/v1/admin/event-templates/*', noStore);
 
   app.get('/api/v1/admin/session', async context => {
     const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
@@ -1674,7 +1686,8 @@ export const registerAdminRoutes = (
           code.includes('already') ||
           code.includes('resolved') ||
           code.includes('stale') ||
-          code.includes('reused')
+          code.includes('reused') ||
+          code.includes('archived')
         ? 409
         : 400;
     writeRouteAudit(context, principal.userId, 'failed', code.toUpperCase());
@@ -1751,6 +1764,71 @@ export const registerAdminRoutes = (
           'AUTOMATION_SUGGESTION_NOT_FOUND',
           'Automation suggestion not found'
         );
+  });
+
+  app.get('/api/v1/admin/event-templates', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const query = eventTemplateQuerySchema.parse(context.req.query());
+      return context.json({ data: listEventTemplates(database, query.state) });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.get('/api/v1/admin/event-templates/:id', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    const template = getEventTemplate(database, context.req.param('id'));
+    return template
+      ? context.json({ data: template })
+      : errorResponse(context, 404, 'EVENT_TEMPLATE_NOT_FOUND', 'Event template not found');
+  });
+
+  app.post('/api/v1/admin/event-templates', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const idempotencyKey = idempotencyKeySchema.parse(context.req.header('idempotency-key'));
+      const template = createEventTemplate(
+        database,
+        eventTemplateCreateSchema.parse(await context.req.json()),
+        idempotencyKey,
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: template }, 201);
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/event-templates/:id/updates', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const template = appendEventTemplateUpdate(
+        database,
+        context.req.param('id'),
+        eventTemplateUpdateSchema.parse(await context.req.json()),
+        auditContext(context, authorization.principal)
+      );
+      return context.json({ data: template });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
   });
 
   app.post('/api/v1/admin/automation/suggestions/:id/accept', async context => {

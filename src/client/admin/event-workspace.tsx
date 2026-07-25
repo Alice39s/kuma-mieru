@@ -17,6 +17,7 @@ import {
   acceptAutomationSuggestion,
   ignoreAutomationSuggestion,
   type AdminAutomationSuggestion,
+  type AdminEventTemplate,
   type AdminIncident,
   type AdminMirroredEvent,
   type AdminNativeEvent,
@@ -25,6 +26,7 @@ import {
 } from './api';
 import { IncidentComposer, IncidentReview } from './incident-desk';
 import { SecondaryEventComposer, SecondaryEventReview } from './secondary-event-desk';
+import { EventTemplateLibrary } from './event-template-library';
 
 const eventKey = (event: AdminNativeEvent) => `${event.type}:${event.id}`;
 
@@ -40,6 +42,7 @@ export const EventWorkspace = ({
   pages,
   incidents,
   events,
+  eventTemplates,
   automationSuggestions,
   mirroredEvents,
   onCommitted,
@@ -48,6 +51,7 @@ export const EventWorkspace = ({
   pages: AdminPage[];
   incidents: AdminIncident[];
   events: AdminNativeEvent[];
+  eventTemplates: AdminEventTemplate[];
   automationSuggestions: AdminAutomationSuggestion[];
   mirroredEvents: AdminMirroredEvent[];
   onCommitted: () => Promise<void>;
@@ -265,13 +269,24 @@ export const EventWorkspace = ({
             </div>
           </section>
         ) : null}
+        <EventTemplateLibrary
+          session={session}
+          templates={eventTemplates}
+          onCommitted={onCommitted}
+        />
         {canDraft ? (
           <>
-            <IncidentComposer session={session} pages={pages} onCommitted={onCommitted} />
+            <IncidentComposer
+              session={session}
+              pages={pages}
+              templates={eventTemplates}
+              onCommitted={onCommitted}
+            />
             <SecondaryEventComposer
               session={session}
               pages={pages}
               incidents={incidents}
+              templates={eventTemplates}
               onCommitted={onCommitted}
             />
           </>
