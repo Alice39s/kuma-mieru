@@ -20,6 +20,7 @@ const optionsSchema = z.object({
   auditRows: nonnegativeNumber.int(),
   signalRows: nonnegativeNumber.int(),
   mirroredRows: nonnegativeNumber.int(),
+  nativeEventRows: nonnegativeNumber.int(),
   payloadBytes: positiveInteger.min(128).max(16 * 1024),
   maxP95Milliseconds: positiveInteger,
   maxWriteLockMilliseconds: nonnegativeNumber,
@@ -35,6 +36,7 @@ const { values } = parseArgs({
     'audit-rows': { type: 'string', default: '50000' },
     'signal-rows': { type: 'string', default: '100000' },
     'mirrored-rows': { type: 'string', default: '25000' },
+    'native-event-rows': { type: 'string', default: '0' },
     'payload-bytes': { type: 'string', default: '512' },
     'max-p95-ms': { type: 'string', default: '30000' },
     'max-write-lock-ms': { type: 'string', default: '250' },
@@ -51,6 +53,7 @@ const options = optionsSchema.parse({
   auditRows: values['audit-rows'],
   signalRows: values['signal-rows'],
   mirroredRows: values['mirrored-rows'],
+  nativeEventRows: values['native-event-rows'],
   payloadBytes: values['payload-bytes'],
   maxP95Milliseconds: values['max-p95-ms'],
   maxWriteLockMilliseconds: values['max-write-lock-ms'],
@@ -144,6 +147,68 @@ const seedFixture = (database: ReturnType<typeof openDatabase>['database'], payl
       insertMirroredEntry.run(`${id}_entry`, id, payload, hash, occurredAt, occurredAt);
     }
   })();
+
+  if (options.nativeEventRows > 0) {
+    const nativeEventColumns = database.prepare('PRAGMA table_info(native_events)').all() as Array<{
+      name: string;
+    }>;
+    if (!nativeEventColumns.some(column => column.name === 'details_json')) {
+      throw new Error(
+        'Native-event fixture rows require a source schema with native_events.details_json'
+      );
+    }
+    const insertNativeEvent = database.prepare(
+      `INSERT INTO native_events
+        (id, type, page_id, title, state, version, created_by, idempotency_key, request_hash,
+         created_at, updated_at, details_json)
+       VALUES (?, ?, 'benchmark-page', ?, ?, 1, 'benchmark-owner', ?, ?, ?, ?, ?)`
+    );
+    const variants = [
+      {
+        type: 'maintenance',
+        state: 'scheduled',
+        details: {
+          scheduledStartAt: '2026-07-25T01:00:00.000Z',
+          scheduledEndAt: '2026-07-25T02:00:00.000Z',
+        },
+      },
+      {
+        type: 'maintenance',
+        state: 'in_progress',
+        details: {
+          scheduledStartAt: '2026-07-25T01:00:00.000Z',
+          scheduledEndAt: '2026-07-25T02:00:00.000Z',
+        },
+      },
+      {
+        type: 'notice',
+        state: 'published',
+        details: { endsAt: '2026-07-25T03:00:00.000Z' },
+      },
+      {
+        type: 'incident',
+        state: 'investigating',
+        details: {},
+      },
+    ] as const;
+    database.transaction(() => {
+      for (let index = 0; index < options.nativeEventRows; index += 1) {
+        const id = `native_${String(index).padStart(12, '0')}`;
+        const variant = variants[index % variants.length] as (typeof variants)[number];
+        insertNativeEvent.run(
+          id,
+          variant.type,
+          `Benchmark native event ${index}`,
+          variant.state,
+          id,
+          id,
+          occurredAt,
+          occurredAt,
+          JSON.stringify({ ...variant.details, fixture: payload })
+        );
+      }
+    })();
+  }
 };
 
 const run = async () => {
@@ -173,6 +238,10 @@ const run = async () => {
     }
     const fromVersion = migrationNames.length - 1;
     const toVersion = migrationNames.length;
+    const expectedLifecycleDueEvents =
+      toVersion === 17 && options.nativeEventRows > 0
+        ? Math.floor(options.nativeEventRows / 4) * 3 + Math.min(options.nativeEventRows % 4, 3)
+        : null;
     const baseDatabasePath = resolve(root, `schema-${fromVersion}-fixture.sqlite3`);
     const base = openDatabase(baseDatabasePath);
     await migrateDatabase(base.database, {
@@ -239,9 +308,29 @@ const run = async () => {
       const ledger = migrated.database
         .prepare('SELECT execution_ms FROM schema_migrations WHERE version = ?')
         .get(toVersion) as { execution_ms: number } | undefined;
+      const lifecycleDueEvents =
+        expectedLifecycleDueEvents === null
+          ? null
+          : (
+              migrated.database
+                .prepare(
+                  `SELECT COUNT(*) AS count
+                   FROM native_events
+                   WHERE lifecycle_due_at IS NOT NULL`
+                )
+                .get() as { count: number }
+            ).count;
       migrated.database.close();
       if (!ledger || result.currentVersion !== toVersion || result.applied.at(-1) !== toVersion) {
         throw new Error(`Migration ${fromVersion} -> ${toVersion} did not complete`);
+      }
+      if (
+        expectedLifecycleDueEvents !== null &&
+        lifecycleDueEvents !== expectedLifecycleDueEvents
+      ) {
+        throw new Error(
+          `Migration 17 backfilled ${lifecycleDueEvents} lifecycle rows; expected ${expectedLifecycleDueEvents}`
+        );
       }
       const peakExtraBytes = Math.max(0, peakDirectoryBytes - baselineDirectoryBytes);
       const trialResult = {
@@ -331,6 +420,8 @@ const run = async () => {
         signalRows: options.signalRows,
         mirroredEvents: options.mirroredRows,
         mirroredEventEntries: options.mirroredRows,
+        nativeEvents: options.nativeEventRows,
+        expectedLifecycleDueEvents,
         payloadBytes: Buffer.byteLength(payload),
       },
       budgets: {

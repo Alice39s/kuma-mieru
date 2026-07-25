@@ -49,7 +49,7 @@ bun run build
 bun run verify:v2:bundle
 bun run release:v2:manifest
 bun run benchmark:v2:migrations -- --profile smoke
-bun run benchmark:v2:migrations -- --target-version 17
+bun run benchmark:v2:migrations -- --target-version 17 --native-event-rows 100000
 bun run start
 ```
 
@@ -71,7 +71,9 @@ mode, which refuses to create release evidence from a dirty checkout.
 The migration benchmark defaults to the latest Previous → Latest pair. `--target-version <n>`
 replays the same production Node migration path against Schema `n - 1 → n` without deleting newer
 migration files or checking out an older tree. Release evidence still requires the default 20
-independent trials and 128 MiB fixture; `--profile smoke` is only a fast harness check.
+independent trials and 128 MiB fixture. Migration-specific rows must be explicit; for example,
+Migration 17 uses `--native-event-rows 100000` so its JSON backfill and partial index are measured
+instead of benchmarking an empty affected table. `--profile smoke` is only a fast harness check.
 
 ## Configuration modes
 
