@@ -11,6 +11,7 @@ import {
   RadioTower,
   RefreshCw,
   RotateCcw,
+  ScrollText,
   ShieldCheck,
   Siren,
   UsersRound,
@@ -31,6 +32,8 @@ import { EventWorkspace } from './event-workspace';
 import { SubscriberDelivery } from './subscriber-delivery';
 import { BackupRetention } from './backup-retention';
 import { canAccessLifecycle } from './backup-retention-model';
+import { AuditWorkbench } from './audit-workbench';
+import { canAccessAdminAudit } from './audit-model';
 
 type Panel =
   | 'overview'
@@ -39,7 +42,8 @@ type Panel =
   | 'events'
   | 'subscribers'
   | 'revisions'
-  | 'lifecycle';
+  | 'lifecycle'
+  | 'audit';
 type WorkbenchData = Awaited<ReturnType<typeof getWorkbenchData>>;
 
 const navigation: Array<{ id: Panel; label: string; icon: typeof Activity }> = [
@@ -50,6 +54,7 @@ const navigation: Array<{ id: Panel; label: string; icon: typeof Activity }> = [
   { id: 'subscribers', label: 'Subscribers', icon: UsersRound },
   { id: 'revisions', label: 'Revisions', icon: FileClock },
   { id: 'lifecycle', label: 'Lifecycle', icon: DatabaseBackup },
+  { id: 'audit', label: 'Audit', icon: ScrollText },
 ];
 
 const Overview = ({
@@ -418,7 +423,8 @@ export const Workbench = ({
                 (item.id !== 'subscribers' ||
                   session.role === 'owner' ||
                   session.role === 'publisher') &&
-                (item.id !== 'lifecycle' || canAccessLifecycle(session.role))
+                (item.id !== 'lifecycle' || canAccessLifecycle(session.role)) &&
+                (item.id !== 'audit' || canAccessAdminAudit(session.role))
             )
             .map(item => {
               const Icon = item.icon;
@@ -536,6 +542,9 @@ export const Workbench = ({
                 revision={data.meta.config.revision ?? 0}
                 session={session}
               />
+            ) : null}
+            {panel === 'audit' && canAccessAdminAudit(session.role) ? (
+              <AuditWorkbench session={session} />
             ) : null}
           </>
         )}

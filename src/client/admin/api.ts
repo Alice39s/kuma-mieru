@@ -324,6 +324,24 @@ export interface AdminRetentionRun {
   completedAt: string | null;
 }
 
+export type AdminAuditResult = 'success' | 'denied' | 'failed';
+
+export interface AdminAuditEntry {
+  id: string;
+  occurredAt: string;
+  actorId: string;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  result: AdminAuditResult;
+  errorCode: string | null;
+}
+
+export interface AdminAuditPage {
+  entries: AdminAuditEntry[];
+  nextCursor: string | null;
+}
+
 interface ReloadStatus {
   state: 'ready' | 'checking' | 'failed';
   lastAttemptAt: string | null;
@@ -846,3 +864,17 @@ export const updateRetentionPolicy = (
       body: JSON.stringify({ expectedRevision, policy }),
     }
   );
+
+export const getAdminAudit = (input: {
+  limit?: number;
+  cursor?: string;
+  action?: string;
+  result?: AdminAuditResult;
+}) => {
+  const query = new URLSearchParams();
+  query.set('limit', String(input.limit ?? 50));
+  if (input.cursor) query.set('cursor', input.cursor);
+  if (input.action) query.set('action', input.action);
+  if (input.result) query.set('result', input.result);
+  return request<{ data: AdminAuditPage }>(`/api/v1/admin/audit?${query.toString()}`);
+};

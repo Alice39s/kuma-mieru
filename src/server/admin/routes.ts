@@ -89,6 +89,7 @@ import {
 } from '../events/postmortem-repository.js';
 import { getMirroredEventTimeline, listMirroredEvents } from '../events/mirrored-repository.js';
 import { createPiiProtector } from '../subscriptions/crypto.js';
+import { adminAuditErrorCode, listAdminAudit } from './audit-repository.js';
 
 const pageCreateSchema = z.object({
   expectedRevision: z.number().int().positive(),
@@ -167,6 +168,14 @@ const retentionPolicyMutationSchema = z.object({
   expectedRevision: z.number().int().positive(),
   policy: retentionPolicySchema,
 });
+const adminAuditQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+    cursor: z.string().min(1).max(1_024).optional(),
+    action: z.string().trim().min(1).max(200).optional(),
+    result: z.enum(['success', 'denied', 'failed']).optional(),
+  })
+  .strict();
 
 export interface AdminRouteOptions {
   database?: Database.Database;
@@ -353,6 +362,7 @@ export const registerAdminRoutes = (
   app.use('/api/v1/admin/backups/*', noStore);
   app.use('/api/v1/admin/retention', noStore);
   app.use('/api/v1/admin/retention/*', noStore);
+  app.use('/api/v1/admin/audit', noStore);
 
   app.get('/api/v1/admin/session', async context => {
     const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
@@ -379,6 +389,34 @@ export const registerAdminRoutes = (
         'Configuration database is unavailable'
       );
     return context.json({ data: listManagedRevisions(database) });
+  });
+
+  app.get('/api/v1/admin/audit', async context => {
+    const authorization = await requireAdmin(context, ['owner']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(
+        context,
+        503,
+        'DATABASE_NOT_READY',
+        'Admin audit database is unavailable'
+      );
+    }
+    try {
+      const query = adminAuditQuerySchema.parse(context.req.query());
+      return context.json({ data: listAdminAudit(database, query) });
+    } catch (error) {
+      const code =
+        error instanceof z.ZodError ? 'ADMIN_AUDIT_QUERY_INVALID' : adminAuditErrorCode(error);
+      return errorResponse(
+        context,
+        400,
+        code.toUpperCase(),
+        code === 'admin_audit_cursor_invalid' || code === 'admin_audit_cursor_filter_mismatch'
+          ? 'Admin audit cursor is invalid'
+          : 'Admin audit query is invalid'
+      );
+    }
   });
 
   const handleBackupError = (

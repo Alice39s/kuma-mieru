@@ -1081,6 +1081,42 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     assert.equal(fileReloads, 1);
     runtime = managedRuntime;
 
+    const auditPage = await app.request('/api/v1/admin/audit?limit=2', {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(auditPage.status, 200);
+    assert.equal(auditPage.headers.get('cache-control'), 'no-store');
+    const auditPageBody = (await auditPage.json()) as {
+      data: {
+        entries: Array<Record<string, unknown>>;
+        nextCursor: string | null;
+      };
+    };
+    assert.equal(auditPageBody.data.entries.length, 2);
+    assert.ok(auditPageBody.data.nextCursor);
+    const auditProjection = JSON.stringify(auditPageBody);
+    assert.equal(auditProjection.includes('requestId'), false);
+    assert.equal(auditProjection.includes('ipAddress'), false);
+    assert.equal(auditProjection.includes('userAgent'), false);
+    assert.equal(auditProjection.includes('beforeJson'), false);
+    assert.equal(auditProjection.includes('afterJson'), false);
+    const invalidAuditCursor = await app.request('/api/v1/admin/audit?cursor=invalid', {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(invalidAuditCursor.status, 400);
+    const invalidAuditCursorBody = (await invalidAuditCursor.json()) as {
+      error: { code: string };
+    };
+    assert.equal(invalidAuditCursorBody.error.code, 'ADMIN_AUDIT_CURSOR_INVALID');
+
+    database
+      .prepare(`UPDATE "user" SET role = 'publisher' WHERE email = 'owner@example.com'`)
+      .run();
+    const publisherAudit = await app.request('/api/v1/admin/audit', {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(publisherAudit.status, 403);
+
     const signedOut = await app.request('/api/auth/sign-out', {
       method: 'POST',
       headers: { Cookie: cookie, Origin: baseURL },
@@ -1104,6 +1140,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       { result: 'failed', error_code: 'CONFIG_REVISION_CONFLICT' },
       { result: 'failed', error_code: 'BACKUP_NOT_ELIGIBLE' },
       { result: 'failed', error_code: 'PUBLICATION_REVIEW_INVALID' },
+      { result: 'denied', error_code: 'FORBIDDEN' },
     ]);
   } finally {
     subscriberTombstones.close();
