@@ -1,6 +1,9 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer as createHttpsServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { promisify } from 'node:util';
 import { serve } from '@hono/node-server';
 import { expect, test } from '@playwright/test';
 import { createApp } from '../src/server/app.js';
@@ -15,6 +18,7 @@ const setupToken = 'webauthn-e2e-setup-token-with-more-than-thirty-two-character
 const ownerEmail = 'owner-webauthn@example.com';
 const ownerPassword = 'webauthn reference recovery password';
 const passkeyName = 'Playwright virtual authenticator';
+const execFileAsync = promisify(execFile);
 
 const closeServer = (server: ReturnType<typeof serve>) =>
   new Promise<void>((resolveClose, rejectClose) => {
@@ -24,6 +28,57 @@ const closeServer = (server: ReturnType<typeof serve>) =>
     });
   });
 
+const waitForServer = (server: ReturnType<typeof serve>) => {
+  if (server.listening) return Promise.resolve();
+  return new Promise<void>((resolveListen, rejectListen) => {
+    const onError = (error: Error) => {
+      server.removeListener('listening', onListening);
+      rejectListen(error);
+    };
+    const onListening = () => {
+      server.removeListener('error', onError);
+      resolveListen();
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+  });
+};
+
+const createTlsFixture = async (directory: string) => {
+  const certificatePath = resolve(directory, 'server-cert.pem');
+  const keyPath = resolve(directory, 'server-key.pem');
+  await execFileAsync('openssl', [
+    'req',
+    '-x509',
+    '-newkey',
+    'ec',
+    '-pkeyopt',
+    'ec_paramgen_curve:P-256',
+    '-nodes',
+    '-keyout',
+    keyPath,
+    '-out',
+    certificatePath,
+    '-days',
+    '1',
+    '-sha256',
+    '-subj',
+    '/CN=127.0.0.1',
+    '-addext',
+    'subjectAltName=IP:127.0.0.1',
+    '-addext',
+    'basicConstraints=critical,CA:FALSE',
+    '-addext',
+    'keyUsage=critical,digitalSignature',
+    '-addext',
+    'extendedKeyUsage=serverAuth',
+  ]);
+  const [cert, key] = await Promise.all([readFile(certificatePath), readFile(keyPath)]);
+  return { cert, key };
+};
+
+test.use({ ignoreHTTPSErrors: true });
+
 test('completes a real WebAuthn registration and passkey sign-in ceremony', async ({
   context,
   page,
@@ -32,11 +87,12 @@ test('completes a real WebAuthn registration and passkey sign-in ceremony', asyn
 
   const directory = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-webauthn-'));
   const databasePath = resolve(directory, 'kuma-mieru.sqlite3');
-  const baseURL = `http://127.0.0.1:${43_000 + testInfo.workerIndex}`;
+  const baseURL = `https://127.0.0.1:${43_000 + testInfo.workerIndex}`;
   let database: ReturnType<typeof openDatabase>['database'] | null = null;
   let server: ReturnType<typeof serve> | null = null;
 
   try {
+    const tls = await createTlsFixture(directory);
     database = openDatabase(databasePath).database;
     const migration = await migrateDatabase(database, {
       directory: resolve(process.cwd(), 'migrations'),
@@ -88,23 +144,19 @@ test('completes a real WebAuthn registration and passkey sign-in ceremony', asyn
       fetch: app.fetch,
       hostname: '127.0.0.1',
       port: 43_000 + testInfo.workerIndex,
+      createServer: createHttpsServer,
+      serverOptions: tls,
     });
-
-    await expect
-      .poll(
-        async () => {
-          try {
-            return (await fetch(`${baseURL}/health/ready`)).status;
-          } catch {
-            return 0;
-          }
-        },
-        { timeout: 15_000 }
-      )
-      .toBe(200);
+    await waitForServer(server);
 
     await context.credentials.install();
     await page.goto(`${baseURL}/admin/`);
+    expect(
+      await page.evaluate(() => ({
+        protocol: window.location.protocol,
+        secureContext: window.isSecureContext,
+      }))
+    ).toEqual({ protocol: 'https:', secureContext: true });
 
     await expect(
       page.getByRole('heading', { level: 1, name: 'Establish the owner.' })
