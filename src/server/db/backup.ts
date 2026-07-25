@@ -67,6 +67,9 @@ export interface BackupArtifact {
   errorCode: string | null;
   retentionState: 'current' | 'eligible' | 'hold';
   retentionDecidedAt: string | null;
+  manifestSha256: string | null;
+  deletionState: 'staging' | 'staged' | 'completed' | null;
+  deletedAt: string | null;
 }
 
 export interface BackupValidation {
@@ -87,10 +90,17 @@ export interface CreateBackupServiceOptions {
   now?: () => Date;
   availableBytes?: (path: string) => Promise<number>;
   backupDatabase?: (targetPath: string) => Promise<void>;
+  renameArtifact?: typeof rename;
+  removeArtifact?: typeof rm;
 }
 
 export interface BackupService {
   create(createdBy: string): Promise<BackupValidation>;
+  deleteEligible(input: {
+    backupId: string;
+    expectedManifestSha256: string;
+    deletedBy: string;
+  }): Promise<{ backupId: string; deletedAt: string }>;
   list(): BackupArtifact[];
   validate(backupId: string): Promise<BackupValidation>;
   recoverInterrupted(): Promise<number>;
@@ -111,6 +121,7 @@ export const runBackupScheduleOnce = async ({
     .find(
       artifact =>
         artifact.state === 'ready' &&
+        artifact.deletionState === null &&
         artifact.completedAt !== null &&
         artifact.manifest?.purpose !== 'schema-upgrade'
     );
@@ -159,6 +170,9 @@ const hashFile = async (path: string) => {
     await file.close();
   }
 };
+
+const manifestDigest = (manifest: BackupManifest) =>
+  createHash('sha256').update(JSON.stringify(manifest), 'utf8').digest('hex');
 
 const fileSize = async (path: string) => {
   try {
@@ -433,23 +447,35 @@ const mapArtifact = (row: {
   error_code: string | null;
   retention_state: BackupArtifact['retentionState'];
   retention_decided_at: string | null;
-}): BackupArtifact => ({
-  id: row.id,
-  state: row.state,
-  fileName: row.file_name,
-  manifest: row.manifest_json ? backupManifestSchema.parse(JSON.parse(row.manifest_json)) : null,
-  createdBy: row.created_by,
-  createdAt: row.created_at,
-  completedAt: row.completed_at,
-  errorCode: row.error_code,
-  retentionState: row.retention_state,
-  retentionDecidedAt: row.retention_decided_at,
-});
+  deletion_state: BackupArtifact['deletionState'];
+  deletion_completed_at: string | null;
+}): BackupArtifact => {
+  const manifest = row.manifest_json
+    ? backupManifestSchema.parse(JSON.parse(row.manifest_json))
+    : null;
+  return {
+    id: row.id,
+    state: row.state,
+    fileName: row.file_name,
+    manifest,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    completedAt: row.completed_at,
+    errorCode: row.error_code,
+    retentionState: row.retention_state,
+    retentionDecidedAt: row.retention_decided_at,
+    manifestSha256: manifest ? manifestDigest(manifest) : null,
+    deletionState: row.deletion_state,
+    deletedAt: row.deletion_completed_at,
+  };
+};
 
 export const createBackupService = (options: CreateBackupServiceOptions): BackupService => {
   const backupDirectory = resolve(options.dataDirectory, 'backups');
   const now = options.now ?? (() => new Date());
   const availableBytes = options.availableBytes ?? defaultAvailableBytes;
+  const renameArtifact = options.renameArtifact ?? rename;
+  const removeArtifact = options.removeArtifact ?? rm;
   const backupDatabase =
     options.backupDatabase ??
     (async (targetPath: string) => {
@@ -460,9 +486,13 @@ export const createBackupService = (options: CreateBackupServiceOptions): Backup
     (
       options.database
         .prepare(
-          `SELECT id, state, file_name, manifest_json, created_by, created_at, completed_at,
-                  error_code, retention_state, retention_decided_at
-           FROM backup_artifacts
+          `SELECT artifact.id, artifact.state, artifact.file_name, artifact.manifest_json,
+                  artifact.created_by, artifact.created_at, artifact.completed_at,
+                  artifact.error_code, artifact.retention_state, artifact.retention_decided_at,
+                  deletion.state AS deletion_state,
+                  deletion.completed_at AS deletion_completed_at
+           FROM backup_artifacts artifact
+           LEFT JOIN backup_deletions deletion ON deletion.backup_id = artifact.id
            ORDER BY created_at DESC`
         )
         .all() as Array<Parameters<typeof mapArtifact>[0]>
@@ -472,10 +502,23 @@ export const createBackupService = (options: CreateBackupServiceOptions): Backup
     const parsedId = backupIdSchema.safeParse(backupId);
     if (!parsedId.success) throw codedError('backup_id_invalid', 'Backup ID is invalid');
     const artifact = options.database
-      .prepare('SELECT state FROM backup_artifacts WHERE id = ?')
-      .get(backupId) as { state: BackupArtifact['state'] } | undefined;
+      .prepare(
+        `SELECT artifact.state, deletion.state AS deletion_state
+         FROM backup_artifacts artifact
+         LEFT JOIN backup_deletions deletion ON deletion.backup_id = artifact.id
+         WHERE artifact.id = ?`
+      )
+      .get(backupId) as
+      | {
+          state: BackupArtifact['state'];
+          deletion_state: BackupArtifact['deletionState'];
+        }
+      | undefined;
     if (!artifact) throw codedError('backup_not_found', 'Backup was not found');
     if (artifact.state !== 'ready') throw codedError('backup_not_ready', 'Backup is not ready');
+    if (artifact.deletion_state !== null) {
+      throw codedError('backup_deleted', 'Backup has been deleted');
+    }
     return validateBackupArtifact({
       backupId,
       dataDirectory: options.dataDirectory,
@@ -498,7 +541,201 @@ export const createBackupService = (options: CreateBackupServiceOptions): Backup
       await rm(resolve(backupDirectory, `${id}.sqlite3.partial`), { force: true });
       markFailed.run(completedAt, id);
     }
-    return interrupted.length;
+    const interruptedDeletions = options.database
+      .prepare(
+        `SELECT deletion.backup_id, deletion.state, artifact.file_name
+         FROM backup_deletions deletion
+         JOIN backup_artifacts artifact ON artifact.id = deletion.backup_id
+         WHERE deletion.state IN ('staging', 'staged')`
+      )
+      .all() as Array<{
+      backup_id: string;
+      state: 'staging' | 'staged';
+      file_name: string;
+    }>;
+    for (const deletion of interruptedDeletions) {
+      const backupPath = resolve(backupDirectory, deletion.file_name);
+      const manifestPath = resolve(backupDirectory, `${deletion.backup_id}.manifest.json`);
+      const stagedBackupPath = `${backupPath}.deleting`;
+      const stagedManifestPath = `${manifestPath}.deleting`;
+      if (deletion.state === 'staging') {
+        for (const [original, staged] of [
+          [backupPath, stagedBackupPath],
+          [manifestPath, stagedManifestPath],
+        ]) {
+          const originalExists = await lstat(original).then(
+            () => true,
+            () => false
+          );
+          const stagedExists = await lstat(staged).then(
+            () => true,
+            () => false
+          );
+          if (originalExists && stagedExists) {
+            throw codedError(
+              'backup_delete_recovery_conflict',
+              'Backup deletion recovery found duplicate artifacts'
+            );
+          }
+          if (!originalExists && stagedExists) await renameArtifact(staged, original);
+          if (!originalExists && !stagedExists) {
+            throw codedError(
+              'backup_delete_recovery_missing',
+              'Backup deletion recovery found a missing artifact'
+            );
+          }
+        }
+        await syncPath(backupDirectory);
+        options.database
+          .prepare("DELETE FROM backup_deletions WHERE backup_id = ? AND state = 'staging'")
+          .run(deletion.backup_id);
+      } else {
+        for (const original of [backupPath, manifestPath]) {
+          const originalExists = await lstat(original).then(
+            () => true,
+            () => false
+          );
+          if (originalExists) {
+            throw codedError(
+              'backup_delete_recovery_conflict',
+              'Backup deletion recovery found an unexpected live artifact'
+            );
+          }
+        }
+        await removeArtifact(stagedBackupPath, { force: true });
+        await removeArtifact(stagedManifestPath, { force: true });
+        await syncPath(backupDirectory);
+        options.database
+          .prepare(
+            `UPDATE backup_deletions
+             SET state = 'completed', completed_at = ?
+             WHERE backup_id = ? AND state = 'staged'`
+          )
+          .run(completedAt, deletion.backup_id);
+      }
+    }
+    return interrupted.length + interruptedDeletions.length;
+  };
+
+  const deleteEligible: BackupService['deleteEligible'] = async input => {
+    const backupId = backupIdSchema.parse(input.backupId);
+    const expectedManifestSha256 = z
+      .string()
+      .regex(/^[0-9a-f]{64}$/u)
+      .parse(input.expectedManifestSha256);
+    const deletedBy = z.string().min(1).max(200).parse(input.deletedBy);
+    await ensurePrivateDirectory(backupDirectory);
+    const artifact = options.database
+      .prepare(
+        `SELECT artifact.state, artifact.file_name, artifact.manifest_json,
+                artifact.retention_state, deletion.state AS deletion_state
+         FROM backup_artifacts artifact
+         LEFT JOIN backup_deletions deletion ON deletion.backup_id = artifact.id
+         WHERE artifact.id = ?`
+      )
+      .get(backupId) as
+      | {
+          state: BackupArtifact['state'];
+          file_name: string;
+          manifest_json: string | null;
+          retention_state: BackupArtifact['retentionState'];
+          deletion_state: BackupArtifact['deletionState'];
+        }
+      | undefined;
+    if (!artifact) throw codedError('backup_not_found', 'Backup was not found');
+    if (artifact.state !== 'ready' || artifact.manifest_json === null) {
+      throw codedError('backup_not_ready', 'Backup is not ready');
+    }
+    if (artifact.retention_state !== 'eligible') {
+      throw codedError('backup_not_eligible', 'Backup is not eligible for deletion');
+    }
+    if (artifact.deletion_state !== null) {
+      throw codedError('backup_delete_conflict', 'Backup deletion has already been requested');
+    }
+    const manifest = backupManifestSchema.parse(JSON.parse(artifact.manifest_json));
+    const actualManifestSha256 = manifestDigest(manifest);
+    if (
+      !Buffer.from(actualManifestSha256, 'hex').equals(Buffer.from(expectedManifestSha256, 'hex'))
+    ) {
+      throw codedError('backup_manifest_hash_mismatch', 'Backup manifest hash changed');
+    }
+    await validateBackupArtifact({
+      backupId,
+      dataDirectory: options.dataDirectory,
+      migrationDirectory: options.migrationDirectory,
+    });
+    const requestedAt = now().toISOString();
+    options.database
+      .prepare(
+        `INSERT INTO backup_deletions
+          (backup_id, state, manifest_sha256, artifact_sha256, deleted_by, requested_at)
+         VALUES (?, 'staging', ?, ?, ?, ?)`
+      )
+      .run(backupId, actualManifestSha256, manifest.sha256, deletedBy, requestedAt);
+    const backupPath = resolve(backupDirectory, manifest.fileName);
+    const manifestPath = resolve(backupDirectory, `${backupId}.manifest.json`);
+    const stagedBackupPath = `${backupPath}.deleting`;
+    const stagedManifestPath = `${manifestPath}.deleting`;
+    try {
+      await renameArtifact(backupPath, stagedBackupPath);
+      await renameArtifact(manifestPath, stagedManifestPath);
+      await syncPath(backupDirectory);
+      options.database
+        .prepare(
+          `UPDATE backup_deletions SET state = 'staged'
+           WHERE backup_id = ? AND state = 'staging'`
+        )
+        .run(backupId);
+      await removeArtifact(stagedBackupPath, { force: true });
+      await removeArtifact(stagedManifestPath, { force: true });
+      await syncPath(backupDirectory);
+      const deletedAt = now().toISOString();
+      options.database
+        .prepare(
+          `UPDATE backup_deletions
+           SET state = 'completed', completed_at = ?
+           WHERE backup_id = ? AND state = 'staged'`
+        )
+        .run(deletedAt, backupId);
+      return { backupId, deletedAt };
+    } catch (error) {
+      const deletion = options.database
+        .prepare('SELECT state FROM backup_deletions WHERE backup_id = ?')
+        .get(backupId) as { state: 'staging' | 'staged' | 'completed' } | undefined;
+      if (deletion?.state === 'staging') {
+        for (const [original, staged] of [
+          [backupPath, stagedBackupPath],
+          [manifestPath, stagedManifestPath],
+        ]) {
+          const originalExists = await lstat(original).then(
+            () => true,
+            () => false
+          );
+          const stagedExists = await lstat(staged).then(
+            () => true,
+            () => false
+          );
+          if (originalExists && stagedExists) {
+            throw codedError(
+              'backup_delete_recovery_conflict',
+              'Backup deletion rollback found duplicate artifacts'
+            );
+          }
+          if (!originalExists && stagedExists) await renameArtifact(staged, original);
+          if (!originalExists && !stagedExists) {
+            throw codedError(
+              'backup_delete_recovery_missing',
+              'Backup deletion rollback found a missing artifact'
+            );
+          }
+        }
+        await syncPath(backupDirectory);
+        options.database
+          .prepare("DELETE FROM backup_deletions WHERE backup_id = ? AND state = 'staging'")
+          .run(backupId);
+      }
+      throw error;
+    }
   };
 
   const create = async (createdBy: string) => {
@@ -600,5 +837,5 @@ export const createBackupService = (options: CreateBackupServiceOptions): Backup
     }
   };
 
-  return { create, list, validate, recoverInterrupted };
+  return { create, deleteEligible, list, validate, recoverInterrupted };
 };

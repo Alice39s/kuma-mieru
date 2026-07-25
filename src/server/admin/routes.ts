@@ -159,6 +159,9 @@ const subscriberSuppressSchema = z.object({ expectedState: z.literal('active') }
 const backupRestoreValidateSchema = z.object({
   backupId: z.string().min(1).max(64),
 });
+const backupDeleteSchema = z.object({
+  expectedManifestSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+});
 const emptyMutationSchema = z.object({}).strict();
 const retentionPolicyMutationSchema = z.object({
   expectedRevision: z.number().int().positive(),
@@ -387,7 +390,11 @@ export const registerAdminRoutes = (
     const status =
       code === 'backup_not_found'
         ? 404
-        : code === 'backup_in_progress' || code === 'backup_not_ready'
+        : code === 'backup_in_progress' ||
+            code === 'backup_not_ready' ||
+            code === 'backup_not_eligible' ||
+            code === 'backup_delete_conflict' ||
+            code === 'backup_manifest_hash_mismatch'
           ? 409
           : code === 'backup_space_insufficient'
             ? 507
@@ -443,6 +450,26 @@ export const registerAdminRoutes = (
       const validation = await backupService.validate(input.backupId);
       writeRouteAudit(context, authorization.principal.userId, 'success', null);
       return context.json({ data: validation });
+    } catch (error) {
+      return handleBackupError(context, error, authorization.principal);
+    }
+  });
+
+  app.delete('/api/v1/admin/backups/:backupId', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!backupService) {
+      return errorResponse(context, 503, 'BACKUP_NOT_READY', 'Backup service is unavailable');
+    }
+    try {
+      const input = backupDeleteSchema.parse(await context.req.json());
+      const deleted = await backupService.deleteEligible({
+        backupId: context.req.param('backupId'),
+        expectedManifestSha256: input.expectedManifestSha256,
+        deletedBy: authorization.principal.userId,
+      });
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: deleted });
     } catch (error) {
       return handleBackupError(context, error, authorization.principal);
     }

@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { lstat, mkdtemp, readFile, readdir, rm, stat, writeFile, symlink } from 'node:fs/promises';
+import {
+  lstat,
+  mkdtemp,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+  symlink,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
@@ -235,21 +245,28 @@ test('rejects a backup whose migration ledger is newer than this build', async (
     const backupPath = resolve(backupDirectory, `${backup.backupId}.sqlite3`);
     const manifestPath = resolve(backupDirectory, `${backup.backupId}.manifest.json`);
     const candidate = new BetterSqlite3(backupPath);
+    let futureVersion = 0;
     try {
+      const currentVersion = (
+        candidate.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as {
+          version: number;
+        }
+      ).version;
+      futureVersion = currentVersion + 1;
       candidate
         .prepare(
           `INSERT INTO schema_migrations
             (version, name, checksum_sha256, applied_at, app_build, execution_ms)
-           VALUES (14, 'future', ?, ?, 'future', 0)`
+           VALUES (?, 'future', ?, ?, 'future', 0)`
         )
-        .run('f'.repeat(64), new Date().toISOString());
+        .run(futureVersion, 'f'.repeat(64), new Date().toISOString());
       candidate.pragma('wal_checkpoint(TRUNCATE)');
     } finally {
       candidate.close();
     }
     const bytes = await readFile(backupPath);
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as Record<string, unknown>;
-    manifest.schemaVersion = 14;
+    manifest.schemaVersion = futureVersion;
     manifest.sizeBytes = bytes.length;
     manifest.sha256 = createHash('sha256').update(bytes).digest('hex');
     await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -314,6 +331,203 @@ test('serializes concurrent backups and reconciles interrupted rows', async () =
   }
 });
 
+test('deletes only an eligible backup bound to its manifest hash and keeps an audit record', async () => {
+  const fixture = await createFixture();
+  try {
+    const backup = await fixture.service.create('owner_fixture');
+    const artifact = fixture.service.list().find(item => item.id === backup.backupId);
+    assert.ok(artifact?.manifestSha256);
+    await assert.rejects(
+      fixture.service.deleteEligible({
+        backupId: backup.backupId,
+        expectedManifestSha256: artifact.manifestSha256,
+        deletedBy: 'owner_fixture',
+      }),
+      error => backupErrorCode(error) === 'backup_not_eligible'
+    );
+    fixture.database
+      .prepare(
+        `UPDATE backup_artifacts
+         SET retention_state = 'eligible', retention_decided_at = ?
+         WHERE id = ?`
+      )
+      .run(new Date().toISOString(), backup.backupId);
+    await assert.rejects(
+      fixture.service.deleteEligible({
+        backupId: backup.backupId,
+        expectedManifestSha256: '0'.repeat(64),
+        deletedBy: 'owner_fixture',
+      }),
+      error => backupErrorCode(error) === 'backup_manifest_hash_mismatch'
+    );
+
+    const deleted = await fixture.service.deleteEligible({
+      backupId: backup.backupId,
+      expectedManifestSha256: artifact.manifestSha256,
+      deletedBy: 'owner_fixture',
+    });
+    assert.equal(deleted.backupId, backup.backupId);
+    const backupDirectory = resolve(fixture.dataDirectory, 'backups');
+    assert.equal(
+      await lstat(resolve(backupDirectory, `${backup.backupId}.sqlite3`)).catch(() => null),
+      null
+    );
+    assert.equal(
+      await lstat(resolve(backupDirectory, `${backup.backupId}.manifest.json`)).catch(() => null),
+      null
+    );
+    assert.equal(
+      await lstat(resolve(backupDirectory, `${backup.backupId}.sqlite3.deleting`)).catch(
+        () => null
+      ),
+      null
+    );
+    const listed = fixture.service.list().find(item => item.id === backup.backupId);
+    assert.equal(listed?.deletionState, 'completed');
+    assert.equal(listed?.deletedAt, deleted.deletedAt);
+    assert.deepEqual(
+      fixture.database
+        .prepare(
+          `SELECT state, manifest_sha256, artifact_sha256, deleted_by, completed_at
+           FROM backup_deletions WHERE backup_id = ?`
+        )
+        .get(backup.backupId),
+      {
+        state: 'completed',
+        manifest_sha256: artifact.manifestSha256,
+        artifact_sha256: artifact.manifest?.sha256,
+        deleted_by: 'owner_fixture',
+        completed_at: deleted.deletedAt,
+      }
+    );
+    await assert.rejects(
+      fixture.service.validate(backup.backupId),
+      error => backupErrorCode(error) === 'backup_deleted'
+    );
+  } finally {
+    fixture.database.close();
+    await rm(fixture.dataDirectory, { recursive: true, force: true });
+  }
+});
+
+test('rolls back a staged artifact rename when deletion fails before commit', async () => {
+  let renameCalls = 0;
+  const fixture = await createFixture({
+    renameArtifact: async (source, destination) => {
+      renameCalls += 1;
+      if (renameCalls === 2) throw new Error('injected manifest rename failure');
+      await rename(source, destination);
+    },
+  });
+  try {
+    const backup = await fixture.service.create('owner_fixture');
+    const artifact = fixture.service.list().find(item => item.id === backup.backupId);
+    assert.ok(artifact?.manifestSha256);
+    fixture.database
+      .prepare(
+        `UPDATE backup_artifacts
+         SET retention_state = 'eligible', retention_decided_at = ?
+         WHERE id = ?`
+      )
+      .run(new Date().toISOString(), backup.backupId);
+
+    await assert.rejects(
+      fixture.service.deleteEligible({
+        backupId: backup.backupId,
+        expectedManifestSha256: artifact.manifestSha256,
+        deletedBy: 'owner_fixture',
+      }),
+      /injected manifest rename failure/u
+    );
+
+    const backupDirectory = resolve(fixture.dataDirectory, 'backups');
+    const backupPath = resolve(backupDirectory, `${backup.backupId}.sqlite3`);
+    const manifestPath = resolve(backupDirectory, `${backup.backupId}.manifest.json`);
+    assert.ok(await lstat(backupPath));
+    assert.ok(await lstat(manifestPath));
+    assert.equal(await lstat(`${backupPath}.deleting`).catch(() => null), null);
+    assert.equal(await lstat(`${manifestPath}.deleting`).catch(() => null), null);
+    assert.equal(
+      fixture.database
+        .prepare('SELECT state FROM backup_deletions WHERE backup_id = ?')
+        .get(backup.backupId),
+      undefined
+    );
+    assert.equal((await fixture.service.validate(backup.backupId)).backupId, backup.backupId);
+  } finally {
+    fixture.database.close();
+    await rm(fixture.dataDirectory, { recursive: true, force: true });
+  }
+});
+
+test('recovers staging deletion by rollback and staged deletion by completion', async () => {
+  const fixture = await createFixture();
+  try {
+    const first = await fixture.service.create('owner_fixture');
+    const firstArtifact = fixture.service.list().find(item => item.id === first.backupId);
+    assert.ok(firstArtifact?.manifestSha256);
+    const backupDirectory = resolve(fixture.dataDirectory, 'backups');
+    const firstPath = resolve(backupDirectory, `${first.backupId}.sqlite3`);
+    const firstManifestPath = resolve(backupDirectory, `${first.backupId}.manifest.json`);
+    fixture.database
+      .prepare(
+        `INSERT INTO backup_deletions
+          (backup_id, state, manifest_sha256, artifact_sha256, deleted_by, requested_at)
+         VALUES (?, 'staging', ?, ?, 'owner_fixture', ?)`
+      )
+      .run(
+        first.backupId,
+        firstArtifact.manifestSha256,
+        firstArtifact.manifest?.sha256,
+        new Date().toISOString()
+      );
+    await rename(firstPath, `${firstPath}.deleting`);
+    assert.equal(await fixture.service.recoverInterrupted(), 1);
+    assert.ok(await lstat(firstPath));
+    assert.ok(await lstat(firstManifestPath));
+    assert.equal(
+      fixture.database
+        .prepare('SELECT state FROM backup_deletions WHERE backup_id = ?')
+        .get(first.backupId),
+      undefined
+    );
+
+    const second = await fixture.service.create('owner_fixture');
+    const secondArtifact = fixture.service.list().find(item => item.id === second.backupId);
+    assert.ok(secondArtifact?.manifestSha256);
+    const secondPath = resolve(backupDirectory, `${second.backupId}.sqlite3`);
+    const secondManifestPath = resolve(backupDirectory, `${second.backupId}.manifest.json`);
+    fixture.database
+      .prepare(
+        `INSERT INTO backup_deletions
+          (backup_id, state, manifest_sha256, artifact_sha256, deleted_by, requested_at)
+         VALUES (?, 'staged', ?, ?, 'owner_fixture', ?)`
+      )
+      .run(
+        second.backupId,
+        secondArtifact.manifestSha256,
+        secondArtifact.manifest?.sha256,
+        new Date().toISOString()
+      );
+    await rename(secondPath, `${secondPath}.deleting`);
+    await rename(secondManifestPath, `${secondManifestPath}.deleting`);
+    assert.equal(await fixture.service.recoverInterrupted(), 1);
+    assert.equal(await lstat(`${secondPath}.deleting`).catch(() => null), null);
+    assert.equal(await lstat(`${secondManifestPath}.deleting`).catch(() => null), null);
+    assert.equal(
+      (
+        fixture.database
+          .prepare('SELECT state FROM backup_deletions WHERE backup_id = ?')
+          .get(second.backupId) as { state: string }
+      ).state,
+      'completed'
+    );
+  } finally {
+    fixture.database.close();
+    await rm(fixture.dataDirectory, { recursive: true, force: true });
+  }
+});
+
 test('scheduled backup only creates an artifact when the latest is older than one day', async () => {
   const fixture = await createFixture();
   try {
@@ -372,6 +586,9 @@ test('does not treat a schema-upgrade artifact as the daily runtime backup', asy
         errorCode: null,
         retentionState: 'current' as const,
         retentionDecidedAt: null,
+        manifestSha256: 'd'.repeat(64),
+        deletionState: null,
+        deletedAt: null,
       },
     ],
     create: async () => {
@@ -386,6 +603,9 @@ test('does not treat a schema-upgrade artifact as the daily runtime backup', asy
       };
     },
     validate: async () => {
+      throw new Error('not used');
+    },
+    deleteEligible: async () => {
       throw new Error('not used');
     },
     recoverInterrupted: async () => 0,

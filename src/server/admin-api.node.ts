@@ -463,7 +463,12 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     });
     assert.equal(backups.status, 200);
     const backupsBody = (await backups.json()) as {
-      data: Array<{ id: string; state: string; fileName: string }>;
+      data: Array<{
+        id: string;
+        state: string;
+        fileName: string;
+        manifestSha256: string;
+      }>;
     };
     assert.deepEqual(
       backupsBody.data.map(item => ({
@@ -485,6 +490,43 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       body: JSON.stringify({ backupId: backupCreateBody.data.backupId }),
     });
     assert.equal(backupValidation.status, 200);
+    const backupDeleteBeforeEligible = await app.request(
+      `/api/v1/admin/backups/${backupCreateBody.data.backupId}`,
+      {
+        method: 'DELETE',
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          expectedManifestSha256: backupsBody.data[0]?.manifestSha256,
+        }),
+      }
+    );
+    assert.equal(backupDeleteBeforeEligible.status, 409);
+    database
+      .prepare(
+        `UPDATE backup_artifacts
+         SET retention_state = 'eligible', retention_decided_at = ?
+         WHERE id = ?`
+      )
+      .run(new Date().toISOString(), backupCreateBody.data.backupId);
+    const backupDelete = await app.request(
+      `/api/v1/admin/backups/${backupCreateBody.data.backupId}`,
+      {
+        method: 'DELETE',
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          expectedManifestSha256: backupsBody.data[0]?.manifestSha256,
+        }),
+      }
+    );
+    assert.equal(backupDelete.status, 200);
+    const backupDeleteBody = (await backupDelete.json()) as {
+      data: { backupId: string; deletedAt: string };
+    };
+    assert.equal(backupDeleteBody.data.backupId, backupCreateBody.data.backupId);
+    assert.equal(
+      backupService.list().find(item => item.id === backupCreateBody.data.backupId)?.deletionState,
+      'completed'
+    );
     const smtpCredentials = await app.request('/api/v1/admin/secrets/smtp-credentials', {
       method: 'POST',
       headers: mutationHeaders,
@@ -1060,6 +1102,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       { result: 'denied', error_code: 'UNTRUSTED_ORIGIN' },
       { result: 'denied', error_code: 'UNTRUSTED_ORIGIN' },
       { result: 'failed', error_code: 'CONFIG_REVISION_CONFLICT' },
+      { result: 'failed', error_code: 'BACKUP_NOT_ELIGIBLE' },
       { result: 'failed', error_code: 'PUBLICATION_REVIEW_INVALID' },
     ]);
   } finally {
