@@ -20,7 +20,7 @@ export const PublicHome = () => {
           </div>
           <h1 className="max-w-3xl text-4xl leading-[1.04] font-semibold tracking-[-0.045em] sm:text-6xl">
             Status communication,
-            <span className="block text-black/35">without infrastructure theatre.</span>
+            <span className="block text-black/60">without infrastructure theatre.</span>
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-7 text-black/55 sm:text-lg">
             A fast public surface backed by explicit sources, immutable configuration revisions, and
@@ -28,7 +28,7 @@ export const PublicHome = () => {
           </p>
         </div>
         <div className="rounded-3xl border border-black/5 bg-white/85 p-5 shadow-[0_20px_60px_rgba(23,33,26,0.06)]">
-          <div className="flex items-center justify-between text-xs font-medium text-black/45">
+          <div className="flex items-center justify-between text-xs font-medium text-black/60">
             <span>Runtime</span>
             <span>v{data.meta.version}</span>
           </div>
@@ -56,12 +56,12 @@ export const PublicHome = () => {
       <section>
         <div className="mb-5 flex items-end justify-between gap-5">
           <div>
-            <p className="text-xs font-semibold tracking-[0.17em] text-black/40 uppercase">
+            <p className="text-xs font-semibold tracking-[0.17em] text-black/60 uppercase">
               Published surfaces
             </p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight">Status pages</h2>
           </div>
-          <span className="text-sm text-black/45">{data.pages.length} configured</span>
+          <span className="text-sm text-black/60">{data.pages.length} configured</span>
         </div>
 
         {data.pages.length > 0 ? (
@@ -83,7 +83,7 @@ export const PublicHome = () => {
                   />
                 </div>
                 <h3 className="mt-8 text-lg font-semibold tracking-tight">{page.title}</h3>
-                <p className="mt-1 text-sm text-black/45">/{page.slug}</p>
+                <p className="mt-1 text-sm text-black/60">/{page.slug}</p>
               </Link>
             ))}
           </div>
@@ -91,7 +91,7 @@ export const PublicHome = () => {
           <div className="rounded-3xl border border-dashed border-black/10 bg-white/45 px-6 py-14 text-center">
             <RadioTower className="mx-auto text-black/25" aria-hidden="true" size={28} />
             <h3 className="mt-4 font-semibold">No public pages yet</h3>
-            <p className="mt-2 text-sm text-black/45">
+            <p className="mt-2 text-sm text-black/60">
               The managed control plane is ready for its first source.
             </p>
           </div>

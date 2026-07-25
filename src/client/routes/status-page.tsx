@@ -74,26 +74,28 @@ export const StatusPage = () => {
   return (
     <div className="mx-auto max-w-3xl">
       <Link
-        className="mb-8 inline-flex items-center gap-2 text-sm text-black/45 transition hover:text-black"
+        className="mb-8 inline-flex items-center gap-2 text-sm text-black/60 transition hover:text-black"
         to="/"
       >
         <ChevronLeft size={16} /> All status pages
       </Link>
       <section className="overflow-hidden rounded-[2rem] border border-black/5 bg-white shadow-[0_24px_90px_rgba(23,33,26,0.07)]">
         <div className="border-b border-black/5 p-7 sm:p-10">
-          <p className="text-xs font-semibold tracking-[0.18em] text-black/35 uppercase">
+          <p className="text-xs font-semibold tracking-[0.18em] text-black/60 uppercase">
             Public status
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
             {page.title}
           </h1>
-          <p className="mt-3 text-sm leading-6 text-black/50">
+          <p className="mt-3 text-sm leading-6 text-black/60">
             Public data is served from the local normalized snapshot. Visitor requests never call
             the upstream source directly.
           </p>
           <div
             className={`mt-8 flex flex-col gap-5 rounded-3xl border p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6 ${overallPresentation.bannerClassName}`}
+            aria-label="Overall status"
             aria-live="polite"
+            role="status"
           >
             <div className="flex items-center gap-4">
               <span
@@ -110,7 +112,7 @@ export const StatusPage = () => {
                 </p>
               </div>
             </div>
-            <div className="flex shrink-0 flex-col gap-1 text-left text-xs text-black/50 sm:text-right">
+            <div className="flex shrink-0 flex-col gap-1 text-left text-xs text-black/60 sm:text-right">
               <span className={freshnessWarning ? 'font-semibold text-amber-900' : ''}>
                 {!snapshot
                   ? 'No source snapshot'
@@ -185,7 +187,7 @@ export const StatusPage = () => {
                         >
                           <RadioTower aria-hidden="true" size={18} /> {service.name}
                         </Link>
-                        <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-black/40">
+                        <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-black/60">
                           <span>
                             {service.latencyMs === null
                               ? 'No latency sample'
@@ -218,7 +220,7 @@ export const StatusPage = () => {
               )}
             </div>
           ) : (
-            <div className="rounded-2xl bg-[#f5f7f4] p-5 text-sm text-black/50">
+            <div className="rounded-2xl bg-[#f5f7f4] p-5 text-sm text-black/60">
               {snapshot
                 ? 'The current source snapshot does not contain any public services.'
                 : 'The source poller is preparing the first local snapshot. This page will not fall back to a visitor-triggered upstream request.'}

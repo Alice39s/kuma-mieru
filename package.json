@@ -47,6 +47,7 @@
     "test:v1": "bun test components",
     "test:v2": "bun run test:v2:web && bun run build:v2:server && bun scripts/test-v2.ts",
     "test:v2:web": "bun test src/client/*.test.ts",
+    "test:v2:e2e": "bun run build:v2:web && playwright test",
     "typecheck:v2": "tsc -p tsconfig.v2.json && tsc -p tsconfig.server.json --noEmit",
     "generate": "bun scripts/generate-config.ts && bun scripts/generate-image-domains.ts && bun scripts/banner.ts",
     "generate:config": "bun scripts/generate-config.ts",
@@ -115,7 +116,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@next/eslint-plugin-next": "16.2.10",
+    "@playwright/test": "^1.62.0",
     "@react-types/shared": "3.36.0",
     "@tailwindcss/typography": "^0.5.20",
     "@types/better-sqlite3": "^7.6.13",

@@ -20,7 +20,7 @@ export const PublicServiceDetail = () => {
   return (
     <div className="mx-auto max-w-3xl">
       <Link
-        className="inline-flex items-center gap-2 text-sm text-black/45 transition hover:text-black"
+        className="inline-flex items-center gap-2 text-sm text-black/60 transition hover:text-black"
         to={`/status/${encodeURIComponent(payload.pageSlug)}/`}
       >
         <ArrowLeft aria-hidden="true" size={16} /> Return to {page.title}
@@ -28,7 +28,7 @@ export const PublicServiceDetail = () => {
       <header className="mt-8 overflow-hidden rounded-[2rem] border border-black/5 bg-white shadow-[0_24px_90px_rgba(23,33,26,0.07)]">
         <div className="p-7 sm:p-10">
           <RadioTower aria-hidden="true" className="text-emerald-800" size={25} />
-          <p className="mt-6 text-xs font-semibold tracking-[0.18em] text-black/35 uppercase">
+          <p className="mt-6 text-xs font-semibold tracking-[0.18em] text-black/60 uppercase">
             Service evidence
           </p>
           <h1 className="mt-3 font-serif text-4xl font-medium tracking-[-0.035em] sm:text-5xl">
@@ -44,13 +44,13 @@ export const PublicServiceDetail = () => {
             </span>
             <div>
               <p className="font-semibold">{presentation.label}</p>
-              <p className="mt-1 text-sm text-black/50">{presentation.summary}</p>
+              <p className="mt-1 text-sm text-black/60">{presentation.summary}</p>
             </div>
           </div>
         </div>
         <div className="grid border-t border-black/5 bg-[#fafbf9] sm:grid-cols-3">
           <div className="border-b border-black/5 p-5 sm:border-r sm:border-b-0 sm:p-6">
-            <span className="text-[11px] font-semibold tracking-[0.13em] text-black/35 uppercase">
+            <span className="text-[11px] font-semibold tracking-[0.13em] text-black/60 uppercase">
               Latency
             </span>
             <strong className="mt-2 block text-lg">
@@ -58,7 +58,7 @@ export const PublicServiceDetail = () => {
             </strong>
           </div>
           <div className="border-b border-black/5 p-5 sm:border-r sm:border-b-0 sm:p-6">
-            <span className="text-[11px] font-semibold tracking-[0.13em] text-black/35 uppercase">
+            <span className="text-[11px] font-semibold tracking-[0.13em] text-black/60 uppercase">
               Uptime · 24h
             </span>
             <strong className="mt-2 block text-lg">
@@ -68,7 +68,7 @@ export const PublicServiceDetail = () => {
             </strong>
           </div>
           <div className="p-5 sm:p-6">
-            <span className="text-[11px] font-semibold tracking-[0.13em] text-black/35 uppercase">
+            <span className="text-[11px] font-semibold tracking-[0.13em] text-black/60 uppercase">
               Observed
             </span>
             <strong className="mt-2 block text-sm">
@@ -90,17 +90,17 @@ export const PublicServiceDetail = () => {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-medium">{match.source.snapshot.title}</p>
-                  <p className="mt-1 text-xs text-black/40">
+                  <p className="mt-1 text-xs text-black/60">
                     Source {match.source.snapshot.sourceId} · upstream status{' '}
                     {String(match.service.rawStatus)}
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs text-black/45">
+                <span className="inline-flex items-center gap-1.5 text-xs text-black/60">
                   <Clock3 aria-hidden="true" size={13} />
                   {match.source.health.stale ? 'Stale evidence' : 'Current evidence'}
                 </span>
               </div>
-              <p className="mt-4 text-xs leading-5 text-black/45">
+              <p className="mt-4 text-xs leading-5 text-black/60">
                 {match.source.snapshot.capabilities.historicalDays === null
                   ? 'This source does not declare a bounded historical window.'
                   : `${match.source.snapshot.capabilities.historicalDays} days of upstream history declared.`}{' '}

@@ -19,19 +19,19 @@ export const PublicSubscribe = () => {
   return (
     <div className="mx-auto max-w-3xl">
       <Link
-        className="inline-flex items-center gap-2 text-sm text-black/45 transition hover:text-black"
+        className="inline-flex items-center gap-2 text-sm text-black/60 transition hover:text-black"
         to={`/status/${encodeURIComponent(pageSlug)}/`}
       >
         <ArrowLeft aria-hidden="true" size={16} /> Return to {page.title}
       </Link>
       <header className="mt-8 rounded-[2rem] border border-black/5 bg-white p-7 shadow-[0_24px_90px_rgba(23,33,26,0.07)] sm:p-10">
-        <p className="text-xs font-semibold tracking-[0.18em] text-black/35 uppercase">
+        <p className="text-xs font-semibold tracking-[0.18em] text-black/60 uppercase">
           Public subscriptions
         </p>
         <h1 className="mt-3 font-serif text-4xl font-medium tracking-[-0.035em] sm:text-5xl">
           Choose your channel
         </h1>
-        <p className="mt-4 max-w-xl text-sm leading-6 text-black/50">
+        <p className="mt-4 max-w-xl text-sm leading-6 text-black/60">
           Feeds contain every public publication. Email is opt-in and only sends when a Publisher
           explicitly chooses to notify matching subscribers.
         </p>
@@ -52,7 +52,7 @@ export const PublicSubscribe = () => {
       ) : (
         <section className="mt-8 rounded-3xl border border-dashed border-black/10 bg-white p-7">
           <h2 className="text-lg font-semibold">Email is not active</h2>
-          <p className="mt-2 text-sm leading-6 text-black/50">
+          <p className="mt-2 text-sm leading-6 text-black/60">
             The Owner has not activated a verified SMTP transport. RSS and Atom remain fully
             available, and this page will not collect an address while delivery is unavailable.
           </p>

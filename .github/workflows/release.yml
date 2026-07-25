@@ -3,8 +3,8 @@ name: Create v1 Release
 on:
   push:
     paths:
-      - "package.json"
-      - ".github/workflows/release.yml"
+      - 'package.json'
+      - '.github/workflows/release.yml'
     branches:
       - main
 

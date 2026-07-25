@@ -57,7 +57,7 @@ export const PublicSubscription = ({
               ? 'Receive only later publications attached to this incident.'
               : 'Receive only explicitly published updates. Monitor changes and mirrored events never trigger secondary email by themselves.'}
           </p>
-          <span className="relative mt-6 inline-flex items-center gap-2 text-xs text-white/45">
+          <span className="relative mt-6 inline-flex items-center gap-2 text-xs text-white/70">
             <ShieldCheck aria-hidden="true" size={14} /> Double opt-in · one-click unsubscribe
           </span>
         </div>
@@ -85,7 +85,7 @@ export const PublicSubscription = ({
                   Email address
                 </label>
                 <div className="mt-2 flex items-center rounded-2xl border border-white/15 bg-white/[0.07] px-4 focus-within:border-emerald-300/70">
-                  <Mail aria-hidden="true" className="shrink-0 text-white/35" size={16} />
+                  <Mail aria-hidden="true" className="shrink-0 text-white/70" size={16} />
                   <input
                     autoComplete="email"
                     className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm text-white outline-none placeholder:text-white/30"
@@ -115,17 +115,17 @@ export const PublicSubscription = ({
                   <legend className="text-xs font-semibold text-white/70">
                     Optional component filter
                   </legend>
-                  <p className="mt-1 text-xs leading-5 text-white/40">
+                  <p className="mt-1 text-xs leading-5 text-white/70">
                     Leave every component clear to receive page-wide published updates.
                   </p>
                   <div className="mt-3 flex max-h-32 flex-wrap gap-2 overflow-y-auto">
                     {services.map(service => (
                       <label
-                        className="cursor-pointer rounded-full border border-white/15 px-3 py-1.5 text-xs text-white/60 transition has-checked:border-emerald-300/60 has-checked:bg-emerald-300/10 has-checked:text-emerald-200"
+                        className="relative cursor-pointer rounded-full border border-white/15 px-3 py-1.5 text-xs text-white/70 transition has-checked:border-emerald-300/60 has-checked:bg-emerald-300/10 has-checked:text-emerald-200"
                         key={service.id}
                       >
                         <input
-                          className="sr-only"
+                          className="absolute inset-0 cursor-pointer appearance-none rounded-full opacity-0 focus-visible:opacity-100"
                           type="checkbox"
                           value={service.id}
                           {...form.register('componentIds')}

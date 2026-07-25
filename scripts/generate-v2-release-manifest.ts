@@ -73,8 +73,7 @@ if (maximumMigrationVersion !== spec.database.maximumSchemaVersion) {
 
 const usesSourceOverride = Boolean(sourceOverride.commit);
 const repositoryCommit = tryGit(['rev-parse', 'HEAD']);
-const commit =
-  sourceOverride.commit ?? process.env.GITHUB_SHA ?? repositoryCommit ?? 'unverified';
+const commit = sourceOverride.commit ?? process.env.GITHUB_SHA ?? repositoryCommit ?? 'unverified';
 const commitExists =
   commit !== 'unverified' && tryGit(['cat-file', '-e', `${commit}^{commit}`]) !== null;
 const committedAt =

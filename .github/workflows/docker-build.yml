@@ -3,7 +3,7 @@ name: Kuma Mieru v2 container
 on:
   push:
     branches: [v2-dev]
-    tags: ["v2.*"]
+    tags: ['v2.*']
   pull_request:
     branches: [v2-dev]
   workflow_dispatch:

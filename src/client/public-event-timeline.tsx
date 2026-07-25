@@ -38,7 +38,7 @@ export const PublicEventTimeline = ({
     <section className="mt-12 border-t border-black/5 pt-9" aria-labelledby="public-timeline-title">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-black/35 uppercase">
+          <p className="text-xs font-semibold tracking-[0.18em] text-black/60 uppercase">
             {eyebrow}
           </p>
           <h2
@@ -47,7 +47,7 @@ export const PublicEventTimeline = ({
           >
             {title}
           </h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-black/50">{description}</p>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-black/60">{description}</p>
         </div>
         {showFeeds ? (
           <div className="flex flex-wrap gap-2">
@@ -95,7 +95,7 @@ export const PublicEventTimeline = ({
                         {publication.title}
                       </h3>
                     </div>
-                    <span className="shrink-0 text-xs text-black/35">
+                    <span className="shrink-0 text-xs text-black/60">
                       Publication #{publication.eventSequence}
                     </span>
                   </div>
@@ -108,7 +108,7 @@ export const PublicEventTimeline = ({
                       {new Date(publication.scheduledEndAt).toLocaleString()}
                     </p>
                   ) : null}
-                  <div className="mt-5 flex flex-col gap-2 border-t border-black/5 pt-4 text-xs text-black/40 sm:flex-row sm:flex-wrap sm:gap-x-5">
+                  <div className="mt-5 flex flex-col gap-2 border-t border-black/5 pt-4 text-xs text-black/60 sm:flex-row sm:flex-wrap sm:gap-x-5">
                     <EventTime label="Occurred" value={publication.occurredAt} />
                     <EventTime label="Published" value={publication.publishedAt} />
                     {publication.affectedComponentIds.length > 0 ? (
@@ -134,7 +134,7 @@ export const PublicEventTimeline = ({
         <div className="mt-7 rounded-3xl border border-dashed border-black/10 bg-[#fafbf9] px-6 py-8">
           <Clock3 aria-hidden="true" className="text-black/30" size={20} />
           <p className="mt-3 text-sm font-medium">{emptyTitle}</p>
-          <p className="mt-1 text-xs leading-5 text-black/45">{emptyDescription}</p>
+          <p className="mt-1 text-xs leading-5 text-black/60">{emptyDescription}</p>
         </div>
       )}
     </section>

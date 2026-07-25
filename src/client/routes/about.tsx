@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 
 export const About = () => (
   <article className="mx-auto max-w-3xl rounded-[2rem] border border-black/5 bg-white p-8 shadow-[0_24px_90px_rgba(23,33,26,0.07)] sm:p-12">
-    <Link className="inline-flex items-center gap-2 text-sm text-black/45 hover:text-black" to="/">
+    <Link className="inline-flex items-center gap-2 text-sm text-black/60 hover:text-black" to="/">
       <ArrowLeft size={16} /> Return to status pages
     </Link>
     <div className="mt-10 flex items-center gap-3 text-sm font-semibold text-emerald-800">

@@ -38,14 +38,8 @@ test('loads typed release evidence and rejects a mislabeled runtime', async () =
     assert.equal(loaded?.source.verified, true);
     assert.doesNotThrow(() => assertReleaseBuild(loaded!, '2.0.0-dev'));
     assert.doesNotThrow(() => assertReleaseSchema(loaded!, 13));
-    assert.throws(
-      () => assertReleaseBuild(loaded!, '2.0.1'),
-      /differs from release manifest/u
-    );
-    assert.throws(
-      () => assertReleaseSchema(loaded!, 14),
-      /outside release range/u
-    );
+    assert.throws(() => assertReleaseBuild(loaded!, '2.0.1'), /differs from release manifest/u);
+    assert.throws(() => assertReleaseSchema(loaded!, 14), /outside release range/u);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

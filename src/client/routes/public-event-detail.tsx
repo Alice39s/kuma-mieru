@@ -6,7 +6,7 @@ import { PublicSubscription } from '../public-subscription';
 
 const TimeField = ({ label, value }: { label: string; value: string }) => (
   <div>
-    <dt className="text-[11px] font-semibold tracking-[0.13em] text-black/35 uppercase">{label}</dt>
+    <dt className="text-[11px] font-semibold tracking-[0.13em] text-black/60 uppercase">{label}</dt>
     <dd className="mt-1 text-sm text-black/60">
       <time dateTime={value}>{new Date(value).toLocaleString()}</time>
     </dd>
@@ -43,7 +43,7 @@ const PublicationEntry = ({
             </span>
             <h2 className="mt-3 text-xl font-semibold tracking-[-0.025em]">{publication.title}</h2>
           </div>
-          <span className="text-xs text-black/35">Version {publication.eventSequence}</span>
+          <span className="text-xs text-black/60">Version {publication.eventSequence}</span>
         </div>
         <p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-black/60">
           {publication.body}
@@ -62,7 +62,7 @@ const PublicationEntry = ({
           <TimeField label="Recorded" value={publication.recordedAt} />
           <TimeField label="Published" value={publication.publishedAt} />
         </dl>
-        <p className="mt-5 inline-flex items-center gap-2 text-xs text-black/40">
+        <p className="mt-5 inline-flex items-center gap-2 text-xs text-black/60">
           <Layers3 aria-hidden="true" size={14} />
           {publication.affectedComponentIds.length > 0
             ? publication.affectedComponentIds.join(', ')
@@ -89,7 +89,7 @@ export const PublicEventDetail = () => {
   return (
     <div className="mx-auto max-w-3xl">
       <Link
-        className="inline-flex items-center gap-2 text-sm text-black/45 transition hover:text-black"
+        className="inline-flex items-center gap-2 text-sm text-black/60 transition hover:text-black"
         to={`/status/${encodeURIComponent(pageSlug)}/`}
       >
         <ArrowLeft aria-hidden="true" size={16} /> Return to {page.title}
@@ -100,7 +100,7 @@ export const PublicEventDetail = () => {
         >
           <EventIcon aria-hidden="true" size={22} />
         </span>
-        <p className="mt-6 text-xs font-semibold tracking-[0.18em] text-black/35 uppercase">
+        <p className="mt-6 text-xs font-semibold tracking-[0.18em] text-black/60 uppercase">
           {presentation.label} · complete published record
         </p>
         <h1 className="mt-3 font-serif text-4xl font-medium tracking-[-0.035em] sm:text-5xl">
@@ -112,7 +112,7 @@ export const PublicEventDetail = () => {
           >
             {presentation.stateLabel}
           </span>
-          <span className="inline-flex items-center gap-2 text-xs text-black/40">
+          <span className="inline-flex items-center gap-2 text-xs text-black/60">
             <Clock3 aria-hidden="true" size={14} /> {publications.length} published{' '}
             {publications.length === 1 ? 'entry' : 'entries'}
           </span>

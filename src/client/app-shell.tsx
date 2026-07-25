@@ -3,6 +3,12 @@ import { Link, Outlet, isRouteErrorResponse, useRouteError } from 'react-router'
 
 export const AppShell = () => (
   <div className="min-h-screen bg-[#f5f7f4] text-[#17211a] selection:bg-emerald-200">
+    <a
+      className="fixed top-4 left-4 z-50 -translate-y-24 rounded-xl bg-[#17211a] px-4 py-2.5 text-sm font-semibold text-white shadow-xl transition focus:translate-y-0"
+      href="#main-content"
+    >
+      Skip to status content
+    </a>
     <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(92,186,126,0.14),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(73,120,96,0.10),transparent_28%)]" />
     <header className="relative border-b border-black/5 bg-white/75 backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
@@ -12,7 +18,7 @@ export const AppShell = () => (
           </span>
           <span>
             <span className="block text-sm font-semibold tracking-tight">Kuma Mieru</span>
-            <span className="block text-[11px] font-medium tracking-[0.18em] text-black/40 uppercase">
+            <span className="block text-[11px] font-medium tracking-[0.18em] text-black/60 uppercase">
               Status infrastructure
             </span>
           </span>
@@ -28,6 +34,7 @@ export const AppShell = () => (
             Overview
           </Link>
           <Link
+            aria-label="Administration"
             className="flex items-center gap-2 rounded-xl px-3 py-2 transition hover:bg-black/5 hover:text-black"
             to="/admin"
           >
@@ -37,10 +44,14 @@ export const AppShell = () => (
         </nav>
       </div>
     </header>
-    <main className="relative mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-16">
+    <main
+      className="relative mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-16"
+      id="main-content"
+      tabIndex={-1}
+    >
       <Outlet />
     </main>
-    <footer className="relative mx-auto flex max-w-6xl flex-col gap-4 border-t border-black/5 px-5 py-8 text-xs text-black/45 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+    <footer className="relative mx-auto flex max-w-6xl flex-col gap-4 border-t border-black/5 px-5 py-8 text-xs text-black/60 sm:flex-row sm:items-center sm:justify-between sm:px-8">
       <span className="flex items-center gap-2">
         <Gauge aria-hidden="true" size={14} /> Built for calm, verifiable incident communication.
       </span>

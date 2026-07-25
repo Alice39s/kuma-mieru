@@ -104,11 +104,11 @@ export const SubscriptionActionPage = () => {
           <span className="grid size-12 place-items-center rounded-2xl bg-[#17211a] text-white">
             <Icon aria-hidden="true" size={21} />
           </span>
-          <p className="mt-6 text-xs font-semibold tracking-[0.18em] text-black/35 uppercase">
+          <p className="mt-6 text-xs font-semibold tracking-[0.18em] text-black/60 uppercase">
             Private subscription action
           </p>
           <h1 className="mt-3 font-serif text-4xl font-medium tracking-[-0.035em]">{heading}</h1>
-          <p className="mt-3 text-sm leading-6 text-black/50">
+          <p className="mt-3 text-sm leading-6 text-black/60">
             {scopeSummary({
               incidentId: data.view.incidentId,
               componentIds: data.view.componentIds,
@@ -127,7 +127,7 @@ export const SubscriptionActionPage = () => {
                     ? 'Preferences updated'
                     : 'You are unsubscribed'}
               </h2>
-              <p className="mt-2 text-sm leading-6 text-black/50">
+              <p className="mt-2 text-sm leading-6 text-black/60">
                 The requested change has been applied. This token cannot be used to reveal an email
                 address.
               </p>
@@ -147,7 +147,7 @@ export const SubscriptionActionPage = () => {
                     <input value="page" type="radio" {...form.register('scope')} />
                     <span>
                       <strong className="block text-sm">Entire status page</strong>
-                      <span className="mt-1 block text-xs leading-5 text-black/45">
+                      <span className="mt-1 block text-xs leading-5 text-black/60">
                         Every publication that explicitly opts into email.
                       </span>
                     </span>
@@ -157,7 +157,7 @@ export const SubscriptionActionPage = () => {
                       <input value="components" type="radio" {...form.register('scope')} />
                       <span>
                         <strong className="block text-sm">Selected components</strong>
-                        <span className="mt-1 block text-xs leading-5 text-black/45">
+                        <span className="mt-1 block text-xs leading-5 text-black/60">
                           Only publications affecting at least one selected component.
                         </span>
                       </span>
@@ -168,7 +168,7 @@ export const SubscriptionActionPage = () => {
                       <input value="incident" type="radio" {...form.register('scope')} />
                       <span>
                         <strong className="block text-sm">This incident only</strong>
-                        <span className="mt-1 block text-xs leading-5 text-black/45">
+                        <span className="mt-1 block text-xs leading-5 text-black/60">
                           Follow later updates and its published postmortem.
                         </span>
                       </span>
@@ -229,7 +229,7 @@ export const SubscriptionActionPage = () => {
                   the button below.
                 </p>
               </div>
-              <p className="mt-5 text-xs text-black/40">
+              <p className="mt-5 text-xs text-black/60">
                 This action link expires {new Date(data.view.expiresAt).toLocaleString()}.
               </p>
               {requestError ? (
