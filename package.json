@@ -25,6 +25,7 @@
     "start:v1": "bun run generate && bun ./scripts/init-start.ts && bun .next/standalone/server.js",
     "start:v2": "node dist/v2/server/index.js",
     "migrate-v1": "bun run build:v2:server && node dist/v2/server/cli/migrate-v1.js",
+    "restore-backup": "bun run build:v2:server && node dist/v2/server/cli/restore-backup.js",
     "start:docker": "bun run generate && node ./server.js",
     "build": "bun run build:v2",
     "build:v1": "bun run generate && next build",

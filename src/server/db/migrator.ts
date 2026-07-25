@@ -3,7 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type Database from 'better-sqlite3';
 
-interface MigrationFile {
+export interface MigrationFile {
   version: number;
   name: string;
   path: string;
@@ -11,7 +11,7 @@ interface MigrationFile {
   checksum: string;
 }
 
-interface AppliedMigration {
+export interface AppliedMigration {
   version: number;
   name: string;
   checksum_sha256: string;
@@ -34,7 +34,7 @@ const migrationFileName = /^([0-9]{6})_([a-z0-9_]+)\.up\.sql$/;
 
 const checksum = (content: string) => createHash('sha256').update(content, 'utf8').digest('hex');
 
-const loadMigrationFiles = async (directory: string): Promise<MigrationFile[]> => {
+export const loadMigrationFiles = async (directory: string): Promise<MigrationFile[]> => {
   const entries = await readdir(directory, { withFileTypes: true });
   const candidates = entries
     .filter(entry => entry.isFile() && entry.name.endsWith('.up.sql'))
@@ -89,7 +89,7 @@ const ensureLedger = (database: Database.Database) => {
   `);
 };
 
-const verifyDatabase = (database: Database.Database) => {
+export const verifyDatabase = (database: Database.Database) => {
   const integrity = database.pragma('integrity_check') as Array<{ integrity_check: string }>;
   if (integrity.length !== 1 || integrity[0]?.integrity_check !== 'ok') {
     throw new Error('SQLite integrity_check failed');
@@ -113,14 +113,10 @@ const hasApplicationTables = (database: Database.Database) => {
   return row.count > 0;
 };
 
-export const migrateDatabase = async (
+export const verifyAppliedMigrations = (
   database: Database.Database,
-  options: MigrationOptions
-): Promise<MigrationResult> => {
-  ensureLedger(database);
-  verifyDatabase(database);
-
-  const files = await loadMigrationFiles(options.directory);
+  files: MigrationFile[]
+): AppliedMigration[] => {
   const appliedRows = database
     .prepare('SELECT version, name, checksum_sha256 FROM schema_migrations ORDER BY version ASC')
     .all() as AppliedMigration[];
@@ -137,6 +133,18 @@ export const migrateDatabase = async (
       throw new Error(`Migration drift detected at version ${applied.version}`);
     }
   }
+  return appliedRows;
+};
+
+export const migrateDatabase = async (
+  database: Database.Database,
+  options: MigrationOptions
+): Promise<MigrationResult> => {
+  ensureLedger(database);
+  verifyDatabase(database);
+
+  const files = await loadMigrationFiles(options.directory);
+  const appliedRows = verifyAppliedMigrations(database, files);
 
   const appliedVersions = new Set(appliedRows.map(row => row.version));
   const pending = files.filter(file => !appliedVersions.has(file.version));

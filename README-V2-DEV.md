@@ -122,6 +122,38 @@ root-filesystem write, accepted the `/data` write, returned schema version 7 fro
 exited with code 0 on Compose SIGTERM. The isolated Compose project, volume, network, image, and
 temporary remote directory were removed after the test.
 
+## SQLite backup and offline restore
+
+Kuma Mieru creates a daily online SQLite backup by default. The scheduler can be disabled with
+`KUMA_MIERU_BACKUP_SCHEDULE_ENABLED=false`; Owner-triggered backups remain available through the
+Admin API. Backups live only below `/data/backups`, use fixed `bkp_<uuid>` identifiers, and consist
+of a `0600` SQLite artifact plus a `0600` JSON Manifest. The Manifest binds the application build,
+Schema version, byte size, and SHA-256 without exposing an absolute source path.
+
+The Owner-only Admin surface can list backups, create one after recent authentication, and validate
+a restore candidate. It never accepts an arbitrary filesystem path and never performs an online
+restore. Backup creation uses SQLite's Online Backup API, checks free space, serializes concurrent
+jobs through the catalog, validates the SQLite header, integrity, foreign keys, Migration Ledger,
+size, and checksum, then atomically publishes the artifact. Interrupted `creating` rows are marked
+failed at startup and only their exact `.partial` files are removed. Ready or failed backups are
+never deleted automatically.
+
+Restore is an explicit offline operator workflow:
+
+```bash
+bun run restore-backup -- --backup-id bkp_<uuid> --data-dir ./data
+bun run restore-backup -- --backup-id bkp_<uuid> --data-dir ./data --execute
+```
+
+The first command is a zero-write dry run. Before `--execute`, stop Kuma Mieru. Execution refuses a
+database with WAL/SHM sidecars, revalidates the fixed backup artifact, checks rollback space, copies
+and hashes a private candidate, atomically replaces the database, and preserves the previous file
+as `kuma-mieru.sqlite3.pre-restore-<timestamp>`. Start the same or newer compatible build afterward,
+verify `/health/ready`, and retain the pre-restore file until the operator's rollback window ends.
+The production image contains the same compiled CLI; a container deployment can invoke
+`node dist/v2/server/cli/restore-backup.js --backup-id bkp_<uuid> --data-dir /data` from a one-off
+container after the main service has stopped.
+
 ## Uptime Kuma public adapter
 
 The v1/v2 adapter only reads the public status-page and heartbeat endpoints. It never connects to

@@ -9,6 +9,7 @@ import { createBootstrapService } from './auth/bootstrap.js';
 import { createManagedRevision, type ConfigRevision } from './config/repository.js';
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 import { openDatabase } from './db/database.js';
+import { createBackupService } from './db/backup.js';
 import { migrateDatabase } from './db/migrator.js';
 import { createSmtpTestService } from './delivery/smtp-config.js';
 import { reconcileSignalAutomation } from './events/automation-repository.js';
@@ -25,6 +26,14 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       directory: resolve(process.cwd(), 'migrations'),
       databasePath,
     });
+    const backupService = createBackupService({
+      database,
+      databasePath,
+      dataDirectory: directory,
+      migrationDirectory: resolve(process.cwd(), 'migrations'),
+      appBuild: '2.0.0-test',
+    });
+    await backupService.recoverInterrupted();
     const initial = createManagedRevision(
       database,
       {
@@ -107,6 +116,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       auth,
       authSecret: secret,
       trustedOrigins: [baseURL],
+      backupService,
       secretStore,
       smtpTest,
       isEmailDeliveryEnabled: () => true,
@@ -395,6 +405,43 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       'Sec-Fetch-Site': 'same-origin',
       'X-Kuma-CSRF': sessionBody.data.csrfToken,
     };
+    const backupCreate = await app.request('/api/v1/admin/backups', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: '{}',
+    });
+    assert.equal(backupCreate.status, 201);
+    const backupCreateBody = (await backupCreate.json()) as {
+      data: { backupId: string; valid: boolean };
+    };
+    assert.equal(backupCreateBody.data.valid, true);
+    const backups = await app.request('/api/v1/admin/backups', {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(backups.status, 200);
+    const backupsBody = (await backups.json()) as {
+      data: Array<{ id: string; state: string; fileName: string }>;
+    };
+    assert.deepEqual(
+      backupsBody.data.map(item => ({
+        id: item.id,
+        state: item.state,
+        fileName: item.fileName,
+      })),
+      [
+        {
+          id: backupCreateBody.data.backupId,
+          state: 'ready',
+          fileName: `${backupCreateBody.data.backupId}.sqlite3`,
+        },
+      ]
+    );
+    const backupValidation = await app.request('/api/v1/admin/backups/restore/validate', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({ backupId: backupCreateBody.data.backupId }),
+    });
+    assert.equal(backupValidation.status, 200);
     const smtpCredentials = await app.request('/api/v1/admin/secrets/smtp-credentials', {
       method: 'POST',
       headers: mutationHeaders,

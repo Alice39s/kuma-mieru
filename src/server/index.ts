@@ -14,6 +14,7 @@ import { loadOrCreateAuthSecret } from './auth/secret.js';
 import { loadRuntimeConfig } from './config/runtime-config.js';
 import { createFileConfigReloader } from './config/file-reloader.js';
 import { openDatabase } from './db/database.js';
+import { createBackupService, startBackupScheduler } from './db/backup.js';
 import { migrateDatabase } from './db/migrator.js';
 import { createDeliveryRuntime } from './delivery/runtime.js';
 import { createSmtpTestService } from './delivery/smtp-config.js';
@@ -46,6 +47,21 @@ const migration = await migrateDatabase(database, {
   databasePath,
   appBuild: buildVersion,
 });
+const backupService = createBackupService({
+  database,
+  databasePath,
+  dataDirectory,
+  migrationDirectory,
+  appBuild: buildVersion,
+});
+const interruptedBackups = await backupService.recoverInterrupted();
+if (interruptedBackups > 0) {
+  console.warn('Recovered interrupted backup records', { count: interruptedBackups });
+}
+const stopBackupScheduler =
+  process.env.KUMA_MIERU_BACKUP_SCHEDULE_ENABLED === 'false'
+    ? () => undefined
+    : startBackupScheduler({ service: backupService });
 const secretKeyring = await loadOrCreateSecretKeyring(dataDirectory);
 const secretStore = createSecretStore(database, secretKeyring);
 let runtimeSnapshot = await loadRuntimeConfig({ database });
@@ -141,6 +157,7 @@ const app = createApp({
   getDeliveryRuntimeStatus: deliveryRuntime.status,
   isEmailDeliveryEnabled: () => deliveryRuntime.status().state === 'running',
   secretStore,
+  backupService,
   publicDirectory: process.env.NODE_ENV === 'development' ? undefined : clientDirectory,
   loadPageSnapshots: page =>
     page.sourceRefs.flatMap(sourceId => {
@@ -187,6 +204,7 @@ const shutdown = (signal: NodeJS.Signals) => {
     process.removeListener('SIGHUP', reloadOnSighup);
     stopFileReloader();
     stopSourcePoller();
+    stopBackupScheduler();
     deliveryRuntime.stop();
     database.close();
     process.exit(0);

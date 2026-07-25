@@ -35,6 +35,7 @@ import type { RuntimeConfigSnapshot } from '../config/runtime-config.js';
 import type { DeliveryRuntimeStatus } from '../delivery/runtime.js';
 import type { SmtpTestService } from '../delivery/smtp-config.js';
 import type { SecretStore } from '../secrets/store.js';
+import { backupErrorCode, type BackupService } from '../db/backup.js';
 import {
   appendIncidentUpdate,
   createIncident,
@@ -151,6 +152,9 @@ const automationSuggestionIgnoreSchema = z.object({
 const adminListLimitSchema = z.coerce.number().int().min(1).max(500).default(200);
 const deliveryRetrySchema = z.object({ expectedState: z.enum(['failed', 'dead_letter']) });
 const subscriberSuppressSchema = z.object({ expectedState: z.literal('active') });
+const backupRestoreValidateSchema = z.object({
+  backupId: z.string().min(1).max(64),
+});
 
 export interface AdminRouteOptions {
   database?: Database.Database;
@@ -165,6 +169,7 @@ export interface AdminRouteOptions {
   onManagedRevision?: (revision: ConfigRevision) => void | Promise<void>;
   getFileReloadStatus?: () => FileReloadStatus;
   reloadFileConfig?: () => Promise<FileReloadResult>;
+  backupService?: BackupService;
 }
 
 export const registerAdminRoutes = (
@@ -182,6 +187,7 @@ export const registerAdminRoutes = (
     onManagedRevision,
     getFileReloadStatus,
     reloadFileConfig,
+    backupService,
   }: AdminRouteOptions
 ) => {
   const publicationReview = authSecret ? createPublicationReviewService(authSecret) : null;
@@ -323,6 +329,12 @@ export const registerAdminRoutes = (
         errorResponse(context, 413, 'BODY_TOO_LARGE', 'Admin JSON body exceeds 256 KiB'),
     })
   );
+  const noStore = async (context: Context<AppEnvironment>, next: () => Promise<void>) => {
+    await next();
+    context.header('Cache-Control', 'no-store');
+  };
+  app.use('/api/v1/admin/backups', noStore);
+  app.use('/api/v1/admin/backups/*', noStore);
 
   app.get('/api/v1/admin/session', async context => {
     const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
@@ -349,6 +361,76 @@ export const registerAdminRoutes = (
         'Configuration database is unavailable'
       );
     return context.json({ data: listManagedRevisions(database) });
+  });
+
+  const handleBackupError = (
+    context: Context<AppEnvironment>,
+    error: unknown,
+    principal: AdminPrincipal
+  ) => {
+    const code = error instanceof z.ZodError ? 'validation_failed' : backupErrorCode(error);
+    const status =
+      code === 'backup_not_found'
+        ? 404
+        : code === 'backup_in_progress' || code === 'backup_not_ready'
+          ? 409
+          : code === 'backup_space_insufficient'
+            ? 507
+            : 400;
+    writeRouteAudit(context, principal.userId, 'failed', code.toUpperCase());
+    const safeMessage =
+      code.startsWith('backup_') && error instanceof Error
+        ? error.message
+        : 'Backup operation failed';
+    return errorResponse(
+      context,
+      status,
+      code.toUpperCase(),
+      error instanceof z.ZodError ? 'Backup request is invalid' : safeMessage
+    );
+  };
+
+  app.get('/api/v1/admin/backups', async context => {
+    const authorization = await requireAdmin(context, ['owner']);
+    if (!authorization.ok) return authorization.response;
+    if (!backupService) {
+      return errorResponse(context, 503, 'BACKUP_NOT_READY', 'Backup service is unavailable');
+    }
+    return context.json({ data: backupService.list() });
+  });
+
+  app.post('/api/v1/admin/backups', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!backupService) {
+      return errorResponse(context, 503, 'BACKUP_NOT_READY', 'Backup service is unavailable');
+    }
+    try {
+      z.object({})
+        .strict()
+        .parse(await context.req.json());
+      const backup = await backupService.create(authorization.principal.userId);
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: backup }, 201);
+    } catch (error) {
+      return handleBackupError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/backups/restore/validate', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!backupService) {
+      return errorResponse(context, 503, 'BACKUP_NOT_READY', 'Backup service is unavailable');
+    }
+    try {
+      const input = backupRestoreValidateSchema.parse(await context.req.json());
+      const validation = await backupService.validate(input.backupId);
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: validation });
+    } catch (error) {
+      return handleBackupError(context, error, authorization.principal);
+    }
   });
 
   app.get('/api/v1/admin/sources', async context => {

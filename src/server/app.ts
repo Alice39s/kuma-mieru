@@ -20,6 +20,7 @@ import type { FileReloadResult, FileReloadStatus } from './config/file-reloader.
 import type { CanonicalConfig } from './config/schema.js';
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 import type { SecretStore } from './secrets/store.js';
+import type { BackupService } from './db/backup.js';
 import type { DeliveryRuntimeStatus } from './delivery/runtime.js';
 import type { SmtpTestService } from './delivery/smtp-config.js';
 import {
@@ -79,6 +80,7 @@ export interface AppOptions {
   getDeliveryRuntimeStatus?: () => DeliveryRuntimeStatus;
   isEmailDeliveryEnabled?: () => boolean;
   secretStore?: SecretStore;
+  backupService?: BackupService;
 }
 
 export const createApp = ({
@@ -104,6 +106,7 @@ export const createApp = ({
   getDeliveryRuntimeStatus,
   isEmailDeliveryEnabled = () => false,
   secretStore,
+  backupService,
 }: AppOptions) => {
   const app = new Hono<AppEnvironment>();
   const currentSnapshot = () => getRuntimeSnapshot?.() ?? snapshot;
@@ -864,6 +867,7 @@ export const createApp = ({
     onManagedRevision,
     getFileReloadStatus,
     reloadFileConfig,
+    backupService,
   });
 
   app.notFound(context => {
