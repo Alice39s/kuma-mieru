@@ -1,14 +1,19 @@
 import {
   BarChart3,
   BookOpen,
-  CheckCircle2,
   ChevronLeft,
+  Clock3,
   ExternalLink,
   History,
   RadioTower,
 } from 'lucide-react';
 import { Link, useLoaderData, useParams, useRouteLoaderData } from 'react-router';
 import type { PublicBootstrap, StatusPagePayload } from '../api';
+import {
+  presentationForStatus,
+  statusForPublicEvidence,
+  type PublicStatus,
+} from '../status-presentation';
 
 export const StatusPage = () => {
   const data = useRouteLoaderData('root') as PublicBootstrap;
@@ -17,6 +22,18 @@ export const StatusPage = () => {
   const { pageId, pageSlug } = useParams();
   const slug = pageSlug ?? pageId;
   const page = data.pages.find(candidate => candidate.slug === slug || candidate.id === slug);
+  const sourceStatuses = snapshot?.data.map(item => item.snapshot.status) ?? ([] as PublicStatus[]);
+  const staleSourceCount = snapshot?.data.filter(item => item.health.stale).length ?? 0;
+  const sourceCount = snapshot?.data.length ?? 0;
+  const partialCoverage = snapshot?.meta.status === 'partial';
+  const freshnessWarning = staleSourceCount > 0 || partialCoverage;
+  const overallStatus = statusForPublicEvidence(sourceStatuses, freshnessWarning);
+  const overallPresentation = presentationForStatus(overallStatus);
+  const OverallIcon = overallPresentation.Icon;
+  const latestSnapshotAt = snapshot?.data
+    .map(item => Date.parse(item.snapshot.fetchedAt))
+    .filter(Number.isFinite)
+    .sort((left, right) => right - left)[0];
   const hasNativeMetrics =
     snapshot?.data.some(item => item.snapshot.capabilities.nativeMetrics) ?? false;
   const hasMethodology =
@@ -53,21 +70,54 @@ export const StatusPage = () => {
       </Link>
       <section className="overflow-hidden rounded-[2rem] border border-black/5 bg-white shadow-[0_24px_90px_rgba(23,33,26,0.07)]">
         <div className="border-b border-black/5 p-7 sm:p-10">
-          <div className="flex items-center gap-3 text-sm font-semibold text-emerald-800">
-            <CheckCircle2 size={18} />
-            {snapshot
-              ? snapshot.meta.status === 'ok'
-                ? 'Live snapshot healthy'
-                : 'Showing partial data'
-              : 'Waiting for first snapshot'}
-          </div>
-          <h1 className="mt-7 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
+          <p className="text-xs font-semibold tracking-[0.18em] text-black/35 uppercase">
+            Public status
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
             {page.title}
           </h1>
           <p className="mt-3 text-sm leading-6 text-black/50">
             Public data is served from the local normalized snapshot. Visitor requests never call
             the upstream source directly.
           </p>
+          <div
+            className={`mt-8 flex flex-col gap-5 rounded-3xl border p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6 ${overallPresentation.bannerClassName}`}
+            aria-live="polite"
+          >
+            <div className="flex items-center gap-4">
+              <span
+                className={`grid size-12 shrink-0 place-items-center rounded-2xl shadow-lg ${overallPresentation.iconClassName}`}
+              >
+                <OverallIcon aria-hidden="true" size={23} strokeWidth={2.2} />
+              </span>
+              <div>
+                <p className="text-lg font-semibold tracking-[-0.02em]">
+                  {overallPresentation.label}
+                </p>
+                <p className="mt-1 text-sm leading-5 text-black/55">
+                  {overallPresentation.summary}
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col gap-1 text-left text-xs text-black/50 sm:text-right">
+              <span className={freshnessWarning ? 'font-semibold text-amber-900' : ''}>
+                {!snapshot
+                  ? 'No source snapshot'
+                  : staleSourceCount > 0
+                    ? `${staleSourceCount} of ${sourceCount} sources stale`
+                    : partialCoverage
+                      ? 'Partial source coverage'
+                      : `${sourceCount} ${sourceCount === 1 ? 'source' : 'sources'} current`}
+              </span>
+              {latestSnapshotAt ? (
+                <time dateTime={new Date(latestSnapshotAt).toISOString()}>
+                  Updated {new Date(latestSnapshotAt).toLocaleString()}
+                </time>
+              ) : (
+                <span>Waiting for the first successful poll</span>
+              )}
+            </div>
+          </div>
           <div className="mt-6 flex flex-wrap gap-3">
             {hasNativeMetrics ? (
               <Link
@@ -88,35 +138,58 @@ export const StatusPage = () => {
           </div>
         </div>
         <div className="p-7 sm:p-10">
-          {snapshot ? (
+          {snapshot && snapshot.data.some(item => item.snapshot.services.length > 0) ? (
             <div className="space-y-3">
               {snapshot.data.flatMap(item =>
-                item.snapshot.services.map(service => (
-                  <div
-                    key={service.id}
-                    className="flex items-center justify-between gap-5 rounded-2xl bg-[#f5f7f4] p-5"
-                  >
-                    <div>
-                      <span className="flex items-center gap-3 font-medium">
-                        <RadioTower size={18} /> {service.name}
-                      </span>
-                      <span className="mt-1 block text-xs text-black/40">
-                        {service.latencyMs === null
-                          ? 'No latency sample'
-                          : `${service.latencyMs} ms`}
+                item.snapshot.services.map(service => {
+                  const presentation = presentationForStatus(service.status);
+                  const StatusIcon = presentation.Icon;
+                  return (
+                    <div
+                      key={service.id}
+                      className="flex flex-col gap-4 rounded-2xl border border-black/[0.045] bg-[#f7f8f6] p-5 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <span className="flex items-center gap-3 font-medium">
+                          <RadioTower aria-hidden="true" size={18} /> {service.name}
+                        </span>
+                        <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-black/40">
+                          <span>
+                            {service.latencyMs === null
+                              ? 'No latency sample'
+                              : `${service.latencyMs} ms latency`}
+                          </span>
+                          {service.uptime24h === null ? null : (
+                            <span>{service.uptime24h.toFixed(2)}% uptime · 24h</span>
+                          )}
+                          {service.observedAt ? (
+                            <time
+                              className="inline-flex items-center gap-1"
+                              dateTime={service.observedAt}
+                            >
+                              <Clock3 aria-hidden="true" size={12} />
+                              {new Date(service.observedAt).toLocaleString()}
+                            </time>
+                          ) : null}
+                        </span>
+                      </div>
+                      <span
+                        className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${presentation.badgeClassName}`}
+                        aria-label={`Status: ${presentation.label}`}
+                      >
+                        <StatusIcon aria-hidden="true" size={14} strokeWidth={2.3} />
+                        {presentation.label}
                       </span>
                     </div>
-                    <span className="rounded-full bg-emerald-700/10 px-3 py-1 text-xs font-semibold text-emerald-800">
-                      {service.status.replaceAll('_', ' ')}
-                    </span>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           ) : (
             <div className="rounded-2xl bg-[#f5f7f4] p-5 text-sm text-black/50">
-              The source poller is preparing the first local snapshot. This page will not fall back
-              to a visitor-triggered upstream request.
+              {snapshot
+                ? 'The current source snapshot does not contain any public services.'
+                : 'The source poller is preparing the first local snapshot. This page will not fall back to a visitor-triggered upstream request.'}
             </div>
           )}
           {payload.mirroredEvents.length > 0 ? (

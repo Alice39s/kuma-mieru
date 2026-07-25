@@ -1,3 +1,5 @@
+import type { PublicStatus } from './status-presentation';
+
 export interface PublicPage {
   id: string;
   slug: string;
@@ -35,7 +37,7 @@ export interface SourceSnapshotState {
     pageId: string;
     title: string;
     description: string;
-    status: string;
+    status: PublicStatus;
     fetchedAt: string;
     extensions: Record<string, unknown>;
     capabilities: {
@@ -45,7 +47,7 @@ export interface SourceSnapshotState {
     services: Array<{
       id: string;
       name: string;
-      status: string;
+      status: PublicStatus;
       latencyMs: number | null;
       observedAt: string | null;
       uptime24h: number | null;

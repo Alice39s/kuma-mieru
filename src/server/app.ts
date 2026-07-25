@@ -63,12 +63,12 @@ const publicMetricQuerySchema = z.object({
 });
 
 const statusRank: Record<NormalizedStatus, number> = {
-  unknown: 0,
+  operational: 0,
   pending: 1,
   paused: 2,
-  operational: 3,
-  maintenance: 4,
-  degraded: 5,
+  maintenance: 3,
+  degraded: 4,
+  unknown: 5,
   partial_outage: 6,
   major_outage: 7,
 };
@@ -158,13 +158,15 @@ export const createApp = ({
     (requested ? findPage(requested) : null) ?? currentSnapshot().config.pages[0] ?? null;
   const ogInputForPage = (page: CanonicalConfig['pages'][number], view: OgView): OgImageInput => {
     const snapshots = loadPageSnapshots?.(page) ?? [];
+    const stale = snapshots.length === 0 || snapshots.some(item => item.health.stale);
+    const observedStatus = worstStatus(snapshots.map(item => item.snapshot.status));
     return {
       pageId: page.id,
       pageSlug: page.slug,
       title: page.title,
       description: page.description ?? '',
-      status: worstStatus(snapshots.map(item => item.snapshot.status)),
-      stale: snapshots.length === 0 || snapshots.some(item => item.health.stale),
+      status: stale && observedStatus === 'operational' ? 'unknown' : observedStatus,
+      stale,
       view,
       services: snapshots
         .flatMap(item => item.snapshot.services)

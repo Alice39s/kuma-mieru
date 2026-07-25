@@ -29,6 +29,45 @@ const snapshot = {
   },
 };
 
+const sourceState = (
+  sourceId: string,
+  status: SourceSnapshotState['snapshot']['status'],
+  stale: boolean
+): SourceSnapshotState => ({
+  snapshot: {
+    sourceId,
+    pageId: 'main',
+    title: `${sourceId} status`,
+    description: '',
+    status,
+    fetchedAt: '2026-07-25T03:00:00.000Z',
+    sourceUpdatedAt: null,
+    extensions: {},
+    capabilities: {
+      currentStatus: true,
+      heartbeatSeries: false,
+      latencySeries: false,
+      uptimeWindows: [],
+      incidents: 'none',
+      maintenance: false,
+      groups: false,
+      tags: false,
+      nativeMetrics: false,
+      historicalDays: null,
+    },
+    groups: [],
+    services: [],
+    incidents: [],
+  },
+  health: {
+    state: stale ? 'stale' : 'healthy',
+    stale,
+    staleAfter: stale ? '2026-07-25T02:59:00.000Z' : '2026-07-25T04:00:00.000Z',
+    lastSuccessAt: '2026-07-25T03:00:00.000Z',
+    errorCode: stale ? 'upstream_timeout' : null,
+  },
+});
+
 test('exposes readiness, compatibility health and public metadata', async () => {
   const app = createApp({ snapshot, schemaVersion: 1, buildVersion: '2.0.0-test', startedAt: 0 });
 
@@ -79,15 +118,23 @@ test('returns a stable JSON error for unknown API routes', async () => {
 });
 
 test('canonicalizes public page paths and serves cacheable page-specific OG images', async () => {
-  const calls: Array<{ pageId: string; view: string }> = [];
+  const calls: Array<{ pageId: string; view: string; status: string; stale: boolean }> = [];
   const app = createApp({
     snapshot,
     schemaVersion: 1,
     buildVersion: '2.0.0-test',
-    loadPageSnapshots: () => [],
+    loadPageSnapshots: () => [
+      sourceState('stale-source', 'operational', true),
+      sourceState('healthy-source', 'operational', false),
+    ],
     ogImageService: {
       render: async input => {
-        calls.push({ pageId: input.pageId, view: input.view });
+        calls.push({
+          pageId: input.pageId,
+          view: input.view,
+          status: input.status,
+          stale: input.stale,
+        });
         return {
           bytes: Buffer.from('png'),
           etag: '"og-etag"',
@@ -110,7 +157,12 @@ test('canonicalizes public page paths and serves cacheable page-specific OG imag
   assert.equal(image.headers.get('etag'), '"og-etag"');
   assert.equal(image.headers.get('x-kuma-mieru-og'), 'rendered');
   assert.match(image.headers.get('cache-control') ?? '', /stale-while-revalidate=86400/u);
-  assert.deepEqual(calls[0], { pageId: 'public', view: 'metrics' });
+  assert.deepEqual(calls[0], {
+    pageId: 'public',
+    view: 'metrics',
+    status: 'unknown',
+    stale: true,
+  });
 
   const unchanged = await app.request('/status/main/metrics/opengraph.png', {
     headers: { 'If-None-Match': 'W/"og-etag"' },
