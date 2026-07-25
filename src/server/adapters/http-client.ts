@@ -58,6 +58,10 @@ interface CacheRow {
 }
 
 const requestError = (code: string, message: string) => Object.assign(new Error(message), { code });
+const maximumHostnameLength = 253;
+const maximumHostnameLabelLength = 63;
+const maximumPathAndQueryLength = 8 * 1024;
+const maximumResponseHeaderBytes = 16 * 1024;
 
 const isPrivateIpv4 = (address: string) => {
   const octets = address.split('.').map(Number);
@@ -194,6 +198,22 @@ const resolveTarget = async (
     throw requestError('origin_not_allowed', 'Source redirect left the allowed origin');
   }
   const hostname = url.hostname.replaceAll('[', '').replaceAll(']', '');
+  const normalizedHostname = hostname.endsWith('.') ? hostname.slice(0, -1) : hostname;
+  if (
+    hostname.length > maximumHostnameLength ||
+    (isIP(hostname) === 0 &&
+      normalizedHostname
+        .split('.')
+        .some(label => label.length === 0 || label.length > maximumHostnameLabelLength))
+  ) {
+    throw requestError('invalid_hostname', 'Source hostname exceeds the supported DNS limits');
+  }
+  if (url.port === '0') {
+    throw requestError('invalid_port', 'Source URL port must be between 1 and 65535');
+  }
+  if (url.pathname.length + url.search.length > maximumPathAndQueryLength) {
+    throw requestError('url_too_long', 'Source URL path and query exceed 8192 characters');
+  }
   const resolved = isIP(hostname)
     ? [{ address: hostname, family: isIP(hostname) }]
     : await resolveHost(hostname, { all: true, verbatim: true });
@@ -216,8 +236,15 @@ const resolveTarget = async (
   return addresses;
 };
 
-const createPinnedDispatcher = (addresses: ResolvedAddress[]): Dispatcher =>
-  new Agent({ connections: 1, pipelining: 1 }).compose(
+const createPinnedDispatcher = (addresses: ResolvedAddress[], timeoutMs: number): Dispatcher =>
+  new Agent({
+    connections: 1,
+    pipelining: 1,
+    maxHeaderSize: maximumResponseHeaderBytes,
+    connectTimeout: timeoutMs,
+    headersTimeout: timeoutMs,
+    bodyTimeout: timeoutMs,
+  }).compose(
     interceptors.dns({
       maxTTL: 60_000,
       lookup: (_origin, _options, callback) => {
@@ -228,6 +255,63 @@ const createPinnedDispatcher = (addresses: ResolvedAddress[]): Dispatcher =>
       },
     })
   );
+
+const remainingTime = (deadline: number) => {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) {
+    throw requestError('request_timeout', 'Source request exceeded its total time limit');
+  }
+  return remaining;
+};
+
+const withinDeadline = async <T>(operation: Promise<T>, deadline: number): Promise<T> => {
+  const remaining = remainingTime(deadline);
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(requestError('request_timeout', 'Source request exceeded its total time limit')),
+          remaining
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
+const normalizeFetchError = (error: unknown, deadline: number) => {
+  if (Date.now() >= deadline) {
+    return requestError('request_timeout', 'Source request exceeded its total time limit');
+  }
+  const cause =
+    typeof error === 'object' && error && 'cause' in error && error.cause ? error.cause : error;
+  const code =
+    typeof cause === 'object' && cause && 'code' in cause && typeof cause.code === 'string'
+      ? cause.code
+      : null;
+  if (code === 'UND_ERR_HEADERS_OVERFLOW') {
+    return requestError(
+      'headers_too_large',
+      `Source response headers exceeded ${maximumResponseHeaderBytes} bytes`
+    );
+  }
+  if (
+    code === 'UND_ERR_CONNECT_TIMEOUT' ||
+    code === 'UND_ERR_HEADERS_TIMEOUT' ||
+    code === 'UND_ERR_BODY_TIMEOUT' ||
+    (typeof error === 'object' &&
+      error &&
+      'name' in error &&
+      (error.name === 'TimeoutError' || error.name === 'AbortError'))
+  ) {
+    return requestError('request_timeout', 'Source request exceeded its total time limit');
+  }
+  return error;
+};
 
 const readLimitedBody = async (response: Response, maxBodyBytes: number) => {
   if (!response.body) return new Uint8Array();
@@ -277,26 +361,45 @@ const createHttpBodyClient = (
   const timeoutMs = options.timeoutMs ?? 10_000;
   const maxBodyBytes = options.maxBodyBytes ?? 2 * 1024 * 1024;
   const maxRedirects = options.maxRedirects ?? 3;
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) {
+    throw requestError('invalid_http_client_options', 'HTTP timeout must be 1-120000 milliseconds');
+  }
+  if (!Number.isInteger(maxBodyBytes) || maxBodyBytes < 1 || maxBodyBytes > 10 * 1024 * 1024) {
+    throw requestError('invalid_http_client_options', 'HTTP body limit must be 1-10485760 bytes');
+  }
+  if (!Number.isInteger(maxRedirects) || maxRedirects < 0 || maxRedirects > 10) {
+    throw requestError(
+      'invalid_http_client_options',
+      'HTTP redirect limit must be between 0 and 10'
+    );
+  }
 
   return async (inputUrl: URL, headers: Record<string, string> = {}): Promise<HttpBodyResponse> => {
+    const deadline = Date.now() + timeoutMs;
     let url = new URL(inputUrl);
     let requestHeaders = { ...headers };
     for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
-      const addresses = await resolveTarget(
-        url,
-        privateAddressAllowlist,
-        resolveHost,
-        allowedOrigins
+      const addresses = await withinDeadline(
+        resolveTarget(url, privateAddressAllowlist, resolveHost, allowedOrigins),
+        deadline
       );
-      const dispatcher = createPinnedDispatcher(addresses);
+      const dispatcher = createPinnedDispatcher(addresses, remainingTime(deadline));
       try {
-        const response = await fetchImplementation(url, {
-          method: 'GET',
-          headers: { Accept: accept, ...requestHeaders },
-          redirect: 'manual',
-          signal: AbortSignal.timeout(timeoutMs),
-          dispatcher,
-        });
+        let response: Response;
+        try {
+          response = await withinDeadline(
+            fetchImplementation(url, {
+              method: 'GET',
+              headers: { Accept: accept, ...requestHeaders },
+              redirect: 'manual',
+              signal: AbortSignal.timeout(remainingTime(deadline)),
+              dispatcher,
+            }),
+            deadline
+          );
+        } catch (error) {
+          throw normalizeFetchError(error, deadline);
+        }
 
         if (response.status >= 300 && response.status < 400 && response.status !== 304) {
           const location = response.headers.get('location');
@@ -342,7 +445,12 @@ const createHttpBodyClient = (
           await response.body?.cancel();
           throw requestError('body_too_large', `Source response exceeded ${maxBodyBytes} bytes`);
         }
-        const body = await readLimitedBody(response, maxBodyBytes);
+        let body: Uint8Array;
+        try {
+          body = await withinDeadline(readLimitedBody(response, maxBodyBytes), deadline);
+        } catch (error) {
+          throw normalizeFetchError(error, deadline);
+        }
         return {
           status: 200,
           body,

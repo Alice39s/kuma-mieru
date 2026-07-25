@@ -44,6 +44,82 @@ test('blocks direct requests to private addresses before fetch', async () => {
   assert.equal(fetched, false);
 });
 
+test('rejects abnormal ports, DNS labels, and oversized paths before fetch', async () => {
+  let fetched = false;
+  const client = createHttpJsonClient({
+    resolveHost: async () => [{ address: '203.0.113.10', family: 4 }],
+    fetchImplementation: async () => {
+      fetched = true;
+      return Response.json({ ok: true });
+    },
+  });
+  const cases = [
+    { url: new URL('https://status.example.com:0/status'), code: 'invalid_port' },
+    {
+      url: new URL(`https://${'a'.repeat(64)}.example.com/status`),
+      code: 'invalid_hostname',
+    },
+    {
+      url: new URL(`https://status.example.com/${'a'.repeat(8 * 1024)}`),
+      code: 'url_too_long',
+    },
+  ];
+  for (const item of cases) {
+    await assert.rejects(client(item.url), error => {
+      return (
+        typeof error === 'object' && error !== null && 'code' in error && error.code === item.code
+      );
+    });
+  }
+  assert.equal(fetched, false);
+});
+
+test('applies one total deadline to DNS and the complete redirect chain', async () => {
+  let fetchedAfterDns = false;
+  const dnsClient = createHttpJsonClient({
+    timeoutMs: 20,
+    resolveHost: () =>
+      new Promise(resolveLookup => {
+        setTimeout(() => resolveLookup([{ address: '203.0.113.10', family: 4 }]), 80);
+      }),
+    fetchImplementation: async () => {
+      fetchedAfterDns = true;
+      return Response.json({ ok: true });
+    },
+  });
+  await assert.rejects(dnsClient(new URL('https://status.example.com/status')), error => {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'request_timeout'
+    );
+  });
+  assert.equal(fetchedAfterDns, false);
+
+  let redirectRequests = 0;
+  const redirectClient = createHttpJsonClient({
+    timeoutMs: 25,
+    resolveHost: async () => [{ address: '203.0.113.10', family: 4 }],
+    fetchImplementation: async () => {
+      redirectRequests += 1;
+      await new Promise(resolveWait => setTimeout(resolveWait, 15));
+      return redirectRequests === 1
+        ? new Response(null, { status: 302, headers: { Location: '/second' } })
+        : Response.json({ ok: true });
+    },
+  });
+  await assert.rejects(redirectClient(new URL('https://status.example.com/first')), error => {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'request_timeout'
+    );
+  });
+  assert.equal(redirectRequests, 2);
+});
+
 test('accepts only valid explicit private source CIDRs', () => {
   assert.deepEqual(parsePrivateAddressCidrs(' 10.0.0.0/24,fd00::/8 '), ['10.0.0.0/24', 'fd00::/8']);
   for (const value of [
@@ -102,6 +178,30 @@ test('enforces the decompressed response body limit', async () => {
       error.code === 'body_too_large'
     );
   });
+});
+
+test('rejects response headers above the explicit parser limit', async () => {
+  const server = createServer((_request, response) => {
+    response.setHeader('Content-Type', 'application/json');
+    response.setHeader('X-Oversized', 'a'.repeat(20 * 1024));
+    response.end(JSON.stringify({ ok: true }));
+  });
+  try {
+    const port = await listen(server);
+    const client = createHttpJsonClient({
+      privateAddressCidrs: ['127.0.0.1/32'],
+    });
+    await assert.rejects(client(new URL(`http://127.0.0.1:${port}/status`)), error => {
+      return (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'headers_too_large'
+      );
+    });
+  } finally {
+    await close(server);
+  }
 });
 
 test('revalidates redirect targets and blocks a redirect to localhost', async () => {
