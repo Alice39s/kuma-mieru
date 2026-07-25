@@ -99,14 +99,15 @@ test('applies one total deadline to DNS and the complete redirect chain', async 
 
   let redirectRequests = 0;
   const redirectClient = createHttpJsonClient({
-    timeoutMs: 25,
+    timeoutMs: 40,
     resolveHost: async () => [{ address: '203.0.113.10', family: 4 }],
     fetchImplementation: async () => {
       redirectRequests += 1;
-      await new Promise(resolveWait => setTimeout(resolveWait, 15));
-      return redirectRequests === 1
-        ? new Response(null, { status: 302, headers: { Location: '/second' } })
-        : Response.json({ ok: true });
+      if (redirectRequests === 1) {
+        return new Response(null, { status: 302, headers: { Location: '/second' } });
+      }
+      await new Promise(resolveWait => setTimeout(resolveWait, 80));
+      return Response.json({ ok: true });
     },
   });
   await assert.rejects(redirectClient(new URL('https://status.example.com/first')), error => {
