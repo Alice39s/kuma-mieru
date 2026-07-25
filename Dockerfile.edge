@@ -1,0 +1,15 @@
+FROM nginxinc/nginx-unprivileged:1.31.3-alpine3.24@sha256:18d67281256ded39ff65e010ae4f831be18f19356f83c60bc546492c7eb6dd23
+
+LABEL org.opencontainers.image.title="Kuma Mieru Edge" \
+      org.opencontainers.image.description="Rootless caching edge for Kuma Mieru status pages and Open Graph images" \
+      org.opencontainers.image.source="https://github.com/Alice39s/kuma-mieru" \
+      org.opencontainers.image.licenses="MPL-2.0"
+
+COPY --chown=101:101 deploy/nginx.conf /etc/nginx/nginx.conf
+COPY --chown=101:101 deploy/opengraph-fallback.png /usr/share/nginx/html/opengraph-fallback.png
+
+USER 101:101
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/health/edge || exit 1

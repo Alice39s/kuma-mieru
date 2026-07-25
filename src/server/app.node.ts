@@ -78,6 +78,52 @@ test('returns a stable JSON error for unknown API routes', async () => {
   assert.equal(typeof body.error.requestId, 'string');
 });
 
+test('canonicalizes public page paths and serves cacheable page-specific OG images', async () => {
+  const calls: Array<{ pageId: string; view: string }> = [];
+  const app = createApp({
+    snapshot,
+    schemaVersion: 1,
+    buildVersion: '2.0.0-test',
+    loadPageSnapshots: () => [],
+    ogImageService: {
+      render: async input => {
+        calls.push({ pageId: input.pageId, view: input.view });
+        return {
+          bytes: Buffer.from('png'),
+          etag: '"og-etag"',
+          source: calls.length === 1 ? 'rendered' : 'memory',
+        };
+      },
+    },
+  });
+
+  const canonical = await app.request('/status/main?region=jp');
+  assert.equal(canonical.status, 308);
+  assert.equal(canonical.headers.get('location'), '/status/main/?region=jp');
+  const legacy = await app.request('/public');
+  assert.equal(legacy.status, 308);
+  assert.equal(legacy.headers.get('location'), '/status/main/');
+
+  const image = await app.request('/status/main/metrics/opengraph.png');
+  assert.equal(image.status, 200);
+  assert.equal(image.headers.get('content-type'), 'image/png');
+  assert.equal(image.headers.get('etag'), '"og-etag"');
+  assert.equal(image.headers.get('x-kuma-mieru-og'), 'rendered');
+  assert.match(image.headers.get('cache-control') ?? '', /stale-while-revalidate=86400/u);
+  assert.deepEqual(calls[0], { pageId: 'public', view: 'metrics' });
+
+  const unchanged = await app.request('/status/main/metrics/opengraph.png', {
+    headers: { 'If-None-Match': 'W/"og-etag"' },
+  });
+  assert.equal(unchanged.status, 304);
+  assert.equal(await unchanged.text(), '');
+
+  const missing = await app.request('/api/v1/public/pages/missing/opengraph.png');
+  assert.equal(missing.status, 404);
+  const body = (await missing.json()) as { error: { code: string } };
+  assert.equal(body.error.code, 'PAGE_NOT_FOUND');
+});
+
 test('keeps public email subscription disabled until a verified runtime is active', async () => {
   const app = createApp({
     snapshot,

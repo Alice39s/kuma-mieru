@@ -138,6 +138,30 @@ production output contains no source maps, and all 141 files in the embedded Rel
 their byte length and SHA-256. A deliberately mismatched `KUMA_MIERU_BUILD_VERSION=2.0.1` failed
 before opening the listener.
 
+### OpenGraph and rootless Edge profile
+
+The SPA keeps a relative `./opengraph.png` meta tag. Hono canonicalizes configured status-page
+refreshes to trailing-slash routes and serves page-specific 1200 by 630 PNGs for Overview, Metrics,
+and Methodology views. Rendering accepts only the active validated Page and local last-known-good
+snapshot. Takumi 2.4.2 uses local Noto Sans SC coverage subsets, a fixed node tree, two concurrent
+unique renders, a five-second abort deadline, single-flight, a 128-entry LRU, strong ETags, and a
+generated static fallback. Failed or load-shed renders are not stored as successful cache entries.
+
+`docker compose -f docker-compose.edge.yml up -d --build` starts the same rootless application
+behind an independently rootless `nginx-unprivileged` image. Only Edge publishes a host port. Nginx
+adds canonical trailing-slash redirects, a bounded cache keyed without query strings, cache lock,
+stale-on-error, and an internal static fallback. It resolves the application through Docker DNS at
+request time, so Edge remains healthy and can serve cached or fallback images even when the
+application container and its DNS record are absent.
+
+The 2026-07-25 amd64 drill rendered a CJK page through the production Node 24 image with
+`X-Kuma-Mieru-OG: rendered`; its PNG differed from the packaged fallback. Edge produced MISS then
+HIT, survived a complete application stop, returned the byte-identical fallback for an uncached
+view, and returned to MISS then HIT after application recovery. Both containers ran with explicit
+non-root users, read-only root filesystems, all capabilities dropped, and no-new-privileges.
+Multi-architecture release pulls, public TLS/CDN behavior, and long-running cache capacity remain
+release-environment gates.
+
 ### Release identity and supply chain
 
 `release/v2/release-spec.json`, rather than the compatibility-period root package version, is the

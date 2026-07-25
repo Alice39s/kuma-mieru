@@ -34,6 +34,7 @@ import {
   assertReleaseSchema,
   loadReleaseManifest,
 } from './release/manifest.js';
+import { createOgImageService } from './og/service.js';
 
 const currentDirectory = fileURLToPath(new URL('.', import.meta.url));
 const dataDirectory = resolve(process.env.KUMA_MIERU_DATA_DIR ?? './data');
@@ -45,6 +46,9 @@ const migrationDirectory = process.env.KUMA_MIERU_MIGRATIONS_DIR
     ? bundledMigrationDirectory
     : resolve(process.cwd(), 'migrations');
 const clientDirectory = resolve(currentDirectory, '../client');
+const ogImageService = createOgImageService({
+  fallbackPath: resolve(clientDirectory, 'opengraph.png'),
+});
 const releaseManifest = await loadReleaseManifest(
   resolve(currentDirectory, '../release-manifest.json'),
   { required: process.env.NODE_ENV === 'production' }
@@ -217,6 +221,7 @@ const app = createApp({
   subscriberTombstones,
   isRuntimeLockHeld: runtimeLock.isHeld,
   releaseManifest,
+  ogImageService,
   publicDirectory: process.env.NODE_ENV === 'development' ? undefined : clientDirectory,
   loadPageSnapshots: page =>
     page.sourceRefs.flatMap(sourceId => {

@@ -1,0 +1,76 @@
+name: kuma-mieru-v2-edge
+
+services:
+  kuma-mieru:
+    image: ${KUMA_MIERU_IMAGE:-ghcr.io/alice39s/kuma-mieru:2-dev}
+    build:
+      context: .
+      args:
+        KUMA_MIERU_BUILD_VERSION: ${KUMA_MIERU_BUILD_VERSION:-2.0.0-dev}
+        KUMA_MIERU_SOURCE_COMMIT: ${KUMA_MIERU_SOURCE_COMMIT:-unverified}
+        KUMA_MIERU_SOURCE_COMMITTED_AT: ${KUMA_MIERU_SOURCE_COMMITTED_AT:-1970-01-01T00:00:00Z}
+        KUMA_MIERU_SOURCE_VERIFIED: ${KUMA_MIERU_SOURCE_VERIFIED:-false}
+    restart: unless-stopped
+    user: '10001:10001'
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      HOST: 0.0.0.0
+      KUMA_MIERU_DATA_DIR: /data
+      KUMA_MIERU_BASE_URL: ${KUMA_MIERU_BASE_URL:-http://localhost:3883}
+      KUMA_MIERU_TRUSTED_ORIGINS: ${KUMA_MIERU_TRUSTED_ORIGINS:-http://localhost:3883}
+    volumes:
+      - kuma-mieru-data:/data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 20s
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:3000/health/ready || exit 1']
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+  edge:
+    image: ${KUMA_MIERU_EDGE_IMAGE:-kuma-mieru-edge:2-dev}
+    build:
+      context: .
+      dockerfile: Dockerfile.edge
+    restart: unless-stopped
+    user: '101:101'
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      kuma-mieru:
+        condition: service_healthy
+    ports:
+      - '${KUMA_MIERU_PORT:-3883}:8080'
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+      - /var/cache/nginx:rw,noexec,nosuid,nodev,size=96m,mode=0750,uid=101,gid=101
+    pids_limit: 128
+    mem_limit: 128m
+    cpus: 0.5
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:8080/health/edge || exit 1']
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+
+volumes:
+  kuma-mieru-data:

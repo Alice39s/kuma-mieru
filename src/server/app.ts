@@ -26,6 +26,8 @@ import type { SmtpTestService } from './delivery/smtp-config.js';
 import type { RetentionService } from './retention/service.js';
 import type { SubscriberTombstoneStore } from './retention/tombstone-store.js';
 import type { ReleaseManifest } from './release/manifest.js';
+import type { NormalizedStatus } from './adapters/types.js';
+import type { OgImageInput, OgImageService, OgView } from './og/types.js';
 import {
   getPublishedIncident,
   listPublishedEvents,
@@ -60,6 +62,29 @@ const publicMetricQuerySchema = z.object({
   window: z.enum(['5m', '1h', '1d', '7d', '30d']).default('5m'),
 });
 
+const statusRank: Record<NormalizedStatus, number> = {
+  unknown: 0,
+  pending: 1,
+  paused: 2,
+  operational: 3,
+  maintenance: 4,
+  degraded: 5,
+  partial_outage: 6,
+  major_outage: 7,
+};
+
+const worstStatus = (statuses: NormalizedStatus[]) =>
+  statuses.reduce<NormalizedStatus>(
+    (worst, status) => (statusRank[status] > statusRank[worst] ? status : worst),
+    statuses.length > 0 ? 'operational' : 'pending'
+  );
+
+const etagMatches = (header: string | undefined, etag: string) =>
+  header
+    ?.split(',')
+    .map(value => value.trim().replace(/^W\//u, ''))
+    .some(value => value === '*' || value === etag) ?? false;
+
 export interface AppOptions {
   snapshot: RuntimeConfigSnapshot;
   schemaVersion: number;
@@ -88,6 +113,7 @@ export interface AppOptions {
   subscriberTombstones?: SubscriberTombstoneStore;
   isRuntimeLockHeld?: () => boolean;
   releaseManifest?: ReleaseManifest | null;
+  ogImageService?: OgImageService;
 }
 
 export const createApp = ({
@@ -118,6 +144,7 @@ export const createApp = ({
   subscriberTombstones,
   isRuntimeLockHeld = () => true,
   releaseManifest = null,
+  ogImageService,
 }: AppOptions) => {
   const app = new Hono<AppEnvironment>();
   const currentSnapshot = () => getRuntimeSnapshot?.() ?? snapshot;
@@ -129,6 +156,21 @@ export const createApp = ({
     );
   const findLegacyPage = (requested: string | undefined) =>
     (requested ? findPage(requested) : null) ?? currentSnapshot().config.pages[0] ?? null;
+  const ogInputForPage = (page: CanonicalConfig['pages'][number], view: OgView): OgImageInput => {
+    const snapshots = loadPageSnapshots?.(page) ?? [];
+    return {
+      pageId: page.id,
+      pageSlug: page.slug,
+      title: page.title,
+      description: page.description ?? '',
+      status: worstStatus(snapshots.map(item => item.snapshot.status)),
+      stale: snapshots.length === 0 || snapshots.some(item => item.health.stale),
+      view,
+      services: snapshots
+        .flatMap(item => item.snapshot.services)
+        .map(service => ({ name: service.name, status: service.status })),
+    };
+  };
   const mirroredFiltersForPage = (
     page: CanonicalConfig['pages'][number]
   ): MirroredEventSourceFilter[] =>
@@ -168,6 +210,86 @@ export const createApp = ({
         errorResponse(context, 413, 'BODY_TOO_LARGE', 'Setup body exceeds 64 KiB'),
     })
   );
+
+  const canonicalRedirect = (context: Context<AppEnvironment>, path: string) => {
+    const url = new URL(context.req.url);
+    return context.redirect(`${path}${url.search}`, 308);
+  };
+  const renderOg = async (
+    context: Context<AppEnvironment>,
+    page: CanonicalConfig['pages'][number],
+    view: OgView
+  ) => {
+    if (!ogImageService) {
+      return errorResponse(
+        context,
+        503,
+        'OG_RENDERER_NOT_READY',
+        'OG image rendering is unavailable'
+      );
+    }
+    const result = await ogImageService.render(ogInputForPage(page, view));
+    const headers = {
+      'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400',
+      'Content-Type': 'image/png',
+      ETag: result.etag,
+      'X-Kuma-Mieru-OG': result.source,
+    };
+    if (etagMatches(context.req.header('if-none-match'), result.etag)) {
+      return new Response(null, { status: 304, headers });
+    }
+    return new Response(Uint8Array.from(result.bytes).buffer, { status: 200, headers });
+  };
+
+  if (ogImageService) {
+    app.get('/opengraph.png', context => {
+      const page = currentSnapshot().config.pages[0];
+      return page
+        ? renderOg(context, page, 'overview')
+        : errorResponse(context, 404, 'PAGE_NOT_FOUND', 'No public status page is configured');
+    });
+    app.get('/api/v1/public/pages/:slug/opengraph.png', context => {
+      const page = findPage(context.req.param('slug'));
+      return page
+        ? renderOg(context, page, 'overview')
+        : errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+    });
+    app.get('/status/:slug/opengraph.png', context => {
+      const page = findPage(context.req.param('slug'));
+      return page ? renderOg(context, page, 'overview') : context.notFound();
+    });
+    app.get('/status/:slug/metrics/opengraph.png', context => {
+      const page = findPage(context.req.param('slug'));
+      return page ? renderOg(context, page, 'metrics') : context.notFound();
+    });
+    app.get('/status/:slug/methodology/opengraph.png', context => {
+      const page = findPage(context.req.param('slug'));
+      return page ? renderOg(context, page, 'methodology') : context.notFound();
+    });
+    app.get('/:pageId/opengraph.png', context => {
+      const page = findPage(context.req.param('pageId'));
+      return page ? renderOg(context, page, 'overview') : context.notFound();
+    });
+  }
+
+  app.get('/status/:slug', context => {
+    const page = findPage(context.req.param('slug'));
+    return page
+      ? canonicalRedirect(context, `/status/${encodeURIComponent(page.slug)}/`)
+      : context.notFound();
+  });
+  app.get('/status/:slug/metrics', context => {
+    const page = findPage(context.req.param('slug'));
+    return page
+      ? canonicalRedirect(context, `/status/${encodeURIComponent(page.slug)}/metrics/`)
+      : context.notFound();
+  });
+  app.get('/status/:slug/methodology', context => {
+    const page = findPage(context.req.param('slug'));
+    return page
+      ? canonicalRedirect(context, `/status/${encodeURIComponent(page.slug)}/methodology/`)
+      : context.notFound();
+  });
 
   app.use(
     '/api/v1/public/*',
@@ -906,6 +1028,12 @@ export const createApp = ({
     backupService,
     retentionService,
     subscriberTombstones,
+  });
+
+  app.get('/:pageId', async (context, next) => {
+    const page = findPage(context.req.param('pageId'));
+    if (!page) return next();
+    return canonicalRedirect(context, `/status/${encodeURIComponent(page.slug)}/`);
   });
 
   app.notFound(context => {

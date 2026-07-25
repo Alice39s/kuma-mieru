@@ -20,6 +20,7 @@ const run = async (script: string) => {
 
 await rm(outputDirectory, { recursive: true, force: true });
 await run('build:v2:web');
+await run('generate:v2:og-fallback');
 await run('build:v2:server');
 await mkdir(resolve(outputDirectory, 'server'), { recursive: true });
 await cp(resolve(root, 'migrations'), resolve(outputDirectory, 'server', 'migrations'), {
