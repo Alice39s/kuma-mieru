@@ -26,6 +26,7 @@ const closeServer = (server: ReturnType<typeof serve>) =>
       if (error) rejectClose(error);
       else resolveClose();
     });
+    server.closeAllConnections();
   });
 
 const waitForServer = (server: ReturnType<typeof serve>) => {

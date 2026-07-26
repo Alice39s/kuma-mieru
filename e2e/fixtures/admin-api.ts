@@ -192,12 +192,23 @@ export interface AdminApiOptions {
   empty?: boolean;
   role?: AdminRole;
   setupRequired?: boolean;
+  withConfigFile?: boolean;
   withDelivery?: boolean;
   withIncident?: boolean;
 }
 
 export interface AdminApiState {
   authenticated: boolean;
+  configMode: 'managed' | 'file';
+  configTransitionApplies: Array<{
+    schemaVersion: '1.0';
+    from: 'managed';
+    to: 'file';
+    expectedActiveRevision: number;
+    source: { kind: 'file'; path: string; sha256: string };
+    dryRun: false;
+    previewToken: string;
+  }>;
   deliveries: AdminDelivery[];
   eventTemplates: AdminEventTemplate[];
   incidents: AdminIncident[];
@@ -352,6 +363,8 @@ export const installAdminApi = async (
   let setupRequired = options.setupRequired ?? false;
   const state: AdminApiState = {
     authenticated: !setupRequired,
+    configMode: 'managed',
+    configTransitionApplies: [],
     deliveries: options.withDelivery ? [{ ...referenceDelivery }] : [],
     eventTemplates: options.empty ? [] : [{ ...referenceEventTemplate }],
     incidents: options.withIncident ? [{ ...referenceIncident }] : [],
@@ -615,12 +628,92 @@ export const installAdminApi = async (
     if (pathname === '/api/v1/admin/config/status' && method === 'GET') {
       return fulfillJson(route, {
         data: {
-          mode: 'managed',
-          revision: state.revision,
-          contentHash: `reference-revision-${state.revision}`,
+          mode: state.configMode,
+          revision: state.configMode === 'managed' ? state.revision : null,
+          contentHash:
+            state.configMode === 'managed'
+              ? `reference-revision-${state.revision}`
+              : 'e2e-file-target-content-hash',
           loadedAt: '2026-07-25T02:00:00.000Z',
           reload: null,
+          transition:
+            state.configTransitionApplies.length === 0
+              ? null
+              : {
+                  id: 'transition-e2e-reference',
+                  from: 'managed',
+                  to: 'file',
+                  state: 'completed',
+                  sourceHash: 'a'.repeat(64),
+                  targetHash: 'e2e-file-target-content-hash',
+                  targetRevision: null,
+                  backupArtifactId: 'backup-e2e-reference',
+                  errorCode: null,
+                  createdAt: '2026-07-25T02:05:00.000Z',
+                  completedAt: '2026-07-25T02:05:01.000Z',
+                },
+          fileConfigured: options.withConfigFile ?? false,
+          managedBaseRevision: state.revision,
           compatibility: null,
+        },
+      });
+    }
+
+    if (
+      pathname === '/api/v1/admin/config/transitions/file-source' &&
+      method === 'GET' &&
+      options.withConfigFile
+    ) {
+      return fulfillJson(route, {
+        data: {
+          path: '/run/secrets/kuma-mieru/config.yml',
+          sha256: 'a'.repeat(64),
+          sizeBytes: 1_024,
+        },
+      });
+    }
+
+    if (pathname === '/api/v1/admin/config/transitions/preview' && method === 'POST') {
+      recordMutationBoundary(route, state);
+      const input = parseBody<{
+        expectedActiveRevision: number;
+        source: { kind: 'file'; path: string; sha256: string };
+      }>(route);
+      return fulfillJson(route, {
+        data: {
+          previewToken: 'e2e-config-transition-preview-token',
+          expiresAt: '2026-07-25T02:10:00.000Z',
+          from: 'managed',
+          to: 'file',
+          expectedActiveRevision: input.expectedActiveRevision,
+          sourceHash: input.source.sha256,
+          targetContentHash: 'e2e-file-target-content-hash',
+          targetParentRevision: state.revision,
+          diff: {
+            sources: { added: ['llm-regional'], removed: [], changed: [] },
+            pages: { added: [], removed: [], changed: [] },
+            settings: { added: [], removed: [], changed: [] },
+          },
+          conflicts: [],
+          unmigratableFields: [],
+        },
+      });
+    }
+
+    if (pathname === '/api/v1/admin/config/transitions/apply' && method === 'POST') {
+      recordMutationBoundary(route, state);
+      const input = parseBody<AdminApiState['configTransitionApplies'][number]>(route);
+      state.configTransitionApplies.push(input);
+      state.configMode = 'file';
+      return fulfillJson(route, {
+        data: {
+          transitionId: 'transition-e2e-reference',
+          state: 'completed',
+          mode: 'file',
+          revision: null,
+          contentHash: 'e2e-file-target-content-hash',
+          backupArtifactId: 'backup-e2e-reference',
+          recovered: false,
         },
       });
     }

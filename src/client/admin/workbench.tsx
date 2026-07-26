@@ -1,10 +1,12 @@
 import {
   Activity,
+  ArrowRightLeft,
   ArrowUpRight,
   BookOpenCheck,
   Boxes,
   CircleGauge,
   DatabaseBackup,
+  FileCheck2,
   FileClock,
   KeyRound,
   LayoutTemplate,
@@ -22,10 +24,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import {
+  applyConfigModeTransition,
   getWorkbenchData,
+  inspectTransitionFileSource,
+  previewConfigModeTransition,
   reloadFileConfig,
   rollbackRevision,
   signOut,
+  type AdminConfigTransitionPreview,
+  type AdminConfigTransitionSource,
   type AdminSession,
 } from './api';
 import { PageForm } from './page-form';
@@ -71,11 +78,13 @@ const Overview = ({
   session,
   reloadingFile,
   onReloadFile,
+  onCommitted,
 }: {
   data: WorkbenchData;
   session: AdminSession;
   reloadingFile: boolean;
   onReloadFile: () => Promise<void>;
+  onCommitted: () => Promise<void>;
 }) => (
   <div className="workbench-overview">
     <header className="workbench-page-heading">
@@ -176,8 +185,200 @@ const Overview = ({
         <span>{data.meta.config.compatibility.source.replaceAll('_', ' ')}</span>
       </section>
     ) : null}
+    <ConfigModeTransitionCard data={data} onCommitted={onCommitted} session={session} />
   </div>
 );
+
+const diffCount = (preview: AdminConfigTransitionPreview) =>
+  Object.values(preview.diff).reduce(
+    (count, group) => count + group.added.length + group.removed.length + group.changed.length,
+    0
+  );
+
+const ConfigModeTransitionCard = ({
+  data,
+  session,
+  onCommitted,
+}: {
+  data: WorkbenchData;
+  session: AdminSession;
+  onCommitted: () => Promise<void>;
+}) => {
+  const mode = data.meta.config.mode;
+  const [busy, setBusy] = useState<'preview' | 'apply' | null>(null);
+  const [preview, setPreview] = useState<AdminConfigTransitionPreview | null>(null);
+  const [source, setSource] = useState<AdminConfigTransitionSource | null>(null);
+  if (mode === 'compatibility' || !['owner', 'editor'].includes(session.role)) return null;
+  const target = mode === 'managed' ? 'file' : 'managed';
+
+  const resolveSource = async (): Promise<AdminConfigTransitionSource> => {
+    if (target === 'managed') {
+      const revision = data.meta.config.managedBaseRevision;
+      if (!revision) throw new Error('No managed base revision is available for import.');
+      return { kind: 'managed', revision };
+    }
+    const candidate = await inspectTransitionFileSource();
+    return {
+      kind: 'file',
+      path: candidate.data.path,
+      sha256: candidate.data.sha256,
+    };
+  };
+
+  const runPreview = async () => {
+    setBusy('preview');
+    setPreview(null);
+    setSource(null);
+    try {
+      const nextSource = await resolveSource();
+      const result = await previewConfigModeTransition(session, {
+        from: mode,
+        to: target,
+        expectedActiveRevision: mode === 'managed' ? (data.meta.config.revision ?? 0) : 0,
+        source: nextSource,
+      });
+      setSource(nextSource);
+      setPreview(result.data);
+      toast.success('Transition preview is ready', {
+        description: `${diffCount(result.data)} configuration changes · token expires ${new Date(
+          result.data.expiresAt
+        ).toLocaleTimeString()}`,
+      });
+    } catch (error) {
+      toast.error('Transition preview was rejected', {
+        description: error instanceof Error ? error.message : 'The target source is unavailable.',
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const applyPreview = async () => {
+    if (!preview || !source || session.role !== 'owner') return;
+    setBusy('apply');
+    try {
+      const result = await applyConfigModeTransition(session, {
+        from: preview.from,
+        to: preview.to,
+        expectedActiveRevision: preview.expectedActiveRevision,
+        source,
+        previewToken: preview.previewToken,
+      });
+      toast.success(`Configuration switched to ${result.data.mode} mode`, {
+        description: `Verified backup ${result.data.backupArtifactId} was created first.`,
+      });
+      setPreview(null);
+      setSource(null);
+      await onCommitted();
+    } catch (error) {
+      toast.error('Configuration switch was rejected', {
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Re-authenticate, refresh the preview, and try again.',
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const lastTransition = data.meta.config.transition;
+  return (
+    <section className="config-transition-card">
+      <div className="config-transition-heading">
+        <span className="config-transition-icon">
+          <ArrowRightLeft aria-hidden="true" size={18} />
+        </span>
+        <div>
+          <p className="admin-eyebrow">Configuration source</p>
+          <h2>
+            {mode === 'managed' ? 'Move to a validated GitOps file.' : 'Import into Managed mode.'}
+          </h2>
+          <p>
+            Preview is read-only. Apply creates and verifies a SQLite backup, checks the source hash
+            again, then atomically swaps the active runtime.
+          </p>
+        </div>
+        <button
+          className="admin-secondary-button"
+          disabled={busy !== null || (target === 'file' && !data.meta.config.fileConfigured)}
+          onClick={() => void runPreview()}
+          type="button"
+        >
+          <FileCheck2 aria-hidden="true" size={16} />
+          {busy === 'preview' ? 'Validating…' : `Preview ${target}`}
+        </button>
+      </div>
+      {target === 'file' && !data.meta.config.fileConfigured ? (
+        <p className="config-transition-notice">
+          Set the fixed <code>KUMA_MIERU_CONFIG</code> bootstrap path before previewing File mode.
+        </p>
+      ) : null}
+      {preview ? (
+        <div className="config-transition-review">
+          <div className="config-transition-hashes">
+            <span>
+              Source <code>{preview.sourceHash.slice(0, 12)}</code>
+            </span>
+            <span>
+              Target <code>{preview.targetContentHash.slice(0, 12)}</code>
+            </span>
+            <span>{diffCount(preview)} changed entities</span>
+          </div>
+          <div className="config-transition-diff">
+            {(['sources', 'pages', 'settings'] as const).map(kind => (
+              <article key={kind}>
+                <strong>{kind}</strong>
+                <span>+{preview.diff[kind].added.length}</span>
+                <span>−{preview.diff[kind].removed.length}</span>
+                <span>~{preview.diff[kind].changed.length}</span>
+              </article>
+            ))}
+          </div>
+          <div className="config-transition-actions">
+            <button
+              className="admin-secondary-button"
+              disabled={busy !== null}
+              onClick={() => {
+                setPreview(null);
+                setSource(null);
+              }}
+              type="button"
+            >
+              Discard
+            </button>
+            {session.role === 'owner' ? (
+              <button
+                className="admin-danger-button"
+                disabled={busy !== null}
+                onClick={() => void applyPreview()}
+                type="button"
+              >
+                <ArrowRightLeft aria-hidden="true" size={16} />
+                {busy === 'apply' ? 'Backing up and switching…' : `Back up and activate ${target}`}
+              </button>
+            ) : (
+              <span className="config-transition-editor-note">
+                Owner approval is required to apply.
+              </span>
+            )}
+          </div>
+        </div>
+      ) : null}
+      {lastTransition ? (
+        <footer>
+          <span className={`lifecycle-state is-${lastTransition.state}`}>
+            {lastTransition.state}
+          </span>
+          <span>
+            Last transition {lastTransition.from} → {lastTransition.to}
+          </span>
+          <time>{new Date(lastTransition.createdAt).toLocaleString()}</time>
+        </footer>
+      ) : null}
+    </section>
+  );
+};
 
 const SourceList = ({ data }: { data: WorkbenchData }) => (
   <section className="entity-ledger">
@@ -492,6 +693,7 @@ export const Workbench = ({
                 session={session}
                 reloadingFile={reloadingFile}
                 onReloadFile={triggerFileReload}
+                onCommitted={reload}
               />
             ) : null}
             {panel === 'sources' ? (

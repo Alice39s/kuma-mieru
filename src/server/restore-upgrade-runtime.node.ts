@@ -50,7 +50,7 @@ const stopChild = async (child: ChildProcessWithoutNullStreams) => {
   ]);
 };
 
-test('restores schema 16, backfills lifecycle, and reaches readiness on schema 18', async () => {
+test('restores schema 16, backfills lifecycle, and reaches readiness on schema 19', async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-restore-upgrade-runtime-'));
   const dataDirectory = resolve(root, 'data');
   const databasePath = resolve(dataDirectory, 'kuma-mieru.sqlite3');
@@ -59,9 +59,9 @@ test('restores schema 16, backfills lifecycle, and reaches readiness on schema 1
   const migrationNames = (await readdir(migrationDirectory))
     .filter(name => name.endsWith('.up.sql'))
     .sort();
-  assert.equal(migrationNames.length, 18);
+  assert.equal(migrationNames.length, 19);
   await mkdir(previousMigrationDirectory, { recursive: true });
-  for (const name of migrationNames.slice(0, -2)) {
+  for (const name of migrationNames.slice(0, -3)) {
     await copyFile(resolve(migrationDirectory, name), resolve(previousMigrationDirectory, name));
   }
   await writeFile(
@@ -144,7 +144,7 @@ test('restores schema 16, backfills lifecycle, and reaches readiness on schema 1
       databasePath,
       appBuild: '2.0.0-current',
     });
-    assert.equal(firstUpgrade.currentVersion, 18);
+    assert.equal(firstUpgrade.currentVersion, 19);
     assert.ok(firstUpgrade.backupArtifactId);
     assert.equal(
       (
@@ -292,7 +292,7 @@ test('restores schema 16, backfills lifecycle, and reaches readiness on schema 1
             .prepare('SELECT MAX(version) AS version FROM schema_migrations')
             .get() as { version: number }
         ).version,
-        18
+        19
       );
       assert.deepEqual(
         readyDatabase.database

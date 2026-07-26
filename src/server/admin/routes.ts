@@ -17,7 +17,17 @@ import {
 } from '../auth/security.js';
 import { mutateManagedConfig, rollbackManagedConfig } from '../config/managed-config.js';
 import type { FileReloadResult, FileReloadStatus } from '../config/file-reloader.js';
-import { listManagedRevisions, type ConfigRevision } from '../config/repository.js';
+import {
+  configModeTransitionApplySchema,
+  configModeTransitionErrorCode,
+  configModeTransitionPreviewSchema,
+  type ConfigModeTransitionService,
+} from '../config/mode-transition.js';
+import {
+  getDurableConfigState,
+  listManagedRevisions,
+  type ConfigRevision,
+} from '../config/repository.js';
 import {
   listAdminDeliveries,
   listAdminSubscribers,
@@ -284,8 +294,9 @@ export interface AdminRouteOptions {
   secretStore?: SecretStore;
   currentSnapshot: () => RuntimeConfigSnapshot;
   onManagedRevision?: (revision: ConfigRevision) => void | Promise<void>;
-  getFileReloadStatus?: () => FileReloadStatus;
+  getFileReloadStatus?: () => FileReloadStatus | null;
   reloadFileConfig?: () => Promise<FileReloadResult>;
+  modeTransitions?: ConfigModeTransitionService;
   backupService?: BackupService;
   retentionService?: RetentionService;
   subscriberTombstones?: SubscriberTombstoneStore;
@@ -308,6 +319,7 @@ export const registerAdminRoutes = (
     onManagedRevision,
     getFileReloadStatus,
     reloadFileConfig,
+    modeTransitions,
     backupService,
     retentionService,
     subscriberTombstones,
@@ -446,6 +458,41 @@ export const registerAdminRoutes = (
     );
   };
 
+  const handleConfigTransitionError = (
+    context: Context<AppEnvironment>,
+    error: unknown,
+    principal: AdminPrincipal
+  ) => {
+    const code =
+      error instanceof z.ZodError ? 'validation_failed' : configModeTransitionErrorCode(error);
+    const status =
+      code === 'config_preview_token_invalid' || code === 'config_preview_actor_mismatch'
+        ? 404
+        : code === 'config_transition_in_progress' ||
+            code === 'config_transition_mode_conflict' ||
+            code === 'config_transition_same_mode' ||
+            code === 'config_revision_conflict' ||
+            code === 'config_managed_base_conflict' ||
+            code === 'config_preview_token_consumed' ||
+            code === 'config_preview_token_expired' ||
+            code === 'config_preview_request_mismatch' ||
+            code === 'config_source_hash_drift'
+          ? 409
+          : 400;
+    writeRouteAudit(context, principal.userId, 'failed', code.toUpperCase());
+    return errorResponse(
+      context,
+      status,
+      code.toUpperCase(),
+      error instanceof z.ZodError
+        ? 'Configuration transition request is invalid'
+        : error instanceof Error
+          ? error.message
+          : 'Configuration transition failed',
+      error instanceof z.ZodError ? error.issues : undefined
+    );
+  };
+
   app.use(
     '/api/v1/admin/*',
     bodyLimit({
@@ -462,6 +509,7 @@ export const registerAdminRoutes = (
   app.use('/api/v1/admin/backups/*', noStore);
   app.use('/api/v1/admin/retention', noStore);
   app.use('/api/v1/admin/retention/*', noStore);
+  app.use('/api/v1/admin/config/transitions/*', noStore);
   app.use('/api/v1/admin/audit', noStore);
   app.use('/api/v1/admin/users', noStore);
   app.use('/api/v1/admin/users/*', noStore);
@@ -2534,6 +2582,14 @@ export const registerAdminRoutes = (
         'Configuration reload is available only in file mode'
       );
     }
+    if (modeTransitions?.isInFlight()) {
+      return errorResponse(
+        context,
+        409,
+        'CONFIG_TRANSITION_IN_PROGRESS',
+        'A configuration transition is in progress'
+      );
+    }
     if (!reloadFileConfig) {
       return errorResponse(
         context,
@@ -2561,10 +2617,78 @@ export const registerAdminRoutes = (
     return context.json({ data: result });
   });
 
+  app.get('/api/v1/admin/config/transitions/file-source', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'editor']);
+    if (!authorization.ok) return authorization.response;
+    if (!modeTransitions) {
+      return errorResponse(
+        context,
+        503,
+        'CONFIG_TRANSITION_NOT_READY',
+        'Configuration transition service is unavailable'
+      );
+    }
+    try {
+      const source = await modeTransitions.inspectFileSource();
+      return context.json({ data: source });
+    } catch (error) {
+      return handleConfigTransitionError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/config/transitions/preview', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!modeTransitions) {
+      return errorResponse(
+        context,
+        503,
+        'CONFIG_TRANSITION_NOT_READY',
+        'Configuration transition service is unavailable'
+      );
+    }
+    try {
+      const input = configModeTransitionPreviewSchema.parse(await context.req.json());
+      const preview = await modeTransitions.preview(
+        input,
+        auditContext(context, authorization.principal)
+      );
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: preview });
+    } catch (error) {
+      return handleConfigTransitionError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/config/transitions/apply', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!modeTransitions) {
+      return errorResponse(
+        context,
+        503,
+        'CONFIG_TRANSITION_NOT_READY',
+        'Configuration transition service is unavailable'
+      );
+    }
+    try {
+      const input = configModeTransitionApplySchema.parse(await context.req.json());
+      const result = await modeTransitions.apply(
+        input,
+        auditContext(context, authorization.principal)
+      );
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: result });
+    } catch (error) {
+      return handleConfigTransitionError(context, error, authorization.principal);
+    }
+  });
+
   app.get('/api/v1/admin/config/status', async context => {
     const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
     if (!authorization.ok) return authorization.response;
     const runtime = currentSnapshot();
+    const durable = database ? getDurableConfigState(database) : null;
     context.header('Cache-Control', 'no-store');
     return context.json({
       data: {
@@ -2574,6 +2698,9 @@ export const registerAdminRoutes = (
         loadedAt: runtime.loadedAt,
         reload: getFileReloadStatus?.() ?? null,
         compatibility: runtime.compatibility ?? null,
+        transition: modeTransitions?.status() ?? null,
+        fileConfigured: Boolean(modeTransitions?.configuredFilePath ?? runtime.filePath),
+        managedBaseRevision: durable?.managedRevision ?? null,
       },
     });
   });
@@ -2774,6 +2901,14 @@ export const registerAdminRoutes = (
         409,
         'CONFIG_MODE_READ_ONLY',
         'Rollback is available only in managed mode'
+      );
+    }
+    if (modeTransitions?.isInFlight()) {
+      return errorResponse(
+        context,
+        409,
+        'CONFIG_TRANSITION_IN_PROGRESS',
+        'A configuration transition is in progress'
       );
     }
     try {

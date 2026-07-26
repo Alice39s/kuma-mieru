@@ -13,9 +13,16 @@ import { createAuth } from './auth/auth.js';
 import { createBootstrapService } from './auth/bootstrap.js';
 import { createOidcControlPlane } from './auth/oidc.js';
 import { loadOrCreateAuthSecret } from './auth/secret.js';
-import { loadRuntimeConfig } from './config/runtime-config.js';
+import { createConfigModeTransitionService } from './config/mode-transition.js';
+import {
+  findConfigRevisionByHash,
+  getDurableConfigState,
+  insertConfigRevision,
+  setDurableConfigMode,
+} from './config/repository.js';
+import { loadRuntimeConfig, type RuntimeConfigSnapshot } from './config/runtime-config.js';
 import { extendRetentionPolicy, resolveRetentionPolicy } from './config/schema.js';
-import { createFileConfigReloader } from './config/file-reloader.js';
+import { createFileConfigReloader, type FileConfigReloader } from './config/file-reloader.js';
 import { openDatabase } from './db/database.js';
 import { createBackupService, startBackupScheduler } from './db/backup.js';
 import { migrateDatabase } from './db/migrator.js';
@@ -185,9 +192,11 @@ const sourceTest = createSourceTestService({
   privateAddressCidrs,
   secretStore,
 });
-if (runtimeSnapshot.mode === 'file') {
-  for (const source of runtimeSnapshot.config.sources) await sourceTest.test(source);
-}
+const validateRuntimeConfig = async (config: RuntimeConfigSnapshot['config']) => {
+  for (const source of config.sources) await sourceTest.test(source);
+  if (config.delivery?.smtp?.enabled) await smtpTest.test(config.delivery.smtp);
+};
+if (runtimeSnapshot.mode === 'file') await validateRuntimeConfig(runtimeSnapshot.config);
 let stopSourcePoller = startSourcePoller({
   database,
   config: runtimeSnapshot.config,
@@ -195,7 +204,7 @@ let stopSourcePoller = startSourcePoller({
   privateAddressCidrs,
 });
 deliveryRuntime.apply(runtimeSnapshot.config);
-const applyRuntimeSnapshot = (nextSnapshot: typeof runtimeSnapshot) => {
+const applyRuntimeSnapshot = (nextSnapshot: RuntimeConfigSnapshot) => {
   const stopNextPoller = startSourcePoller({
     database,
     config: nextSnapshot.config,
@@ -208,22 +217,103 @@ const applyRuntimeSnapshot = (nextSnapshot: typeof runtimeSnapshot) => {
   stopSourcePoller = stopNextPoller;
   stopPreviousPoller();
 };
-const fileReloader =
-  runtimeSnapshot.mode === 'file'
-    ? createFileConfigReloader({
-        path: resolve(process.env.KUMA_MIERU_CONFIG as string),
-        initialSnapshot: runtimeSnapshot,
-        validateConfig: async config => {
-          for (const source of config.sources) await sourceTest.test(source);
-          if (config.delivery?.smtp?.enabled) await smtpTest.test(config.delivery.smtp);
-        },
-        applySnapshot: applyRuntimeSnapshot,
-      })
-    : null;
-const stopFileReloader = fileReloader?.start() ?? (() => undefined);
+let fileReloader: FileConfigReloader | null = null;
+let stopFileReloader: () => void = () => undefined;
+let transitionQuiesced = false;
+const configuredFilePath =
+  process.env.KUMA_MIERU_CONFIG !== undefined
+    ? resolve(process.env.KUMA_MIERU_CONFIG)
+    : getDurableConfigState(database).filePath;
+const persistFileSnapshot = (snapshot: RuntimeConfigSnapshot, actor: string) => {
+  if (snapshot.mode !== 'file' || !snapshot.filePath) {
+    throw new Error('File snapshot persistence requires its source path');
+  }
+  database.transaction(() => {
+    const durable = getDurableConfigState(database);
+    const revision =
+      findConfigRevisionByHash(database, 'file', snapshot.contentHash) ??
+      insertConfigRevision(database, {
+        mode: 'file',
+        config: snapshot.config,
+        parentRevision: durable.fileRevision,
+        actor,
+      });
+    setDurableConfigMode(database, {
+      mode: 'file',
+      fileRevision: revision.revision,
+      filePath: snapshot.filePath,
+      fileSourceHash: snapshot.fileSourceHash ?? null,
+      transitionId: durable.transitionId,
+    });
+  })();
+};
+const configureFileReloader = (snapshot: RuntimeConfigSnapshot) => {
+  stopFileReloader();
+  fileReloader = null;
+  stopFileReloader = () => undefined;
+  transitionQuiesced = false;
+  if (snapshot.mode !== 'file') return;
+  const path = snapshot.filePath ?? configuredFilePath;
+  if (!path) throw new Error('File mode requires a configured source path');
+  fileReloader = createFileConfigReloader({
+    path,
+    initialSnapshot: { ...snapshot, filePath: path },
+    validateConfig: validateRuntimeConfig,
+    applySnapshot: nextSnapshot => {
+      const previousSnapshot = runtimeSnapshot;
+      applyRuntimeSnapshot(nextSnapshot);
+      try {
+        persistFileSnapshot(nextSnapshot, 'system:file-reload');
+      } catch (error) {
+        try {
+          applyRuntimeSnapshot(previousSnapshot);
+        } catch (rollbackError) {
+          throw new AggregateError(
+            [error, rollbackError],
+            'File reload persistence and runtime rollback both failed'
+          );
+        }
+        throw error;
+      }
+    },
+  });
+  stopFileReloader = fileReloader.start();
+};
+const applyTransitionSnapshot = (snapshot: RuntimeConfigSnapshot) => {
+  applyRuntimeSnapshot(snapshot);
+  configureFileReloader(snapshot);
+};
+const modeTransitions = createConfigModeTransitionService({
+  database,
+  backupService,
+  allowedFilePath: configuredFilePath ?? undefined,
+  currentSnapshot: () => runtimeSnapshot,
+  validateConfig: validateRuntimeConfig,
+  applySnapshot: applyTransitionSnapshot,
+  quiesceRuntime: async () => {
+    transitionQuiesced = true;
+    stopFileReloader();
+    await fileReloader?.waitForIdle();
+  },
+  resumeRuntime: () => configureFileReloader(runtimeSnapshot),
+});
+modeTransitions.cleanupExpiredPreviews();
+const configPreviewCleanupTimer = setInterval(
+  () => modeTransitions.cleanupExpiredPreviews(),
+  60 * 60 * 1_000
+);
+configPreviewCleanupTimer.unref();
+const recoveredTransition = modeTransitions.recoverPending();
+if (recoveredTransition) {
+  console.warn('Recovered interrupted configuration transition', {
+    transitionId: recoveredTransition.transitionId,
+    mode: recoveredTransition.mode,
+  });
+}
+configureFileReloader(runtimeSnapshot);
 const reloadOnSighup = () => {
-  if (!fileReloader) {
-    console.info('Ignoring SIGHUP because configuration is not in file mode');
+  if (!fileReloader || transitionQuiesced) {
+    console.info('Ignoring SIGHUP because file configuration is not reloadable');
     return;
   }
   void fileReloader.check({ force: true }).then(result => {
@@ -246,8 +336,17 @@ if (setup) {
 const app = createApp({
   snapshot: runtimeSnapshot,
   getRuntimeSnapshot: () => runtimeSnapshot,
-  getFileReloadStatus: fileReloader ? () => fileReloader.status() : undefined,
-  reloadFileConfig: fileReloader ? () => fileReloader.check({ force: true }) : undefined,
+  getFileReloadStatus: () => fileReloader?.status() ?? null,
+  reloadFileConfig: () => {
+    if (transitionQuiesced) {
+      throw Object.assign(new Error('A configuration transition is in progress'), {
+        code: 'config_transition_in_progress',
+      });
+    }
+    if (!fileReloader) throw new Error('Configuration reload is unavailable');
+    return fileReloader.check({ force: true });
+  },
+  modeTransitions,
   schemaVersion: migration.currentVersion,
   buildVersion,
   database,
@@ -303,6 +402,11 @@ const app = createApp({
       loadedAt: new Date().toISOString(),
       config: revision.config,
     };
+    setDurableConfigMode(database, {
+      mode: 'managed',
+      managedRevision: revision.revision,
+      transitionId: getDurableConfigState(database).transitionId,
+    });
     applyRuntimeSnapshot(nextSnapshot);
   },
 });
@@ -326,6 +430,7 @@ const shutdown = (signal: NodeJS.Signals) => {
   console.info(`Received ${signal}; shutting down`);
   server.close(() => {
     process.removeListener('SIGHUP', reloadOnSighup);
+    clearInterval(configPreviewCleanupTimer);
     stopFileReloader();
     stopSourcePoller();
     stopEventLifecycleScheduler();

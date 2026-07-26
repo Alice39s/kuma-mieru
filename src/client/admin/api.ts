@@ -465,6 +465,42 @@ interface ReloadStatus {
   lastErrorCode: string | null;
 }
 
+export interface AdminConfigTransitionStatus {
+  id: string;
+  from: string;
+  to: string;
+  state: 'pending' | 'completed' | 'failed';
+  sourceHash: string;
+  targetHash: string | null;
+  targetRevision: number | null;
+  backupArtifactId: string | null;
+  errorCode: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface AdminConfigTransitionPreview {
+  previewToken: string;
+  expiresAt: string;
+  from: 'managed' | 'file';
+  to: 'managed' | 'file';
+  expectedActiveRevision: number;
+  sourceHash: string;
+  targetContentHash: string;
+  targetParentRevision: number | null;
+  diff: {
+    sources: { added: string[]; removed: string[]; changed: string[] };
+    pages: { added: string[]; removed: string[]; changed: string[] };
+    settings: { added: string[]; removed: string[]; changed: string[] };
+  };
+  conflicts: string[];
+  unmigratableFields: string[];
+}
+
+export type AdminConfigTransitionSource =
+  | { kind: 'managed'; revision: number }
+  | { kind: 'file'; path: string; sha256: string };
+
 export interface AdminMeta {
   version: string;
   schemaVersion: number;
@@ -474,6 +510,9 @@ export interface AdminMeta {
     contentHash: string;
     loadedAt: string;
     reload: (ReloadStatus & { failedHash: string | null }) | null;
+    transition: AdminConfigTransitionStatus | null;
+    fileConfigured: boolean;
+    managedBaseRevision: number | null;
     compatibility: {
       source: 'environment_urls' | 'environment_base' | 'generated_json';
       contentHash: string;
@@ -992,6 +1031,60 @@ export const reloadFileConfig = (session: AdminSession) =>
     method: 'POST',
     headers: mutationHeaders(session),
     body: '{}',
+  });
+
+export const inspectTransitionFileSource = () =>
+  request<{ data: { path: string; sha256: string; sizeBytes: number } }>(
+    '/api/v1/admin/config/transitions/file-source'
+  );
+
+export const previewConfigModeTransition = (
+  session: AdminSession,
+  input: {
+    from: 'managed' | 'file';
+    to: 'managed' | 'file';
+    expectedActiveRevision: number;
+    source: AdminConfigTransitionSource;
+  }
+) =>
+  request<{ data: AdminConfigTransitionPreview }>('/api/v1/admin/config/transitions/preview', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify({
+      schemaVersion: '1.0',
+      ...input,
+      dryRun: true,
+    }),
+  });
+
+export const applyConfigModeTransition = (
+  session: AdminSession,
+  input: {
+    from: 'managed' | 'file';
+    to: 'managed' | 'file';
+    expectedActiveRevision: number;
+    source: AdminConfigTransitionSource;
+    previewToken: string;
+  }
+) =>
+  request<{
+    data: {
+      transitionId: string;
+      state: 'completed';
+      mode: 'managed' | 'file';
+      revision: number | null;
+      contentHash: string;
+      backupArtifactId: string;
+      recovered: boolean;
+    };
+  }>('/api/v1/admin/config/transitions/apply', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify({
+      schemaVersion: '1.0',
+      ...input,
+      dryRun: false,
+    }),
   });
 
 export const getBackupRetentionData = async () => {

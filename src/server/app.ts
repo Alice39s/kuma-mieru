@@ -19,6 +19,7 @@ import type { BootstrapService } from './auth/bootstrap.js';
 import { oidcProviderId, type OidcControlPlane } from './auth/oidc.js';
 import type { ConfigRevision } from './config/repository.js';
 import type { FileReloadResult, FileReloadStatus } from './config/file-reloader.js';
+import type { ConfigModeTransitionService } from './config/mode-transition.js';
 import type { CanonicalConfig } from './config/schema.js';
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 import type { SecretStore } from './secrets/store.js';
@@ -106,8 +107,9 @@ export interface AppOptions {
   onAuthConfigurationChanged?: () => void | Promise<void>;
   trustedOrigins?: string[];
   onManagedRevision?: (revision: ConfigRevision) => void | Promise<void>;
-  getFileReloadStatus?: () => FileReloadStatus;
+  getFileReloadStatus?: () => FileReloadStatus | null;
   reloadFileConfig?: () => Promise<FileReloadResult>;
+  modeTransitions?: ConfigModeTransitionService;
   bootstrap?: BootstrapService;
   sourceTest?: SourceTestService;
   smtpTest?: SmtpTestService;
@@ -143,6 +145,7 @@ export const createApp = ({
   onManagedRevision,
   getFileReloadStatus,
   reloadFileConfig,
+  modeTransitions,
   bootstrap,
   sourceTest,
   smtpTest,
@@ -1151,6 +1154,7 @@ export const createApp = ({
     onManagedRevision,
     getFileReloadStatus,
     reloadFileConfig,
+    modeTransitions,
     backupService,
     retentionService,
     subscriberTombstones,

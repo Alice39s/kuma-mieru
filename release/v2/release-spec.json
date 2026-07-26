@@ -12,7 +12,7 @@
   },
   "database": {
     "minimumSchemaVersion": 0,
-    "maximumSchemaVersion": 18
+    "maximumSchemaVersion": 19
   },
   "container": {
     "image": "ghcr.io/alice39s/kuma-mieru",

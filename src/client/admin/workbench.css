@@ -514,6 +514,117 @@
   font-size: 0.75rem;
 }
 
+.config-transition-card {
+  margin-top: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: 0.75rem;
+  background: rgba(249, 249, 244, 0.82);
+}
+.config-transition-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+.config-transition-icon {
+  display: grid;
+  width: 2.4rem;
+  height: 2.4rem;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(30, 110, 70, 0.1);
+  color: var(--admin-green);
+}
+.config-transition-heading h2,
+.config-transition-heading p {
+  margin: 0;
+}
+.config-transition-heading h2 {
+  margin-top: 0.35rem;
+  font-size: 1.45rem;
+}
+.config-transition-heading > div > p:last-child {
+  max-width: 55rem;
+  margin-top: 0.45rem;
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+  line-height: 1.65;
+}
+.config-transition-notice {
+  margin: 0;
+  padding: 0.8rem 1.5rem;
+  border-top: 1px solid rgba(166, 95, 23, 0.22);
+  background: rgba(166, 95, 23, 0.06);
+  color: var(--admin-amber);
+  font-size: 0.72rem;
+}
+.config-transition-notice code,
+.config-transition-hashes code {
+  font-family: ui-monospace, monospace;
+}
+.config-transition-review {
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-top: 1px solid var(--admin-line);
+  background: rgba(30, 110, 70, 0.035);
+}
+.config-transition-hashes,
+.config-transition-actions,
+.config-transition-card footer {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.config-transition-hashes {
+  flex-wrap: wrap;
+  color: var(--admin-muted);
+  font-size: 0.68rem;
+}
+.config-transition-hashes span {
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 999px;
+  background: var(--admin-paper);
+}
+.config-transition-diff {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+.config-transition-diff article {
+  display: grid;
+  grid-template-columns: 1fr repeat(3, auto);
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 0.55rem;
+  color: var(--admin-muted);
+  font-size: 0.68rem;
+}
+.config-transition-diff strong {
+  color: var(--admin-ink);
+  text-transform: capitalize;
+}
+.config-transition-actions {
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+.config-transition-editor-note {
+  color: var(--admin-muted);
+  font-size: 0.7rem;
+}
+.config-transition-card footer {
+  padding: 0.75rem 1.5rem;
+  border-top: 1px solid var(--admin-line);
+  color: var(--admin-muted);
+  font-size: 0.67rem;
+}
+.config-transition-card footer time {
+  margin-left: auto;
+}
+
 .workbench-split {
   display: grid;
   grid-template-columns: minmax(20rem, 0.8fr) minmax(28rem, 1.2fr);
@@ -2324,6 +2435,18 @@
   .compatibility-card {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .config-transition-heading,
+  .config-transition-diff {
+    grid-template-columns: 1fr;
+  }
+  .config-transition-actions,
+  .config-transition-card footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .config-transition-card footer time {
+    margin-left: 0;
   }
   .metric-ledger {
     grid-template-columns: 1fr;

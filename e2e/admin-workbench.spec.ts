@@ -30,6 +30,40 @@ test('renders a stable responsive owner control plane', async ({ page }) => {
   });
 });
 
+test('previews and atomically activates the fixed File mode source', async ({ page }) => {
+  const state = await installAdminApi(page, { withConfigFile: true });
+  await page.goto('/admin/');
+
+  await page.getByRole('button', { name: 'Preview file' }).click();
+  await expect(page.getByText('1 changed entities')).toBeVisible();
+  await expect(page.getByText('Source aaaaaaaaaaaa')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back up and activate file' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back up and activate file' }).click();
+
+  await expect(
+    page.getByRole('heading', { level: 2, name: 'Import into Managed mode.' })
+  ).toBeVisible();
+  await expect.poll(() => state.configMode).toBe('file');
+  expect(state.configTransitionApplies).toEqual([
+    {
+      schemaVersion: '1.0',
+      from: 'managed',
+      to: 'file',
+      expectedActiveRevision: 7,
+      source: {
+        kind: 'file',
+        path: '/run/secrets/kuma-mieru/config.yml',
+        sha256: 'a'.repeat(64),
+      },
+      previewToken: 'e2e-config-transition-preview-token',
+      dryRun: false,
+    },
+  ]);
+  expect(state.mutationHeaders).toHaveLength(2);
+  expect(state.mutationHeaders.every(headers => headers.csrf === 'e2e-csrf-token')).toBe(true);
+  await assertAccessible(page);
+});
+
 test('completes first-run owner setup and authenticated entry', async ({ page, isMobile }) => {
   const state = await installAdminApi(page, { setupRequired: true });
   await page.goto('/admin/');
@@ -208,6 +242,7 @@ test('copies an exact active template into an editable incident and explicit rev
   ).toBeVisible();
 
   await page.getByRole('button', { name: 'Review publication' }).click();
+  await expect(page.getByText('0 eligible recipients')).toBeVisible();
   expect(state.mutationHeaders).toHaveLength(2);
   expect(state.mutationHeaders.every(headers => headers.csrf === 'e2e-csrf-token')).toBe(true);
   expect(state.publications).toHaveLength(0);

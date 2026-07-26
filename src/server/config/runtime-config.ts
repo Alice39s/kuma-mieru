@@ -1,4 +1,7 @@
-import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { constants } from 'node:fs';
+import { open } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import type Database from 'better-sqlite3';
 import { parse as parseYaml } from 'yaml';
 import {
@@ -7,7 +10,16 @@ import {
   type CanonicalConfig,
   type ConfigMode,
 } from './schema.js';
-import { createManagedRevision, getActiveRevision, hashConfig } from './repository.js';
+import {
+  createManagedRevision,
+  findConfigRevisionByHash,
+  getActiveRevision,
+  getConfigRevision,
+  getDurableConfigState,
+  hashConfig,
+  insertConfigRevision,
+  setDurableConfigMode,
+} from './repository.js';
 import {
   buildLegacyMigrationPlan,
   legacyEnvironmentKeys,
@@ -20,6 +32,8 @@ export interface RuntimeConfigSnapshot {
   contentHash: string;
   loadedAt: string;
   config: CanonicalConfig;
+  filePath?: string;
+  fileSourceHash?: string;
   compatibility?: Omit<LegacyMigrationPlan, 'config'>;
 }
 
@@ -36,6 +50,37 @@ const emptyConfig = (): CanonicalConfig => ({
   pages: [],
 });
 
+export const hashConfigSource = (content: string) =>
+  createHash('sha256').update(content, 'utf8').digest('hex');
+
+export const maximumConfigFileBytes = 2 * 1_024 * 1_024;
+
+export const readRegularConfigFile = async (path: string) => {
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const metadata = await handle.stat();
+    if (!metadata.isFile()) throw new Error('Configuration path must be a regular file');
+    if (metadata.size > maximumConfigFileBytes) {
+      throw new Error('Configuration file must not exceed 2 MiB');
+    }
+    const content = Buffer.allocUnsafe(maximumConfigFileBytes + 1);
+    let offset = 0;
+    while (offset < content.length) {
+      const { bytesRead } = await handle.read(content, offset, content.length - offset, null);
+      if (bytesRead === 0) break;
+      offset += bytesRead;
+    }
+    if (offset > maximumConfigFileBytes) {
+      throw new Error('Configuration file must not exceed 2 MiB');
+    }
+    return content.subarray(0, offset).toString('utf8');
+  } finally {
+    await handle.close();
+  }
+};
+
+export const parseConfigFile = (content: string) => canonicalConfigSchema.parse(parseYaml(content));
+
 export const detectConfigMode = (environment: NodeJS.ProcessEnv): ConfigMode => {
   const explicit = environment.KUMA_MIERU_CONFIG_MODE;
   if (explicit) {
@@ -49,15 +94,24 @@ export const detectConfigMode = (environment: NodeJS.ProcessEnv): ConfigMode => 
 export const loadRuntimeConfig = async ({
   database,
   environment = process.env,
-  readConfigFile = path => readFile(path, 'utf8'),
+  readConfigFile = readRegularConfigFile,
 }: RuntimeConfigOptions): Promise<RuntimeConfigSnapshot> => {
-  const mode = detectConfigMode(environment);
+  const durable = getDurableConfigState(database);
+  const mode = durable.mode ?? detectConfigMode(environment);
   const loadedAt = new Date().toISOString();
 
   if (mode === 'managed') {
     const revision =
       getActiveRevision(database) ??
       createManagedRevision(database, emptyConfig(), 'system:bootstrap');
+    if (durable.mode === null) {
+      setDurableConfigMode(database, {
+        mode,
+        managedRevision: revision.revision,
+        transitionId: null,
+        now: loadedAt,
+      });
+    }
     return {
       mode,
       revision: revision.revision,
@@ -68,12 +122,58 @@ export const loadRuntimeConfig = async ({
   }
 
   if (mode === 'file') {
-    const path = environment.KUMA_MIERU_CONFIG;
+    const path = durable.filePath ?? environment.KUMA_MIERU_CONFIG;
     if (!path) {
       throw new Error('KUMA_MIERU_CONFIG is required in file mode');
     }
-    const config = canonicalConfigSchema.parse(parseYaml(await readConfigFile(path)));
-    return { mode, revision: null, contentHash: hashConfig(config), loadedAt, config };
+    const resolvedPath = resolve(path);
+    if (durable.mode === 'file' && durable.fileRevision) {
+      const revision = getConfigRevision(database, durable.fileRevision, 'file');
+      if (!revision) throw new Error('Active file configuration revision is missing');
+      return {
+        mode,
+        revision: null,
+        contentHash: revision.contentHash,
+        loadedAt,
+        config: revision.config,
+        filePath: resolvedPath,
+        fileSourceHash: durable.fileSourceHash ?? undefined,
+      };
+    }
+
+    const content = await readConfigFile(resolvedPath);
+    const config = parseConfigFile(content);
+    const contentHash = hashConfig(config);
+    const fileRevision =
+      findConfigRevisionByHash(database, 'file', contentHash) ??
+      insertConfigRevision(database, {
+        mode: 'file',
+        config,
+        parentRevision: null,
+        actor: 'system:file-bootstrap',
+        now: loadedAt,
+      });
+    const managedBase =
+      getActiveRevision(database) ??
+      createManagedRevision(database, config, 'system:file-bootstrap-base');
+    setDurableConfigMode(database, {
+      mode,
+      managedRevision: managedBase.revision,
+      fileRevision: fileRevision.revision,
+      filePath: resolvedPath,
+      fileSourceHash: hashConfigSource(content),
+      transitionId: null,
+      now: loadedAt,
+    });
+    return {
+      mode,
+      revision: null,
+      contentHash,
+      loadedAt,
+      config,
+      filePath: resolvedPath,
+      fileSourceHash: hashConfigSource(content),
+    };
   }
 
   const plan = buildLegacyMigrationPlan({ environment });

@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 import { watch } from 'node:fs';
-import { readFile, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
 import { canonicalConfigSchema, type CanonicalConfig } from './schema.js';
 import { hashConfig } from './repository.js';
-import type { RuntimeConfigSnapshot } from './runtime-config.js';
+import { readRegularConfigFile, type RuntimeConfigSnapshot } from './runtime-config.js';
 
 export type FileReloadErrorCode =
   | 'file_read_failed'
@@ -45,6 +45,7 @@ export interface FileConfigReloader {
   check(options?: { force?: boolean }): Promise<FileReloadResult>;
   status(): FileReloadStatus;
   start(): () => void;
+  waitForIdle(): Promise<void>;
 }
 
 const rawHash = (content: string) => createHash('sha256').update(content, 'utf8').digest('hex');
@@ -57,7 +58,7 @@ export const createFileConfigReloader = ({
   path,
   initialSnapshot,
   intervalMs = 10_000,
-  readConfigFile = configPath => readFile(configPath, 'utf8'),
+  readConfigFile = readRegularConfigFile,
   statConfigFile = async configPath => {
     const value = await stat(configPath);
     return { mtimeMs: value.mtimeMs, size: value.size };
@@ -148,6 +149,8 @@ export const createFileConfigReloader = ({
       contentHash,
       loadedAt: new Date().toISOString(),
       config,
+      filePath: path,
+      fileSourceHash: sourceHash,
     };
     try {
       await applySnapshot(snapshot);
@@ -196,5 +199,8 @@ export const createFileConfigReloader = ({
     check,
     status: () => copyStatus(reloadStatus),
     start,
+    waitForIdle: async () => {
+      await inFlight;
+    },
   };
 };

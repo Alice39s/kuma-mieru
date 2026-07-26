@@ -93,11 +93,32 @@ single-flight reloader combines `fs.watch` as an acceleration signal with an aut
 source-tested before a new immutable runtime snapshot replaces the previous one. Formatting-only
 changes with the same canonical hash do not restart pollers.
 
+The default file reader opens the fixed path with `O_NOFOLLOW`, verifies the opened descriptor is a
+regular file, enforces a 2 MiB limit, and reads from that descriptor, so bootstrap, transition
+preview, and reload do not retain an `lstat`-then-path-read symlink race. Every accepted file
+snapshot is also stored as an immutable last-known-good revision with its source path and source
+hash. A restart loads that durable revision before trusting the external file again; a partial or
+invalid file cannot replace the active snapshot merely because the process restarted.
+
 `SIGHUP` and the Owner-only, recent-authentication-protected
 `POST /api/v1/admin/config/reload` endpoint trigger the same validation path. The Admin overview
 exposes the last success, stable error code, and failed candidate hash; the public metadata omits
 the candidate hash. Partial writes, invalid schemas, unresolved Secret References, and failed
 source dry-runs retain the last-known-good snapshot and active pollers.
+
+Owner and Editor sessions can preview an explicit Managed ↔ File transition from the Admin
+overview. The server selects the single bootstrap-allowlisted `KUMA_MIERU_CONFIG` path; the browser
+cannot submit an arbitrary path. A preview returns a bounded Source/Page/top-level Settings diff
+and a cryptographic ten-minute, one-use token whose SHA-256 alone is stored. Applying is Owner-only
+with recent authentication: Kuma Mieru creates and verifies a SQLite backup, stops and drains file reload,
+rechecks the source hash and active revision, writes the pending transition and durable pointer in
+one transaction, and swaps the source poller, delivery runtime, and active snapshot. Startup
+finishes a matching interrupted pending transition before binding the listener. Compatibility
+cutover remains the responsibility of `migrate-v1`, not these Admin endpoints.
+
+Unconsumed previews are physically removed after expiry during startup, preview creation, and an
+hourly maintenance pass. Consumed previews retain only lineage metadata and a `null` config
+placeholder; the full canonical candidate is not duplicated into the permanent transition record.
 
 Private, loopback, link-local, and reserved source addresses are blocked by default. Self-hosted
 Uptime Kuma instances on a trusted private network require an explicit comma-separated CIDR list,
@@ -407,7 +428,9 @@ responsive workbench. Its Event desk creates append-only Incident drafts and upd
 Owner/Publisher sessions a separate review-and-publish step with an explicit notification choice.
 Forms use React Hook Form and Zod at the client boundary; server validation remains authoritative.
 
-Managed configuration controls are rendered only for Owner or Editor sessions in managed mode.
+Managed configuration mutation controls are rendered only for Owner or Editor sessions in managed
+mode. The separate configuration-source card is available to those roles in Managed and File
+modes; Editor can preview while only a recently authenticated Owner can apply.
 Event drafts and templates are writable by Owner, Publisher, and Editor; only Owner or Publisher
 can complete Publication Review. Viewer receives an explicit read-only Event surface, while file
 and compatibility modes keep configuration read-only. Rollback is visible only to an Owner in

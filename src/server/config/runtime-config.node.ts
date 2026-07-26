@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import test from 'node:test';
-import { loadRuntimeConfig } from './runtime-config.js';
+import {
+  loadRuntimeConfig,
+  maximumConfigFileBytes,
+  readRegularConfigFile,
+} from './runtime-config.js';
+import { getDurableConfigState } from './repository.js';
 import { openDatabase } from '../db/database.js';
 
 const createDatabase = () => {
@@ -28,6 +36,13 @@ test('bootstraps an empty managed revision by default', async () => {
     assert.equal(snapshot.mode, 'managed');
     assert.equal(snapshot.revision, 1);
     assert.deepEqual(snapshot.config.pages, []);
+    assert.equal(getDurableConfigState(database).mode, 'managed');
+    const rebooted = await loadRuntimeConfig({
+      database,
+      environment: { UPTIME_KUMA_BASE_URL: 'https://legacy.example.com' },
+    });
+    assert.equal(rebooted.mode, 'managed');
+    assert.equal(rebooted.revision, snapshot.revision);
   } finally {
     database.close();
   }
@@ -89,6 +104,17 @@ pages:
     assert.equal(snapshot.mode, 'file');
     assert.equal(snapshot.revision, null);
     assert.equal(snapshot.config.pages[0]?.slug, 'main');
+    assert.equal(getDurableConfigState(database).mode, 'file');
+    const rebooted = await loadRuntimeConfig({
+      database,
+      environment: {},
+      readConfigFile: async () => {
+        throw new Error('Durable last-known-good must not re-read the file during bootstrap');
+      },
+    });
+    assert.equal(rebooted.mode, 'file');
+    assert.equal(rebooted.contentHash, snapshot.contentHash);
+    assert.equal(rebooted.filePath, '/config.yml');
   } finally {
     database.close();
   }
@@ -116,5 +142,24 @@ pages:
     );
   } finally {
     database.close();
+  }
+});
+
+test('reads the opened regular file and rejects a symbolic-link config path', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-config-file-'));
+  const target = resolve(directory, 'target.yml');
+  const link = resolve(directory, 'config.yml');
+  const oversized = resolve(directory, 'oversized.yml');
+  try {
+    await writeFile(target, 'schemaVersion: 1\nserver: {}\nsources: []\npages: []\n', {
+      mode: 0o600,
+    });
+    await symlink(target, link);
+    assert.match(await readRegularConfigFile(target), /schemaVersion/u);
+    await assert.rejects(readRegularConfigFile(link));
+    await writeFile(oversized, Buffer.alloc(maximumConfigFileBytes + 1), { mode: 0o600 });
+    await assert.rejects(readRegularConfigFile(oversized), /must not exceed 2 MiB/u);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });

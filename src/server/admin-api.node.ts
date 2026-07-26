@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
@@ -7,6 +7,7 @@ import { createApp } from './app.js';
 import { createAuth } from './auth/auth.js';
 import { createBootstrapService } from './auth/bootstrap.js';
 import { createManagedRevision, type ConfigRevision } from './config/repository.js';
+import { createConfigModeTransitionService } from './config/mode-transition.js';
 import type { RuntimeConfigSnapshot } from './config/runtime-config.js';
 import { openDatabase } from './db/database.js';
 import { createBackupService } from './db/backup.js';
@@ -110,6 +111,21 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
         config: revision.config,
       };
     };
+    const transitionConfigPath = resolve(directory, 'transition-config.yml');
+    await writeFile(
+      transitionConfigPath,
+      'schemaVersion: 1\nserver: {}\nsources: []\npages: []\n',
+      { mode: 0o600 }
+    );
+    const modeTransitions = createConfigModeTransitionService({
+      database,
+      backupService,
+      allowedFilePath: transitionConfigPath,
+      currentSnapshot: () => runtime,
+      applySnapshot: snapshot => {
+        runtime = snapshot;
+      },
+    });
     const retentionService = createRetentionService({
       database,
       policy: () => resolveRetentionPolicy(runtime.config.dataLifecycle?.retention),
@@ -132,6 +148,7 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
       smtpTest,
       isEmailDeliveryEnabled: () => true,
       onManagedRevision: apply,
+      modeTransitions,
       getFileReloadStatus: () => ({
         state: 'failed',
         lastAttemptAt: '2026-07-23T00:01:00.000Z',
@@ -1471,6 +1488,83 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     );
     assert.equal(viewerTemplateUpdate.status, 403);
 
+    const fileSource = await app.request('/api/v1/admin/config/transitions/file-source', {
+      headers: { Cookie: cookie },
+    });
+    const fileSourceBody = (await fileSource.json()) as {
+      data: { path: string; sha256: string; sizeBytes: number };
+    };
+    assert.equal(fileSource.status, 200);
+    assert.equal(fileSourceBody.data.path, transitionConfigPath);
+    assert.match(fileSourceBody.data.sha256, /^[0-9a-f]{64}$/u);
+    assert.ok(fileSourceBody.data.sizeBytes > 0);
+
+    const transitionPreview = await app.request('/api/v1/admin/config/transitions/preview', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({
+        schemaVersion: '1.0',
+        from: 'managed',
+        to: 'file',
+        expectedActiveRevision: runtime.revision,
+        source: {
+          kind: 'file',
+          path: fileSourceBody.data.path,
+          sha256: fileSourceBody.data.sha256,
+        },
+        dryRun: true,
+      }),
+    });
+    const transitionPreviewBody = (await transitionPreview.json()) as {
+      data: { previewToken: string; targetContentHash: string };
+      error?: { code: string; message: string };
+    };
+    assert.equal(transitionPreview.status, 200, JSON.stringify(transitionPreviewBody));
+    assert.equal(transitionPreview.headers.get('cache-control'), 'no-store');
+    assert.ok(transitionPreviewBody.data.previewToken.length >= 32);
+
+    const transitionApply = await app.request('/api/v1/admin/config/transitions/apply', {
+      method: 'POST',
+      headers: mutationHeaders,
+      body: JSON.stringify({
+        schemaVersion: '1.0',
+        from: 'managed',
+        to: 'file',
+        expectedActiveRevision: runtime.revision,
+        source: {
+          kind: 'file',
+          path: fileSourceBody.data.path,
+          sha256: fileSourceBody.data.sha256,
+        },
+        dryRun: false,
+        previewToken: transitionPreviewBody.data.previewToken,
+      }),
+    });
+    const transitionApplyBody = (await transitionApply.json()) as {
+      data: { state: string; mode: string; backupArtifactId: string };
+      error?: { code: string; message: string };
+    };
+    assert.equal(transitionApply.status, 200, JSON.stringify(transitionApplyBody));
+    assert.equal(transitionApplyBody.data.state, 'completed');
+    assert.equal(transitionApplyBody.data.mode, 'file');
+    assert.match(transitionApplyBody.data.backupArtifactId, /^bkp_[0-9a-f-]{36}$/u);
+    assert.equal(runtime.mode, 'file');
+    assert.equal(runtime.contentHash, transitionPreviewBody.data.targetContentHash);
+    assert.equal(
+      (
+        database
+          .prepare(
+            `SELECT COUNT(*) AS count FROM admin_audit
+             WHERE before_json LIKE ? OR after_json LIKE ?`
+          )
+          .get(
+            `%${transitionPreviewBody.data.previewToken}%`,
+            `%${transitionPreviewBody.data.previewToken}%`
+          ) as { count: number }
+      ).count,
+      0
+    );
+
     database
       .prepare(`UPDATE "user" SET role = 'publisher' WHERE email = 'owner@example.com'`)
       .run();
@@ -1491,21 +1585,21 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
 
     const attempts = database
       .prepare(
-        `SELECT result, error_code FROM admin_audit
-         WHERE result IN ('denied', 'failed') ORDER BY occurred_at ASC`
+        `SELECT result, error_code, COUNT(*) AS count
+         FROM admin_audit
+         WHERE result IN ('denied', 'failed')
+         GROUP BY result, error_code
+         ORDER BY result ASC, error_code ASC`
       )
-      .all() as Array<{ result: string; error_code: string }>;
+      .all() as Array<{ result: string; error_code: string; count: number }>;
     assert.deepEqual(attempts, [
-      { result: 'failed', error_code: 'SOURCE_ALREADY_EXISTS' },
-      { result: 'denied', error_code: 'UNTRUSTED_ORIGIN' },
-      { result: 'denied', error_code: 'UNTRUSTED_ORIGIN' },
-      { result: 'failed', error_code: 'CONFIG_REVISION_CONFLICT' },
-      { result: 'failed', error_code: 'BACKUP_NOT_ELIGIBLE' },
-      { result: 'failed', error_code: 'PUBLICATION_REVIEW_INVALID' },
-      { result: 'denied', error_code: 'FORBIDDEN' },
-      { result: 'failed', error_code: 'ADMIN_CURRENT_SESSION_REVOKE_FORBIDDEN' },
-      { result: 'denied', error_code: 'FORBIDDEN' },
-      { result: 'denied', error_code: 'FORBIDDEN' },
+      { result: 'denied', error_code: 'FORBIDDEN', count: 3 },
+      { result: 'denied', error_code: 'UNTRUSTED_ORIGIN', count: 2 },
+      { result: 'failed', error_code: 'ADMIN_CURRENT_SESSION_REVOKE_FORBIDDEN', count: 1 },
+      { result: 'failed', error_code: 'BACKUP_NOT_ELIGIBLE', count: 1 },
+      { result: 'failed', error_code: 'CONFIG_REVISION_CONFLICT', count: 1 },
+      { result: 'failed', error_code: 'PUBLICATION_REVIEW_INVALID', count: 1 },
+      { result: 'failed', error_code: 'SOURCE_ALREADY_EXISTS', count: 1 },
     ]);
   } finally {
     subscriberTombstones.close();
