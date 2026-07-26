@@ -136,14 +136,24 @@ timeout map into canonical v2 configuration. SSR-only or unsafe legacy switches 
 `accepted_no_effect` with an explanation instead of becoming unknown-variable failures or silently
 weakening the v2 security baseline.
 
-`bun run migrate-v1 -- --dry-run` is the default, zero-write workflow. It reads the legacy
+`bun run migrate-v1 -- --dry-run` is the default, zero-write Managed workflow. It reads the legacy
 environment and optional `config/generated-config.json`, then reports Source/Page/Slug metadata,
-precedence conflicts, ignored fields, Content Hash, parent Revision, and target Revision. Explicit
-`--execute` runs checked SQLite migrations, creates a pre-import SQLite backup, preserves the v1
-generated JSON, records any Schema Upgrade Backup ID and Manifest, writes a migration manifest, and
-atomically activates a Managed Revision. The operator then sets
-`KUMA_MIERU_CONFIG_MODE=managed`; keeping the old environment continues to select the read-only
-Compatibility Profile until that explicit cutover.
+precedence conflicts, ignored fields, Content Hash, parent Revision, target Revision, and the
+selected target mode. Explicit `--execute` runs checked SQLite migrations, creates a pre-import
+SQLite backup, preserves the v1 generated JSON, records any Schema Upgrade Backup ID and Manifest,
+writes a migration manifest, and commits the imported Revision, completed Compatibility
+Transition, and Durable Managed Pointer together. The old environment can remain present for
+rollback evidence, but the next restart follows that durable one-way cutover instead of silently
+selecting Compatibility again.
+
+GitOps cutover uses `KUMA_MIERU_CONFIG=/fixed/path/config.yml bun run migrate-v1 -- --dry-run
+--target=file`, followed by the same command with `--execute`. The parent directory must already
+exist as a real non-symlink directory. Execute writes a fully synced `0600` temporary file and
+publishes it with a same-filesystem, no-overwrite hard link; it never replaces an existing target.
+The same SQLite transaction creates a dormant Managed base, immutable File LKG, completed
+Compatibility Transition, and Durable File Pointer. A partial external edit after cutover cannot
+replace that LKG on restart. Returning to v1 requires restoring the pre-import backup; neither
+target supports an in-place switch back to Compatibility.
 
 The compatibility surface also preserves the v1 read routes `/api/config`, `/api/monitor`,
 `/api/icon`, `/api/manage-status-page`, `/about`, and `/monitor/:monitorId`. Config and monitor
