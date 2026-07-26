@@ -104,6 +104,20 @@ import {
   publishMaintenance,
 } from '../events/maintenance-repository.js';
 import {
+  appendRecurringMaintenancePlanUpdate,
+  createRecurringMaintenancePlan,
+  getRecurringMaintenancePlan,
+  listRecurringMaintenanceOccurrences,
+  listRecurringMaintenancePlans,
+  materializeRecurringMaintenancePlan,
+} from '../events/recurring-maintenance-repository.js';
+import {
+  recurringMaintenanceMaterializeSchema,
+  recurringMaintenancePlanCreateSchema,
+  recurringMaintenancePlanStateSchema,
+  recurringMaintenancePlanUpdateSchema,
+} from '../events/recurring-maintenance-schemas.js';
+import {
   appendNoticeUpdate,
   createNotice,
   getNoticePublicationReview,
@@ -184,6 +198,9 @@ const automationSuggestionStateSchema = z
   .enum(['pending', 'accepted', 'ignored', 'superseded'])
   .optional();
 const eventTemplateQuerySchema = z.object({ state: eventTemplateStateSchema.optional() }).strict();
+const recurringMaintenanceQuerySchema = z
+  .object({ state: recurringMaintenancePlanStateSchema.optional() })
+  .strict();
 const automationSuggestionAcceptSchema = z.object({
   expectedVersion: z.number().int().positive(),
   expectedNativeEventVersion: z.number().int().positive().optional(),
@@ -2181,6 +2198,130 @@ export const registerAdminRoutes = (
         auditContext(context, authorization.principal)
       );
       return context.json({ data: publication }, 201);
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.get('/api/v1/admin/recurring-maintenance-plans', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const query = recurringMaintenanceQuerySchema.parse(context.req.query());
+      return context.json({ data: listRecurringMaintenancePlans(database, query.state) });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.get('/api/v1/admin/recurring-maintenance-plans/:id', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    const plan = getRecurringMaintenancePlan(database, context.req.param('id'));
+    return plan
+      ? context.json({ data: plan })
+      : errorResponse(
+          context,
+          404,
+          'RECURRING_MAINTENANCE_NOT_FOUND',
+          'Recurring maintenance plan not found'
+        );
+  });
+
+  app.get('/api/v1/admin/recurring-maintenance-plans/:id/occurrences', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor', 'viewer']);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    const plan = getRecurringMaintenancePlan(database, context.req.param('id'));
+    return plan
+      ? context.json({ data: listRecurringMaintenanceOccurrences(database, plan.id) })
+      : errorResponse(
+          context,
+          404,
+          'RECURRING_MAINTENANCE_NOT_FOUND',
+          'Recurring maintenance plan not found'
+        );
+  });
+
+  app.post('/api/v1/admin/recurring-maintenance-plans', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const idempotencyKey = idempotencyKeySchema.parse(context.req.header('idempotency-key'));
+      const input = recurringMaintenancePlanCreateSchema.parse(await context.req.json());
+      const page = currentSnapshot().config.pages.find(
+        candidate => candidate.id === input.pageId || candidate.slug === input.pageId
+      );
+      if (!page) return errorResponse(context, 404, 'PAGE_NOT_FOUND', 'Status page not found');
+      const data = database.transaction(() => {
+        const plan = createRecurringMaintenancePlan(
+          database,
+          { ...input, pageId: page.id },
+          idempotencyKey,
+          auditContext(context, authorization.principal)
+        );
+        const materialization = materializeRecurringMaintenancePlan(database, plan.id, {
+          expectedVersion: plan.version,
+        });
+        return { plan, materialization };
+      })();
+      return context.json({ data }, 201);
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/recurring-maintenance-plans/:id/updates', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const input = recurringMaintenancePlanUpdateSchema.parse(await context.req.json());
+      const data = database.transaction(() => {
+        const plan = appendRecurringMaintenancePlanUpdate(
+          database,
+          context.req.param('id'),
+          input,
+          auditContext(context, authorization.principal)
+        );
+        const materialization = materializeRecurringMaintenancePlan(database, plan.id, {
+          expectedVersion: plan.version,
+        });
+        return { plan, materialization };
+      })();
+      return context.json({ data });
+    } catch (error) {
+      return handleEventError(context, error, authorization.principal);
+    }
+  });
+
+  app.post('/api/v1/admin/recurring-maintenance-plans/:id/materialize', async context => {
+    const authorization = await requireAdmin(context, ['owner', 'publisher', 'editor'], true);
+    if (!authorization.ok) return authorization.response;
+    if (!database) {
+      return errorResponse(context, 503, 'DATABASE_NOT_READY', 'Event database is unavailable');
+    }
+    try {
+      const input = recurringMaintenanceMaterializeSchema.parse(await context.req.json());
+      const materialization = materializeRecurringMaintenancePlan(
+        database,
+        context.req.param('id'),
+        { expectedVersion: input.expectedVersion }
+      );
+      return context.json({ data: materialization });
     } catch (error) {
       return handleEventError(context, error, authorization.principal);
     }

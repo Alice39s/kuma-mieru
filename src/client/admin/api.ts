@@ -153,6 +153,42 @@ export interface AdminEventTemplate {
   };
 }
 
+export type RecurringMaintenancePlanState = 'active' | 'paused' | 'archived';
+export interface AdminRecurringMaintenancePlan {
+  id: string;
+  pageId: string;
+  name: string;
+  state: RecurringMaintenancePlanState;
+  version: number;
+  title: string;
+  body: string;
+  affectedComponentIds: string[];
+  schedule: {
+    timeBasis: 'utc';
+    frequency: 'daily' | 'weekly';
+    interval: number;
+    weekdays: number[];
+    anchorStartAt: string;
+    durationMinutes: number;
+    endsAt: string | null;
+  };
+  nextOccurrenceAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminRecurringMaintenanceMaterialization {
+  planId: string;
+  planVersion: number;
+  evaluatedAt: string;
+  horizonAt: string;
+  materializedOccurrences: number;
+  existingOccurrences: number;
+  nextOccurrenceAt: string | null;
+  hasMore: boolean;
+}
+
 export interface AdminMirroredEvent {
   id: string;
   origin: 'mirrored';
@@ -653,6 +689,7 @@ export const getWorkbenchData = async () => {
     notices,
     postmortems,
     eventTemplates,
+    recurringMaintenancePlans,
   ] = await Promise.all([
     request<PublicMeta>('/api/v1/meta'),
     request<{ data: AdminMeta['config'] }>('/api/v1/admin/config/status'),
@@ -668,6 +705,7 @@ export const getWorkbenchData = async () => {
     request<{ data: AdminNotice[] }>('/api/v1/admin/notices'),
     request<{ data: AdminPostmortem[] }>('/api/v1/admin/postmortems'),
     request<{ data: AdminEventTemplate[] }>('/api/v1/admin/event-templates'),
+    request<{ data: AdminRecurringMaintenancePlan[] }>('/api/v1/admin/recurring-maintenance-plans'),
   ]);
   const events: AdminNativeEvent[] = [
     ...incidents.data,
@@ -684,6 +722,7 @@ export const getWorkbenchData = async () => {
     mirroredEvents: mirroredEvents.data,
     automationSuggestions: automationSuggestions.data,
     eventTemplates: eventTemplates.data,
+    recurringMaintenancePlans: recurringMaintenancePlans.data,
     events,
   };
 };
@@ -822,6 +861,69 @@ export const updateEventTemplate = (
     headers: mutationHeaders(session),
     body: JSON.stringify(input),
   });
+
+interface RecurringMaintenanceMutationInput {
+  pageId: string;
+  name: string;
+  title: string;
+  body: string;
+  affectedComponentIds: string[];
+  timeBasis: 'utc';
+  frequency: 'daily' | 'weekly';
+  interval: number;
+  weekdays: number[];
+  anchorStartAt: string;
+  durationMinutes: number;
+  endsAt: string | null;
+}
+
+interface RecurringMaintenanceMutationResult {
+  plan: AdminRecurringMaintenancePlan;
+  materialization: AdminRecurringMaintenanceMaterialization;
+}
+
+export const createRecurringMaintenancePlan = (
+  session: AdminSession,
+  input: RecurringMaintenanceMutationInput
+) =>
+  request<{ data: RecurringMaintenanceMutationResult }>(
+    '/api/v1/admin/recurring-maintenance-plans',
+    {
+      method: 'POST',
+      headers: { ...mutationHeaders(session), 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify(input),
+    }
+  );
+
+export const updateRecurringMaintenancePlan = (
+  session: AdminSession,
+  planId: string,
+  input: Omit<RecurringMaintenanceMutationInput, 'pageId'> & {
+    expectedVersion: number;
+    state: RecurringMaintenancePlanState;
+  }
+) =>
+  request<{ data: RecurringMaintenanceMutationResult }>(
+    `/api/v1/admin/recurring-maintenance-plans/${planId}/updates`,
+    {
+      method: 'POST',
+      headers: mutationHeaders(session),
+      body: JSON.stringify(input),
+    }
+  );
+
+export const materializeRecurringMaintenancePlan = (
+  session: AdminSession,
+  plan: AdminRecurringMaintenancePlan
+) =>
+  request<{ data: AdminRecurringMaintenanceMaterialization }>(
+    `/api/v1/admin/recurring-maintenance-plans/${plan.id}/materialize`,
+    {
+      method: 'POST',
+      headers: mutationHeaders(session),
+      body: JSON.stringify({ expectedVersion: plan.version }),
+    }
+  );
 
 type SecondaryEventType = 'maintenance' | 'notice' | 'postmortem';
 export type SecondaryEvent = AdminMaintenance | AdminNotice | AdminPostmortem;

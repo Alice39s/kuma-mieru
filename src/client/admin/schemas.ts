@@ -91,6 +91,59 @@ export const eventTemplateDraftSchema = z.object({
   noticeKind: z.enum(['information', 'warning']),
 });
 
+const recurringWeekdays = (value: string) =>
+  value
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean)
+    .map(Number);
+
+export const recurringMaintenanceDraftSchema = z
+  .object({
+    pageId: z.string().min(1, 'Choose a status page.'),
+    name: z.string().trim().min(1, 'Plan name is required.').max(100),
+    title: z.string().trim().min(1, 'Public title is required.').max(200),
+    body: z.string().trim().min(1, 'Public copy is required.').max(50_000),
+    affectedComponentIds: z.string(),
+    frequency: z.enum(['daily', 'weekly']),
+    interval: z.number().int().min(1).max(52),
+    weekdays: z.string(),
+    anchorStartAt: z.string().min(1, 'UTC anchor is required.'),
+    durationMinutes: z.number().int().min(1).max(10_080),
+    endsAt: z.string(),
+  })
+  .superRefine((input, context) => {
+    const weekdays = recurringWeekdays(input.weekdays);
+    if (
+      weekdays.some(day => !Number.isInteger(day) || day < 1 || day > 7) ||
+      new Set(weekdays).size !== weekdays.length
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['weekdays'],
+        message: 'Use unique ISO weekdays from 1 (Monday) through 7 (Sunday).',
+      });
+    }
+    if (input.frequency === 'weekly' && weekdays.length === 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['weekdays'],
+        message: 'Weekly recurrence requires at least one weekday.',
+      });
+    }
+    if (
+      input.anchorStartAt &&
+      input.endsAt &&
+      Date.parse(`${input.endsAt}Z`) < Date.parse(`${input.anchorStartAt}Z`)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['endsAt'],
+        message: 'Series end must not precede the anchor.',
+      });
+    }
+  });
+
 export const secondaryEventDraftSchema = z
   .object({
     type: z.enum(['maintenance', 'notice', 'postmortem']),
@@ -237,6 +290,7 @@ export type IncidentUpdateDraftInput = z.infer<typeof incidentUpdateDraftSchema>
 export type SecondaryEventDraftInput = z.infer<typeof secondaryEventDraftSchema>;
 export type SecondaryEventUpdateDraftInput = z.infer<typeof secondaryEventUpdateDraftSchema>;
 export type EventTemplateDraftInput = z.infer<typeof eventTemplateDraftSchema>;
+export type RecurringMaintenanceDraftInput = z.infer<typeof recurringMaintenanceDraftSchema>;
 export type RetentionPolicyDraftInput = z.infer<typeof retentionPolicyDraftSchema>;
 export type BackupDeleteConfirmationInput = z.infer<typeof backupDeleteConfirmationSchema>;
 export type RetentionRunConfirmationInput = z.infer<typeof retentionRunConfirmationSchema>;

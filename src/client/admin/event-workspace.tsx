@@ -22,11 +22,13 @@ import {
   type AdminMirroredEvent,
   type AdminNativeEvent,
   type AdminPage,
+  type AdminRecurringMaintenancePlan,
   type AdminSession,
 } from './api';
 import { IncidentComposer, IncidentReview } from './incident-desk';
 import { SecondaryEventComposer, SecondaryEventReview } from './secondary-event-desk';
 import { EventTemplateLibrary } from './event-template-library';
+import { RecurringMaintenanceLibrary } from './recurring-maintenance-library';
 
 const eventKey = (event: AdminNativeEvent) => `${event.type}:${event.id}`;
 
@@ -43,6 +45,7 @@ export const EventWorkspace = ({
   incidents,
   events,
   eventTemplates,
+  recurringMaintenancePlans,
   automationSuggestions,
   mirroredEvents,
   onCommitted,
@@ -52,6 +55,7 @@ export const EventWorkspace = ({
   incidents: AdminIncident[];
   events: AdminNativeEvent[];
   eventTemplates: AdminEventTemplate[];
+  recurringMaintenancePlans: AdminRecurringMaintenancePlan[];
   automationSuggestions: AdminAutomationSuggestion[];
   mirroredEvents: AdminMirroredEvent[];
   onCommitted: () => Promise<void>;
@@ -272,6 +276,12 @@ export const EventWorkspace = ({
         <EventTemplateLibrary
           session={session}
           templates={eventTemplates}
+          onCommitted={onCommitted}
+        />
+        <RecurringMaintenanceLibrary
+          session={session}
+          pages={pages}
+          plans={recurringMaintenancePlans}
           onCommitted={onCommitted}
         />
         {canDraft ? (

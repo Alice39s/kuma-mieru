@@ -132,6 +132,7 @@ test('boots the real server, polls Uptime Kuma, and projects one local snapshot'
         KUMA_MIERU_CONFIG: configPath,
         KUMA_MIERU_CONFIG_MODE: 'file',
         KUMA_MIERU_DATA_DIR: dataDirectory,
+        KUMA_MIERU_MIGRATIONS_DIR: resolve(process.cwd(), 'migrations'),
         KUMA_MIERU_RETENTION_SCHEDULE_ENABLED: 'false',
         KUMA_MIERU_SETUP_TOKEN: 'runtime-smoke-owner-setup-token-0001',
         NODE_ENV: 'development',

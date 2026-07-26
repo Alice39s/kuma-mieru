@@ -50,7 +50,7 @@ const stopChild = async (child: ChildProcessWithoutNullStreams) => {
   ]);
 };
 
-test('restores schema 16, backfills lifecycle, and reaches readiness on schema 19', async () => {
+test('restores schema 16, backfills lifecycle, and reaches readiness on schema 20', async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'kuma-mieru-restore-upgrade-runtime-'));
   const dataDirectory = resolve(root, 'data');
   const databasePath = resolve(dataDirectory, 'kuma-mieru.sqlite3');
@@ -59,9 +59,9 @@ test('restores schema 16, backfills lifecycle, and reaches readiness on schema 1
   const migrationNames = (await readdir(migrationDirectory))
     .filter(name => name.endsWith('.up.sql'))
     .sort();
-  assert.equal(migrationNames.length, 19);
+  assert.equal(migrationNames.length, 20);
   await mkdir(previousMigrationDirectory, { recursive: true });
-  for (const name of migrationNames.slice(0, -3)) {
+  for (const name of migrationNames.slice(0, 16)) {
     await copyFile(resolve(migrationDirectory, name), resolve(previousMigrationDirectory, name));
   }
   await writeFile(
@@ -144,7 +144,7 @@ test('restores schema 16, backfills lifecycle, and reaches readiness on schema 1
       databasePath,
       appBuild: '2.0.0-current',
     });
-    assert.equal(firstUpgrade.currentVersion, 19);
+    assert.equal(firstUpgrade.currentVersion, 20);
     assert.ok(firstUpgrade.backupArtifactId);
     assert.equal(
       (
@@ -292,7 +292,7 @@ test('restores schema 16, backfills lifecycle, and reaches readiness on schema 1
             .prepare('SELECT MAX(version) AS version FROM schema_migrations')
             .get() as { version: number }
         ).version,
-        19
+        20
       );
       assert.deepEqual(
         readyDatabase.database
@@ -303,6 +303,25 @@ test('restores schema 16, backfills lifecycle, and reaches readiness on schema 1
           )
           .all(),
         [{ name: 'event_template_entries' }, { name: 'event_templates' }]
+      );
+      assert.deepEqual(
+        readyDatabase.database
+          .prepare(
+            `SELECT name FROM sqlite_master
+             WHERE type = 'table'
+               AND name IN (
+                 'recurring_maintenance_plans',
+                 'recurring_maintenance_plan_entries',
+                 'recurring_maintenance_occurrences'
+               )
+             ORDER BY name`
+          )
+          .all(),
+        [
+          { name: 'recurring_maintenance_occurrences' },
+          { name: 'recurring_maintenance_plan_entries' },
+          { name: 'recurring_maintenance_plans' },
+        ]
       );
       const nativeEventColumns = readyDatabase.database
         .prepare('PRAGMA table_info(native_events)')

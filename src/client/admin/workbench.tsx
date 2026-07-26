@@ -732,6 +732,7 @@ export const Workbench = ({
                 incidents={data.incidents}
                 events={data.events}
                 eventTemplates={data.eventTemplates}
+                recurringMaintenancePlans={data.recurringMaintenancePlans}
                 automationSuggestions={data.automationSuggestions}
                 mirroredEvents={data.mirroredEvents}
                 onCommitted={reload}

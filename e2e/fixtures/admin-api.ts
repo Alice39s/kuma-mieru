@@ -84,6 +84,31 @@ interface AdminEventTemplate {
   };
 }
 
+type RecurringMaintenancePlanState = 'active' | 'paused' | 'archived';
+interface AdminRecurringMaintenancePlan {
+  id: string;
+  pageId: string;
+  name: string;
+  state: RecurringMaintenancePlanState;
+  version: number;
+  title: string;
+  body: string;
+  affectedComponentIds: string[];
+  schedule: {
+    timeBasis: 'utc';
+    frequency: 'daily' | 'weekly';
+    interval: number;
+    weekdays: number[];
+    anchorStartAt: string;
+    durationMinutes: number;
+    endsAt: string | null;
+  };
+  nextOccurrenceAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 type SubscriberState =
   | 'pending_confirmation'
   | 'active'
@@ -224,6 +249,7 @@ export interface AdminApiState {
     reviewNonce: string;
   }>;
   revision: number;
+  recurringMaintenancePlans: AdminRecurringMaintenancePlan[];
   role: AdminRole;
   sentTestRecipients: string[];
   smtp: SmtpStatus;
@@ -308,6 +334,30 @@ const referenceEventTemplate: AdminEventTemplate = {
   },
 };
 
+const referenceRecurringMaintenancePlan: AdminRecurringMaintenancePlan = {
+  id: 'recurring-database-window',
+  pageId: 'page-main',
+  name: 'Weekly database window',
+  state: 'active',
+  version: 1,
+  title: 'Routine database maintenance',
+  body: 'We will apply routine database updates.',
+  affectedComponentIds: ['database'],
+  schedule: {
+    timeBasis: 'utc',
+    frequency: 'weekly',
+    interval: 1,
+    weekdays: [1],
+    anchorStartAt: '2026-07-27T01:00:00.000Z',
+    durationMinutes: 60,
+    endsAt: null,
+  },
+  nextOccurrenceAt: '2026-08-03T01:00:00.000Z',
+  createdBy: 'owner-e2e-reference',
+  createdAt: '2026-07-25T01:25:00.000Z',
+  updatedAt: '2026-07-25T01:25:00.000Z',
+};
+
 const referenceSubscriber: AdminSubscriber = {
   id: 'subscriber-reference',
   pageId: 'page-main',
@@ -385,6 +435,7 @@ export const installAdminApi = async (
     pages: options.empty ? [] : [{ ...referencePage }],
     publications: [],
     revision: options.empty ? 1 : 7,
+    recurringMaintenancePlans: options.empty ? [] : [{ ...referenceRecurringMaintenancePlan }],
     role: options.role ?? 'owner',
     sentTestRecipients: [],
     smtp: disabledSmtp(),
@@ -613,7 +664,7 @@ export const installAdminApi = async (
     if (pathname === '/api/v1/meta' && method === 'GET') {
       return fulfillJson(route, {
         version: '2.0.0-e2e',
-        schemaVersion: 18,
+        schemaVersion: 20,
         config: {
           mode: 'managed',
           revision: state.revision,
@@ -736,6 +787,169 @@ export const installAdminApi = async (
 
     if (pathname === '/api/v1/admin/event-templates' && method === 'GET') {
       return fulfillJson(route, { data: state.eventTemplates });
+    }
+
+    if (pathname === '/api/v1/admin/recurring-maintenance-plans' && method === 'GET') {
+      return fulfillJson(route, { data: state.recurringMaintenancePlans });
+    }
+
+    if (pathname === '/api/v1/admin/recurring-maintenance-plans' && method === 'POST') {
+      recordMutationBoundary(route, state);
+      const input = parseBody<{
+        pageId: string;
+        name: string;
+        title: string;
+        body: string;
+        affectedComponentIds: string[];
+        timeBasis: 'utc';
+        frequency: 'daily' | 'weekly';
+        interval: number;
+        weekdays: number[];
+        anchorStartAt: string;
+        durationMinutes: number;
+        endsAt: string | null;
+      }>(route);
+      const recordedAt = '2026-07-25T02:00:00.000Z';
+      const plan: AdminRecurringMaintenancePlan = {
+        id: `recurring-plan-${state.recurringMaintenancePlans.length + 1}`,
+        pageId: input.pageId,
+        name: input.name,
+        state: 'active',
+        version: 1,
+        title: input.title,
+        body: input.body,
+        affectedComponentIds: input.affectedComponentIds,
+        schedule: {
+          timeBasis: input.timeBasis,
+          frequency: input.frequency,
+          interval: input.interval,
+          weekdays: input.weekdays,
+          anchorStartAt: input.anchorStartAt,
+          durationMinutes: input.durationMinutes,
+          endsAt: input.endsAt,
+        },
+        nextOccurrenceAt: input.anchorStartAt,
+        createdBy: `${state.role}-e2e-reference`,
+        createdAt: recordedAt,
+        updatedAt: recordedAt,
+      };
+      state.recurringMaintenancePlans.unshift(plan);
+      return fulfillJson(
+        route,
+        {
+          data: {
+            plan,
+            materialization: {
+              planId: plan.id,
+              planVersion: plan.version,
+              evaluatedAt: recordedAt,
+              horizonAt: '2026-08-29T02:00:00.000Z',
+              materializedOccurrences: 3,
+              existingOccurrences: 0,
+              nextOccurrenceAt: plan.nextOccurrenceAt,
+              hasMore: false,
+            },
+          },
+        },
+        201
+      );
+    }
+
+    const recurringMaintenanceUpdate = pathname.match(
+      /^\/api\/v1\/admin\/recurring-maintenance-plans\/([^/]+)\/updates$/
+    );
+    if (recurringMaintenanceUpdate && method === 'POST') {
+      recordMutationBoundary(route, state);
+      const planId = decodeURIComponent(recurringMaintenanceUpdate[1] ?? '');
+      const index = state.recurringMaintenancePlans.findIndex(plan => plan.id === planId);
+      if (index < 0) {
+        return fulfillJson(route, { error: { code: 'RECURRING_MAINTENANCE_NOT_FOUND' } }, 404);
+      }
+      const current = state.recurringMaintenancePlans[index] as AdminRecurringMaintenancePlan;
+      const input = parseBody<{
+        expectedVersion: number;
+        state: RecurringMaintenancePlanState;
+        name: string;
+        title: string;
+        body: string;
+        affectedComponentIds: string[];
+        timeBasis: 'utc';
+        frequency: 'daily' | 'weekly';
+        interval: number;
+        weekdays: number[];
+        anchorStartAt: string;
+        durationMinutes: number;
+        endsAt: string | null;
+      }>(route);
+      if (input.expectedVersion !== current.version) {
+        return fulfillJson(
+          route,
+          { error: { code: 'RECURRING_MAINTENANCE_VERSION_CONFLICT' } },
+          409
+        );
+      }
+      const version = current.version + 1;
+      const recordedAt = '2026-07-25T02:05:00.000Z';
+      const updated: AdminRecurringMaintenancePlan = {
+        ...current,
+        name: input.name,
+        state: input.state,
+        version,
+        title: input.title,
+        body: input.body,
+        affectedComponentIds: input.affectedComponentIds,
+        schedule: {
+          timeBasis: input.timeBasis,
+          frequency: input.frequency,
+          interval: input.interval,
+          weekdays: input.weekdays,
+          anchorStartAt: input.anchorStartAt,
+          durationMinutes: input.durationMinutes,
+          endsAt: input.endsAt,
+        },
+        nextOccurrenceAt: input.state === 'active' ? input.anchorStartAt : null,
+        updatedAt: recordedAt,
+      };
+      state.recurringMaintenancePlans[index] = updated;
+      return fulfillJson(route, {
+        data: {
+          plan: updated,
+          materialization: {
+            planId: updated.id,
+            planVersion: updated.version,
+            evaluatedAt: recordedAt,
+            horizonAt: '2026-08-29T02:00:00.000Z',
+            materializedOccurrences: 0,
+            existingOccurrences: 3,
+            nextOccurrenceAt: updated.nextOccurrenceAt,
+            hasMore: false,
+          },
+        },
+      });
+    }
+
+    const recurringMaintenanceMaterialize = pathname.match(
+      /^\/api\/v1\/admin\/recurring-maintenance-plans\/([^/]+)\/materialize$/
+    );
+    if (recurringMaintenanceMaterialize && method === 'POST') {
+      recordMutationBoundary(route, state);
+      const planId = decodeURIComponent(recurringMaintenanceMaterialize[1] ?? '');
+      const plan = state.recurringMaintenancePlans.find(candidate => candidate.id === planId);
+      if (!plan) {
+        return fulfillJson(route, { error: { code: 'RECURRING_MAINTENANCE_NOT_FOUND' } }, 404);
+      }
+      return fulfillJson(route, {
+        data: {
+          planId: plan.id,
+          planVersion: plan.version,
+          evaluatedAt: '2026-07-25T02:05:00.000Z',
+          horizonAt: '2026-08-29T02:05:00.000Z',
+          materializedOccurrences: 0,
+          existingOccurrences: 3,
+          nextOccurrenceAt: plan.nextOccurrenceAt,
+          hasMore: false,
+        },
+      });
     }
 
     if (pathname === '/api/v1/admin/event-templates' && method === 'POST') {

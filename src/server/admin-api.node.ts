@@ -947,6 +947,98 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     assert.equal(publicMaintenance.status, 200);
     assert.equal(publicMaintenanceBody.data.length, 1);
 
+    const recurringAnchor = new Date(Date.now() + 24 * 60 * 60_000);
+    recurringAnchor.setUTCHours(1, 0, 0, 0);
+    const recurringEnd = new Date(recurringAnchor.valueOf() + 2 * 24 * 60 * 60_000);
+    const recurringPlanCreated = await app.request('/api/v1/admin/recurring-maintenance-plans', {
+      method: 'POST',
+      headers: {
+        ...mutationHeaders,
+        'Idempotency-Key': 'recurring-maintenance-create-admin-api-0001',
+      },
+      body: JSON.stringify({
+        pageId: 'public',
+        name: 'Daily database window',
+        title: 'Routine database maintenance',
+        body: 'We will apply routine database updates.',
+        affectedComponentIds: ['primary'],
+        timeBasis: 'utc',
+        frequency: 'daily',
+        interval: 1,
+        weekdays: [],
+        anchorStartAt: recurringAnchor.toISOString(),
+        durationMinutes: 60,
+        endsAt: recurringEnd.toISOString(),
+      }),
+    });
+    const recurringPlan = (await recurringPlanCreated.json()) as {
+      data: {
+        plan: { id: string; version: number; state: string };
+        materialization: { materializedOccurrences: number };
+      };
+    };
+    assert.equal(recurringPlanCreated.status, 201);
+    assert.equal(recurringPlan.data.plan.version, 1);
+    assert.equal(recurringPlan.data.plan.state, 'active');
+    assert.equal(recurringPlan.data.materialization.materializedOccurrences, 3);
+
+    const recurringOccurrences = await app.request(
+      `/api/v1/admin/recurring-maintenance-plans/${recurringPlan.data.plan.id}/occurrences`,
+      { headers: { Cookie: cookie } }
+    );
+    const recurringOccurrencesBody = (await recurringOccurrences.json()) as {
+      data: Array<{ planVersion: number; maintenance: { state: string } }>;
+    };
+    assert.equal(recurringOccurrences.status, 200);
+    assert.equal(recurringOccurrencesBody.data.length, 3);
+    assert.equal(
+      recurringOccurrencesBody.data.every(
+        occurrence => occurrence.planVersion === 1 && occurrence.maintenance.state === 'draft'
+      ),
+      true
+    );
+    const publicMaintenanceAfterRecurring = await app.request(
+      '/api/v1/public/pages/main/maintenance'
+    );
+    const publicMaintenanceAfterRecurringBody = (await publicMaintenanceAfterRecurring.json()) as {
+      data: unknown[];
+    };
+    assert.equal(publicMaintenanceAfterRecurringBody.data.length, 1);
+
+    const recurringPlanPaused = await app.request(
+      `/api/v1/admin/recurring-maintenance-plans/${recurringPlan.data.plan.id}/updates`,
+      {
+        method: 'POST',
+        headers: mutationHeaders,
+        body: JSON.stringify({
+          expectedVersion: 1,
+          state: 'paused',
+          name: 'Daily database window',
+          title: 'Routine database maintenance',
+          body: 'We will apply routine database updates.',
+          affectedComponentIds: ['primary'],
+          timeBasis: 'utc',
+          frequency: 'daily',
+          interval: 1,
+          weekdays: [],
+          anchorStartAt: recurringAnchor.toISOString(),
+          durationMinutes: 60,
+          endsAt: recurringEnd.toISOString(),
+        }),
+      }
+    );
+    const recurringPlanPausedBody = (await recurringPlanPaused.json()) as {
+      data: {
+        plan: { version: number; state: string; nextOccurrenceAt: string | null };
+        materialization: { materializedOccurrences: number };
+      };
+    };
+    assert.equal(recurringPlanPaused.status, 200);
+    assert.equal(recurringPlanPausedBody.data.plan.version, 2);
+    assert.equal(recurringPlanPausedBody.data.plan.state, 'paused');
+    assert.equal(recurringPlanPausedBody.data.plan.nextOccurrenceAt, null);
+    assert.equal(recurringPlanPausedBody.data.materialization.materializedOccurrences, 0);
+
     const noticeCreated = await app.request('/api/v1/admin/notices', {
       method: 'POST',
       headers: { ...mutationHeaders, 'Idempotency-Key': 'notice-create-admin-api-0001' },

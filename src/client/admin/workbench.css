@@ -225,6 +225,9 @@
   letter-spacing: 0;
   text-transform: none;
 }
+.admin-field .admin-field-hint {
+  color: var(--admin-muted);
+}
 
 .admin-primary-button,
 .admin-secondary-button,
@@ -1010,6 +1013,14 @@
 .template-new-button {
   width: auto;
   margin: 1rem 1.5rem 0;
+}
+.recurring-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.recurring-plan-actions button {
+  width: auto;
 }
 .template-immutable-value {
   display: flex;

@@ -560,6 +560,27 @@ one per-event transaction. Each automatic version is published to the page and f
 `notifySubscribers: false`; it never inherits a prior email decision. A newer private edit pauses
 automation until that exact version has passed Publication Review.
 
+### Recurring maintenance plans
+
+Schema 20 adds append-only recurring Maintenance plans and immutable occurrence attribution. The
+first contract slice supports bounded daily and weekly UTC cadences only: an interval, an anchor,
+ISO weekdays for weekly plans, a duration, and an optional final occurrence start. It does not
+claim local civil time, IANA timezone, daylight-saving, monthly, or arbitrary RRULE semantics.
+
+An active plan materializes each due occurrence as a separate private native Maintenance draft.
+Plan ID, exact Plan Version, and occurrence start are recorded independently, while a uniqueness
+constraint makes repeated startup, hourly scheduler, and manual horizon checks idempotent. Editing a
+plan appends a version and changes only future unmaterialized occurrences; pausing stops new
+materialization without mutating existing drafts, resuming continues from the next due start, and
+archiving is terminal.
+
+The scheduler catches up before the public listener opens, evaluates a 35-day horizon hourly, and
+uses bounded plan and occurrence batches. It never publishes, changes Maintenance state, or creates
+subscriber Outbox work. Every materialized draft still requires its own normal edit, Publication
+Review, and explicit email Boolean. Owner, Publisher, and Editor can manage plans; Viewer remains
+read-only. The Admin Event Workbench exposes create, append-version, pause, resume, archive, and
+manual horizon actions without introducing recurrence fields into the generic Status Page schema.
+
 ## Native notices
 
 Notice is a separate append-only aggregate for non-incident communication. It uses
@@ -590,6 +611,5 @@ historical files, changed checksums, failed integrity checks, and failed foreign
 applied migration and its SHA-256 checksum are recorded in `schema_migrations`.
 
 The current implementation includes the passkey enrollment workbench, owner-scoped user/session
-administration, Generic OIDC access mapping, append-only Event Templates, and automatic one-shot
-Maintenance/Notice lifecycle scheduling. Recurring maintenance remains outside this slice and must
-stay disabled until its separate scheduling and review contract is implemented.
+administration, Generic OIDC access mapping, append-only Event Templates, automatic one-shot
+Maintenance/Notice lifecycle scheduling, and the bounded UTC Recurring Maintenance contract above.

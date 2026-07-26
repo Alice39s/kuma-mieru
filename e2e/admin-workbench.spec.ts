@@ -201,7 +201,10 @@ test('keeps Viewer access read-only across configuration and event surfaces', as
   await expect(page.getByRole('heading', { name: 'Events are read-only.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Event templates' })).toBeVisible();
   await expect(page.getByText('Template library is read-only.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recurring maintenance' })).toBeVisible();
+  await expect(page.getByText('Recurring plans are read-only.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'New template' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New recurring plan' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Create incident draft' })).toHaveCount(0);
   await assertAccessible(page);
 });
@@ -272,6 +275,44 @@ test('renders a stable responsive event template workbench', async ({ page }) =>
     fullPage: true,
     maxDiffPixelRatio: 0.001,
   });
+});
+
+test('lets an Editor create a UTC recurring plan without publishing occurrences', async ({
+  page,
+}) => {
+  const state = await installAdminApi(page, { role: 'editor' });
+  await page.goto('/admin/');
+  await page.getByRole('button', { name: 'Events' }).click();
+
+  const library = page.locator('.recurring-maintenance-library');
+  await expect(library.getByRole('heading', { name: 'Recurring maintenance' })).toBeVisible();
+  await library.getByRole('button', { name: 'New recurring plan' }).click();
+  await library.getByLabel('Internal plan name').fill('Daily inference database window');
+  await library.getByLabel('Maintenance title').fill('Routine inference database maintenance');
+  await library
+    .getByLabel('Maintenance draft copy')
+    .fill('We will apply routine inference database updates.');
+  await library.getByLabel('Affected component IDs').fill('database, inference');
+  await library.getByLabel('UTC frequency').selectOption('daily');
+  await library.getByLabel('Every').fill('1');
+  await library.getByLabel('First UTC start').fill('2026-08-01T01:00');
+  await library.getByLabel('Duration in minutes').fill('90');
+  await library.getByRole('button', { name: 'Create recurring plan' }).click();
+
+  await expect(
+    library.getByRole('button', { name: /Daily inference database window/u })
+  ).toBeVisible();
+  expect(state.recurringMaintenancePlans).toHaveLength(2);
+  expect(state.recurringMaintenancePlans[0]).toMatchObject({
+    name: 'Daily inference database window',
+    state: 'active',
+    version: 1,
+    schedule: { frequency: 'daily', durationMinutes: 90 },
+  });
+  expect(state.publications).toHaveLength(0);
+  expect(state.mutationHeaders).toHaveLength(1);
+  expect(state.mutationHeaders[0]?.csrf).toBe('e2e-csrf-token');
+  await assertAccessible(page);
 });
 
 test('lets an Editor create drafts without exposing publication or subscriber controls', async ({

@@ -34,6 +34,10 @@ import {
   createEventLifecycleService,
   startEventLifecycleScheduler,
 } from './events/lifecycle.js';
+import {
+  createRecurringMaintenanceService,
+  startRecurringMaintenanceScheduler,
+} from './events/recurring-maintenance-scheduler.js';
 import { loadOrCreateSecretKeyring } from './secrets/keyring.js';
 import { createSecretStore } from './secrets/store.js';
 import { createPiiProtector } from './subscriptions/crypto.js';
@@ -110,6 +114,20 @@ if (initialEventLifecycleRun.transitions > 0) {
     transitions: initialEventLifecycleRun.transitions,
     events: initialEventLifecycleRun.transitionedEvents,
     hasMore: initialEventLifecycleRun.hasMore,
+  });
+}
+const recurringMaintenanceService = createRecurringMaintenanceService({ database });
+const initialRecurringMaintenanceRun = recurringMaintenanceService.run();
+if (initialRecurringMaintenanceRun.failures.length > 0) {
+  throw new Error(
+    `${initialRecurringMaintenanceRun.failures.length} recurring maintenance plans failed during startup`
+  );
+}
+if (initialRecurringMaintenanceRun.materializedOccurrences > 0) {
+  console.info('Materialized recurring maintenance drafts during startup', {
+    occurrences: initialRecurringMaintenanceRun.materializedOccurrences,
+    plans: initialRecurringMaintenanceRun.materializedPlans,
+    hasMore: initialRecurringMaintenanceRun.hasMore,
   });
 }
 const backupService = createBackupService({
@@ -423,6 +441,18 @@ const stopEventLifecycleScheduler = startEventLifecycleScheduler({
     }
   },
 });
+const stopRecurringMaintenanceScheduler = startRecurringMaintenanceScheduler({
+  service: recurringMaintenanceService,
+  onRun: result => {
+    if (result.materializedOccurrences > 0) {
+      console.info('Materialized recurring maintenance drafts', {
+        occurrences: result.materializedOccurrences,
+        plans: result.materializedPlans,
+        hasMore: result.hasMore,
+      });
+    }
+  },
+});
 const server = serve({ fetch: app.fetch, port, hostname });
 console.info(`Kuma Mieru v2 listening on http://${hostname}:${port}`);
 
@@ -434,6 +464,7 @@ const shutdown = (signal: NodeJS.Signals) => {
     stopFileReloader();
     stopSourcePoller();
     stopEventLifecycleScheduler();
+    stopRecurringMaintenanceScheduler();
     stopBackupScheduler();
     stopRetentionScheduler();
     deliveryRuntime.stop();
