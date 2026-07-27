@@ -67,7 +67,8 @@ jobs:
           zap_status=$?
           set -e
           case "$zap_status" in
-            0|1) ;;
+            # ZAP uses 1 for FAIL findings, 2 for WARN findings, and 3 for tool errors.
+            0|2) ;;
             *) exit "$zap_status" ;;
           esac
           test -s zap-reports/zap-report.html
