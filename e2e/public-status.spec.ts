@@ -10,7 +10,7 @@ test('renders a truthful public overview with a stable responsive reference', as
   const overallStatus = page.getByRole('status', { name: 'Overall status' });
   await expect(overallStatus.getByText('All systems operational', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: /API Gateway/ })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Public history' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'History' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Notices' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Subscribe' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'RSS', exact: true })).toHaveAttribute(
@@ -105,6 +105,21 @@ test('refuses to present stale or partial evidence as healthy', async ({ page })
   await expect(overallStatus.getByText('Status unknown', { exact: true })).toBeVisible();
   await expect(page.getByText('1 of 1 sources stale')).toBeVisible();
   await expect(overallStatus.getByText('All systems operational', { exact: true })).toHaveCount(0);
+  await assertAccessible(page);
+});
+
+test('keeps live service evidence visible when the event ledger is unavailable', async ({
+  page,
+}) => {
+  await installPublicApi(page, { eventLedgerUnavailable: true });
+  await page.goto('/status/main/');
+
+  const overallStatus = page.getByRole('status', { name: 'Overall status' });
+  await expect(overallStatus.getByText('All systems operational', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'API Gateway' })).toBeVisible();
+  await expect(page.getByText('Some public data is temporarily unavailable')).toBeVisible();
+  await expect(page.getByText(/Missing: published updates/)).toBeVisible();
+  await expect(page.getByText('Unable to load public status')).toHaveCount(0);
   await assertAccessible(page);
 });
 

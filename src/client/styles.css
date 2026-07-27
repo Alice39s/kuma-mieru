@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import '@heroui/styles';
 
 @theme {
   --font-sans: 'Manrope Variable', ui-sans-serif, system-ui, sans-serif;
@@ -7,17 +8,23 @@
 
 :root {
   color-scheme: light;
+  --accent: oklch(0.62 0.17 151);
+  --focus: var(--accent);
+  --muted: oklch(0.46 0.014 286);
+  --radius: 0.625rem;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
 
 html {
-  background: #f5f7f4;
+  background: var(--background);
+  scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
   min-width: 320px;
+  min-height: 100vh;
 }
 
 a {
@@ -26,6 +33,10 @@ a {
 }
 
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 3px solid #047857;
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 24%, transparent);
 }

@@ -84,6 +84,13 @@ export interface SourceSnapshotState {
   };
 }
 
+export type PublicDataResource = 'snapshot' | 'events' | 'mirrored-events';
+
+export interface PublicDataIssue {
+  resource: PublicDataResource;
+  message: string;
+}
+
 const getJson = async <T>(path: string): Promise<T> => {
   const response = await fetch(path, { headers: { Accept: 'application/json' } });
   if (!response.ok) {
@@ -201,17 +208,49 @@ export type PublicPublication =
 
 export const loadStatusPage = async (input: { params: Record<string, string | undefined> }) => {
   const slug = input.params.pageSlug ?? input.params.pageId;
-  if (!slug) return { snapshot: null, publications: [], mirroredEvents: [] };
-  const [snapshot, publications, mirrored] = await Promise.all([
-    loadStatusSnapshot(input),
-    getJson<{ data: PublicPublication[] }>(
-      `/api/v1/public/pages/${encodeURIComponent(slug)}/events`
+  if (!slug) return { snapshot: null, publications: [], mirroredEvents: [], issues: [] };
+
+  const capture = async <T>(
+    resource: PublicDataResource,
+    request: Promise<T>
+  ): Promise<{ data: T | null; issue: PublicDataIssue | null }> => {
+    try {
+      return { data: await request, issue: null };
+    } catch {
+      return {
+        data: null,
+        issue: {
+          resource,
+          message: `The public ${resource} resource is temporarily unavailable.`,
+        },
+      };
+    }
+  };
+
+  const [snapshotResult, publicationsResult, mirroredResult] = await Promise.all([
+    capture('snapshot', loadStatusSnapshot(input)),
+    capture(
+      'events',
+      getJson<{ data: PublicPublication[] }>(
+        `/api/v1/public/pages/${encodeURIComponent(slug)}/events`
+      )
     ),
-    getJson<{ data: PublicMirroredEvent[] }>(
-      `/api/v1/public/pages/${encodeURIComponent(slug)}/mirrored-events`
+    capture(
+      'mirrored-events',
+      getJson<{ data: PublicMirroredEvent[] }>(
+        `/api/v1/public/pages/${encodeURIComponent(slug)}/mirrored-events`
+      )
     ),
   ]);
-  return { snapshot, publications: publications.data, mirroredEvents: mirrored.data };
+
+  return {
+    snapshot: snapshotResult.data,
+    publications: publicationsResult.data?.data ?? [],
+    mirroredEvents: mirroredResult.data?.data ?? [],
+    issues: [snapshotResult.issue, publicationsResult.issue, mirroredResult.issue].filter(
+      (issue): issue is PublicDataIssue => issue !== null
+    ),
+  };
 };
 
 export type StatusPagePayload = Awaited<ReturnType<typeof loadStatusPage>>;

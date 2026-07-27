@@ -2,6 +2,7 @@ import type { Page, Route } from '@playwright/test';
 
 export interface PublicApiOptions {
   emailSubscriptions?: boolean;
+  eventLedgerUnavailable?: boolean;
   partialCoverage?: boolean;
   staleSource?: boolean;
 }
@@ -164,10 +165,17 @@ export const installPublicApi = async (page: Page, options: PublicApiOptions = {
     meta: { status: options.partialCoverage ? 'partial' : 'ok' },
   };
 
-  await page.route('**/api/v1/**', route => {
+  await page.route('**/api/**', route => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
 
+    if (path === '/api/icon') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="1.5"><path d="M3 12h4.5L9 6l4 12 2-9 1.5 3H21"/></svg>',
+      });
+    }
     if (path === '/api/v1/meta') {
       return fulfillJson(route, {
         version: '2.0.0-e2e',
@@ -204,6 +212,9 @@ export const installPublicApi = async (page: Page, options: PublicApiOptions = {
       return fulfillJson(route, snapshot);
     }
     if (path === '/api/v1/public/pages/main/events') {
+      if (options.eventLedgerUnavailable) {
+        return fulfillJson(route, { code: 'TEMPORARY_FAILURE' }, 503);
+      }
       return fulfillJson(route, { data: publications });
     }
     if (path === '/api/v1/public/pages/main/notices') {
