@@ -7,20 +7,30 @@ on:
     branches: [main]
   schedule:
     - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zap-baseline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   zap-baseline:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     env:
       UPTIME_KUMA_URLS: https://example.kuma-mieru.invalid/status/default
       KUMA_MIERU_TITLE: Kuma Mieru
       KUMA_MIERU_DESCRIPTION: Test instance for dynamic analysis
+      CI_MODE: true
       NODE_ENV: production
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -34,7 +44,7 @@ jobs:
       - name: Start application
         run: |
           bun run start &
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q "200\|307"; then
               echo "Application is ready"
               exit 0
@@ -46,13 +56,23 @@ jobs:
 
       - name: Run OWASP ZAP baseline scan
         run: |
-          docker run --network host -v $(pwd)/zap-reports:/zap/wrk:rw \
+          install -d -m 0777 zap-reports
+          set +e
+          docker run --network host -v "$PWD/zap-reports:/zap/wrk:rw" \
             -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
             -t http://localhost:3000 \
             -r zap-report.html \
             -J zap-report.json \
-            -w zap-report.md \
-            || echo "ZAP finished with warnings or errors"
+            -w zap-report.md
+          zap_status=$?
+          set -e
+          case "$zap_status" in
+            0|1) ;;
+            *) exit "$zap_status" ;;
+          esac
+          test -s zap-reports/zap-report.html
+          test -s zap-reports/zap-report.json
+          test -s zap-reports/zap-report.md
 
       - name: Stop application
         if: always()
@@ -60,7 +80,9 @@ jobs:
 
       - name: Upload ZAP report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: zap-baseline-report
+          name: zap-baseline-report-${{ github.sha }}
           path: zap-reports/
+          if-no-files-found: error
+          retention-days: 14
