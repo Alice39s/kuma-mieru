@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  collectingBaselinePresentation,
+  isCollectingBaselineEvidence,
   presentationForStatus,
   publicStatuses,
   statusForPublicEvidence,
@@ -12,6 +14,28 @@ describe('public status presentation', () => {
     expect(worstPublicStatus(['unknown', 'degraded'])).toBe('unknown');
     expect(worstPublicStatus(['unknown', 'partial_outage'])).toBe('partial_outage');
     expect(worstPublicStatus(['unknown', 'major_outage'])).toBe('major_outage');
+  });
+
+  test('distinguishes fresh successful burn-in evidence from missing status', () => {
+    expect(
+      isCollectingBaselineEvidence({
+        status: 'unknown',
+        coverageState: 'implemented',
+        freshnessState: 'fresh',
+        sampleCount: 1,
+        consumerSuccessCount: 1,
+      })
+    ).toBe(true);
+    expect(
+      isCollectingBaselineEvidence({
+        status: 'unknown',
+        coverageState: 'implemented',
+        freshnessState: 'fresh',
+        sampleCount: 1,
+        consumerSuccessCount: 0,
+      })
+    ).toBe(false);
+    expect(collectingBaselinePresentation.label).toBe('Establishing baseline');
   });
 
   test('uses pending until the first source status exists', () => {

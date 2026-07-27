@@ -19,6 +19,8 @@ import { PublicEventTimeline } from '../public-event-timeline';
 import { PublicMirroredEvents } from '../public-mirrored-events';
 import { PublicSubscription } from '../public-subscription';
 import {
+  collectingBaselinePresentation,
+  isCollectingBaselineEvidence,
   presentationForStatus,
   statusForPublicEvidence,
   type PublicStatus,
@@ -109,6 +111,27 @@ const buildServiceGroups = (sources: SourceSnapshotState[] | undefined): Service
 const tagValue = (service: PublicService, name: string) =>
   service.tags.find(tag => tag.name === name)?.value;
 
+const evidenceCount = (service: PublicService, name: string) => {
+  const value = Number(tagValue(service, name));
+  return Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+};
+
+const isCollectingBaseline = (service: PublicService) =>
+  isCollectingBaselineEvidence({
+    status: service.status,
+    coverageState: tagValue(service, 'coverage_state'),
+    freshnessState: tagValue(service, 'freshness_state'),
+    sampleCount: evidenceCount(service, 'sample_count'),
+    consumerSuccessCount: evidenceCount(service, 'consumer_success_count'),
+  });
+
+const hiddenEvidenceTags = new Set([
+  'coverage_state',
+  'freshness_state',
+  'sample_count',
+  'consumer_success_count',
+]);
+
 const PublicAction = ({
   children,
   icon: Icon,
@@ -142,14 +165,19 @@ const ServiceCard = ({
   service: PublicService;
   sourceTitle: string;
 }) => {
-  const presentation = presentationForStatus(service.status);
+  const presentation = isCollectingBaseline(service)
+    ? collectingBaselinePresentation
+    : presentationForStatus(service.status);
   const StatusIcon = presentation.Icon;
   const model = tagValue(service, 'model');
   const provider = tagValue(service, 'provider_route');
   const displayName = model ?? service.name;
   const secondaryName = model ? (provider ?? sourceTitle) : sourceTitle;
   const visibleTags = service.tags
-    .filter(tag => tag.name !== 'model' && tag.name !== 'provider_route')
+    .filter(
+      tag =>
+        tag.name !== 'model' && tag.name !== 'provider_route' && !hiddenEvidenceTags.has(tag.name)
+    )
     .slice(0, 4);
 
   return (
@@ -246,7 +274,14 @@ export const StatusPage = () => {
   const partialCoverage = snapshot?.meta.status === 'partial';
   const freshnessWarning = staleSourceCount > 0 || partialCoverage;
   const overallStatus = statusForPublicEvidence(sourceStatuses, freshnessWarning);
-  const overallPresentation = presentationForStatus(overallStatus);
+  const serviceGroups = buildServiceGroups(snapshot?.data);
+  const collectingBaselineCount = serviceGroups
+    .flatMap(group => group.services)
+    .filter(isCollectingBaseline).length;
+  const overallPresentation =
+    overallStatus === 'unknown' && collectingBaselineCount > 0
+      ? collectingBaselinePresentation
+      : presentationForStatus(overallStatus);
   const OverallIcon = overallPresentation.Icon;
   const latestSnapshotAt = snapshot?.data
     .map(item => Date.parse(item.snapshot.fetchedAt))
@@ -263,7 +298,6 @@ export const StatusPage = () => {
       const features = (extension as Record<string, unknown>).upstreamFeatures;
       return Array.isArray(features) && features.includes('methodology');
     }) ?? false;
-  const serviceGroups = buildServiceGroups(snapshot?.data);
   const publicServices = [
     ...new Map<string, { id: string; name: string }>(
       (snapshot?.data ?? [])

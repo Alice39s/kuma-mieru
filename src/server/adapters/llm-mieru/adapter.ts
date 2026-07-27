@@ -278,6 +278,26 @@ export const fetchLlmMieruSnapshot = async (
           value: service.protocolVersion,
           color: '#d97706',
         },
+        {
+          name: 'coverage_state',
+          value: region.coverageState,
+          color: '#64748b',
+        },
+        {
+          name: 'freshness_state',
+          value: region.freshnessState,
+          color: '#64748b',
+        },
+        {
+          name: 'sample_count',
+          value: String(region.sampleCount),
+          color: '#64748b',
+        },
+        {
+          name: 'consumer_success_count',
+          value: String(region.consumerSuccessCount),
+          color: '#64748b',
+        },
       ],
       status: normalized,
       rawStatus: region.status,

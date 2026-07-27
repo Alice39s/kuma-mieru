@@ -197,6 +197,10 @@ test('negotiates the frozen v1 producer shape and fails stale regions closed', a
       ['observed_region', 'ap-northeast-tyo'],
       ['macro_region', 'east-asia'],
       ['protocol_version', '1.0'],
+      ['coverage_state', 'active'],
+      ['freshness_state', 'fresh'],
+      ['sample_count', '10'],
+      ['consumer_success_count', '10'],
     ]
   );
   assert.equal(snapshot.capabilities.nativeMetrics, true);

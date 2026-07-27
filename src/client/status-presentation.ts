@@ -32,6 +32,14 @@ export interface StatusPresentation {
   badgeClassName: string;
 }
 
+export interface EvidenceStatus {
+  status: PublicStatus;
+  coverageState?: string;
+  freshnessState?: string;
+  sampleCount?: number;
+  consumerSuccessCount?: number;
+}
+
 const presentations: Record<PublicStatus, StatusPresentation> = {
   operational: {
     label: 'All systems operational',
@@ -110,7 +118,24 @@ const severity: Record<PublicStatus, number> = {
   major_outage: 7,
 };
 
+export const collectingBaselinePresentation: StatusPresentation = {
+  label: 'Establishing baseline',
+  summary:
+    'Fresh successful probes are arriving. SLA status remains provisional until burn-in is complete.',
+  Icon: Clock3,
+  bannerClassName: 'border-sky-900/15 bg-sky-600/[0.09]',
+  iconClassName: 'bg-sky-600 text-white shadow-sky-950/15',
+  badgeClassName: 'border-sky-900/15 bg-sky-600/[0.10] text-sky-950',
+};
+
 export const presentationForStatus = (status: PublicStatus) => presentations[status];
+
+export const isCollectingBaselineEvidence = (evidence: EvidenceStatus) =>
+  evidence.status === 'unknown' &&
+  evidence.coverageState !== 'active' &&
+  evidence.freshnessState === 'fresh' &&
+  (evidence.sampleCount ?? 0) > 0 &&
+  (evidence.consumerSuccessCount ?? 0) > 0;
 
 export const worstPublicStatus = (statuses: PublicStatus[]): PublicStatus =>
   statuses.reduce<PublicStatus>(
