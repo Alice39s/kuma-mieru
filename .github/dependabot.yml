@@ -40,6 +40,12 @@ updates:
       - dependency-name: '@heroui/*'
         update-types:
           - 'version-update:semver-major'
+      # Next.js 16.2 resolves the legacy TypeScript compiler entrypoint
+      # `typescript/lib/typescript.js`, which TypeScript 7 no longer ships.
+      # Remove this guard only after the production Next.js build supports TS 7.
+      - dependency-name: 'typescript'
+        update-types:
+          - 'version-update:semver-major'
 
   - package-ecosystem: 'docker'
     directory: '/'
