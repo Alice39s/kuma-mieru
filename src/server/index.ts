@@ -54,6 +54,7 @@ import {
 } from './release/manifest.js';
 import { createOgImageService } from './og/service.js';
 import { createIconProxyService } from './icon/service.js';
+import { startControlServer } from './control/server.js';
 
 const currentDirectory = fileURLToPath(new URL('.', import.meta.url));
 const dataDirectory = resolve(process.env.KUMA_MIERU_DATA_DIR ?? './data');
@@ -351,6 +352,21 @@ const setup = bootstrap.initialize();
 if (setup) {
   console.warn(`Kuma Mieru owner setup token (expires ${setup.expiresAt}): ${setup.token}`);
 }
+const applyManagedRevision = (revision: Parameters<NonNullable<Parameters<typeof createApp>[0]['onManagedRevision']>>[0]) => {
+  const nextSnapshot = {
+    mode: 'managed' as const,
+    revision: revision.revision,
+    contentHash: revision.contentHash,
+    loadedAt: new Date().toISOString(),
+    config: revision.config,
+  };
+  setDurableConfigMode(database, {
+    mode: 'managed',
+    managedRevision: revision.revision,
+    transitionId: getDurableConfigState(database).transitionId,
+  });
+  applyRuntimeSnapshot(nextSnapshot);
+};
 const app = createApp({
   snapshot: runtimeSnapshot,
   getRuntimeSnapshot: () => runtimeSnapshot,
@@ -412,21 +428,7 @@ const app = createApp({
         return state ? [state] : [];
       });
     }),
-  onManagedRevision: revision => {
-    const nextSnapshot = {
-      mode: 'managed' as const,
-      revision: revision.revision,
-      contentHash: revision.contentHash,
-      loadedAt: new Date().toISOString(),
-      config: revision.config,
-    };
-    setDurableConfigMode(database, {
-      mode: 'managed',
-      managedRevision: revision.revision,
-      transitionId: getDurableConfigState(database).transitionId,
-    });
-    applyRuntimeSnapshot(nextSnapshot);
-  },
+  onManagedRevision: applyManagedRevision,
 });
 
 const stopEventLifecycleScheduler = startEventLifecycleScheduler({
@@ -455,10 +457,32 @@ const stopRecurringMaintenanceScheduler = startRecurringMaintenanceScheduler({
 });
 const server = serve({ fetch: app.fetch, port, hostname });
 console.info(`Kuma Mieru v2 listening on http://${hostname}:${port}`);
+const controlAddress = process.env.KUMA_MIERU_CONTROL_ADDR ?? '127.0.0.1:3883';
+const controlHost = controlAddress.slice(0, controlAddress.lastIndexOf(':'));
+if (
+  controlHost !== '127.0.0.1' &&
+  controlHost !== '::1' &&
+  process.env.KUMA_MIERU_CONTROL_ALLOW_REMOTE !== 'true'
+) {
+  throw new Error(
+    'Non-loopback Control RPC requires KUMA_MIERU_CONTROL_ALLOW_REMOTE=true and TLS termination'
+  );
+}
+const controlServer = startControlServer({
+  address: controlAddress,
+  database,
+  getAuth: () => auth,
+  authSecret,
+  secretStore,
+  getSnapshot: () => runtimeSnapshot,
+  applyRevision: applyManagedRevision,
+});
+console.info(`Kuma Mieru Control RPC listening on ${controlAddress}`);
 
 const shutdown = (signal: NodeJS.Signals) => {
   console.info(`Received ${signal}; shutting down`);
   server.close(() => {
+    controlServer.close();
     process.removeListener('SIGHUP', reloadOnSighup);
     clearInterval(configPreviewCleanupTimer);
     stopFileReloader();

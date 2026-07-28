@@ -1,0 +1,199 @@
+syntax = "proto3";
+
+package kuma.mieru.control.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+
+enum ProviderKind {
+  PROVIDER_KIND_UNSPECIFIED = 0;
+  PROVIDER_KIND_UPTIME_ROBOT_V3 = 1;
+  PROVIDER_KIND_BETTER_STACK_UPTIME_V2 = 2;
+}
+
+enum MonitorState {
+  MONITOR_STATE_UNSPECIFIED = 0;
+  MONITOR_STATE_ACTIVE = 1;
+  MONITOR_STATE_PAUSED = 2;
+  MONITOR_STATE_UNKNOWN = 3;
+}
+
+enum HttpMethod {
+  HTTP_METHOD_UNSPECIFIED = 0;
+  HTTP_METHOD_GET = 1;
+  HTTP_METHOD_HEAD = 2;
+}
+
+enum OperationState {
+  OPERATION_STATE_UNSPECIFIED = 0;
+  OPERATION_STATE_PENDING = 1;
+  OPERATION_STATE_SUCCEEDED = 2;
+  OPERATION_STATE_FAILED = 3;
+  OPERATION_STATE_OUTCOME_UNKNOWN = 4;
+  OPERATION_STATE_RESOLVED_APPLIED = 5;
+  OPERATION_STATE_RESOLVED_NOT_APPLIED = 6;
+}
+
+message Provider {
+  string id = 1;
+  ProviderKind kind = 2;
+  string display_name = 3;
+  bool enabled = 4;
+  optional string source_ref = 5;
+  bool credential_present = 6;
+  uint64 config_revision = 7;
+}
+
+message ProviderDraft {
+  string id = 1;
+  ProviderKind kind = 2;
+  string display_name = 3;
+  optional string source_ref = 4;
+  string bearer_token = 5;
+}
+
+message HttpMonitor {
+  string provider_id = 1;
+  string external_id = 2;
+  string display_name = 3;
+  string url = 4;
+  HttpMethod method = 5;
+  uint32 interval_seconds = 6;
+  uint32 timeout_seconds = 7;
+  bool follow_redirects = 8;
+  MonitorState state = 9;
+  string fingerprint = 10;
+  bool write_supported = 11;
+}
+
+message HttpMonitorDraft {
+  string display_name = 1;
+  string url = 2;
+  HttpMethod method = 3;
+  uint32 interval_seconds = 4;
+  uint32 timeout_seconds = 5;
+  bool follow_redirects = 6;
+}
+
+message Operation {
+  string request_id = 1;
+  OperationState state = 2;
+  string action = 3;
+  string provider_id = 4;
+  optional string external_id = 5;
+  optional string error_code = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message ListProvidersRequest {}
+message ListProvidersResponse { repeated Provider providers = 1; }
+message GetProviderRequest { string id = 1; }
+message GetProviderResponse { Provider provider = 1; }
+message TestProviderRequest { ProviderDraft provider = 1; }
+message TestProviderResponse { bool read_verified = 1; string account_label = 2; }
+message CreateProviderRequest {
+  string request_id = 1;
+  uint64 expected_revision = 2;
+  ProviderDraft provider = 3;
+}
+message CreateProviderResponse { Provider provider = 1; Operation operation = 2; }
+message UpdateProviderRequest {
+  string request_id = 1;
+  uint64 expected_revision = 2;
+  Provider provider = 3;
+  google.protobuf.FieldMask update_mask = 4;
+}
+message UpdateProviderResponse { Provider provider = 1; Operation operation = 2; }
+message RotateProviderCredentialRequest {
+  string request_id = 1;
+  string provider_id = 2;
+  string bearer_token = 3;
+}
+message RotateProviderCredentialResponse { Operation operation = 1; }
+message DeleteProviderRequest {
+  string request_id = 1;
+  uint64 expected_revision = 2;
+  string provider_id = 3;
+}
+message DeleteProviderResponse { Operation operation = 1; }
+
+message ListMonitorsRequest {
+  string provider_id = 1;
+  uint32 page_size = 2;
+  optional string page_token = 3;
+}
+message ListMonitorsResponse {
+  repeated HttpMonitor monitors = 1;
+  optional string next_page_token = 2;
+}
+message GetMonitorRequest { string provider_id = 1; string external_id = 2; }
+message GetMonitorResponse { HttpMonitor monitor = 1; }
+message CreateHttpMonitorRequest {
+  string request_id = 1;
+  string provider_id = 2;
+  HttpMonitorDraft monitor = 3;
+}
+message CreateHttpMonitorResponse { HttpMonitor monitor = 1; Operation operation = 2; }
+message UpdateHttpMonitorRequest {
+  string request_id = 1;
+  string provider_id = 2;
+  string external_id = 3;
+  string expected_fingerprint = 4;
+  HttpMonitorDraft monitor = 5;
+  google.protobuf.FieldMask update_mask = 6;
+}
+message UpdateHttpMonitorResponse { HttpMonitor monitor = 1; Operation operation = 2; }
+message PauseMonitorRequest {
+  string request_id = 1;
+  string provider_id = 2;
+  string external_id = 3;
+  string expected_fingerprint = 4;
+}
+message PauseMonitorResponse { HttpMonitor monitor = 1; Operation operation = 2; }
+message ResumeMonitorRequest {
+  string request_id = 1;
+  string provider_id = 2;
+  string external_id = 3;
+  string expected_fingerprint = 4;
+}
+message ResumeMonitorResponse { HttpMonitor monitor = 1; Operation operation = 2; }
+
+message GetOperationRequest { string request_id = 1; }
+message GetOperationResponse { Operation operation = 1; }
+message ListOperationsRequest { uint32 page_size = 1; optional string page_token = 2; }
+message ListOperationsResponse {
+  repeated Operation operations = 1;
+  optional string next_page_token = 2;
+}
+message ResolveOperationRequest {
+  string request_id = 1;
+  bool applied = 2;
+  optional string external_id = 3;
+}
+message ResolveOperationResponse { Operation operation = 1; }
+
+service ProviderService {
+  rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse);
+  rpc GetProvider(GetProviderRequest) returns (GetProviderResponse);
+  rpc TestProvider(TestProviderRequest) returns (TestProviderResponse);
+  rpc CreateProvider(CreateProviderRequest) returns (CreateProviderResponse);
+  rpc UpdateProvider(UpdateProviderRequest) returns (UpdateProviderResponse);
+  rpc RotateProviderCredential(RotateProviderCredentialRequest) returns (RotateProviderCredentialResponse);
+  rpc DeleteProvider(DeleteProviderRequest) returns (DeleteProviderResponse);
+}
+
+service MonitorService {
+  rpc ListMonitors(ListMonitorsRequest) returns (ListMonitorsResponse);
+  rpc GetMonitor(GetMonitorRequest) returns (GetMonitorResponse);
+  rpc CreateHttpMonitor(CreateHttpMonitorRequest) returns (CreateHttpMonitorResponse);
+  rpc UpdateHttpMonitor(UpdateHttpMonitorRequest) returns (UpdateHttpMonitorResponse);
+  rpc PauseMonitor(PauseMonitorRequest) returns (PauseMonitorResponse);
+  rpc ResumeMonitor(ResumeMonitorRequest) returns (ResumeMonitorResponse);
+}
+
+service OperationService {
+  rpc GetOperation(GetOperationRequest) returns (GetOperationResponse);
+  rpc ListOperations(ListOperationsRequest) returns (ListOperationsResponse);
+  rpc ResolveOperation(ResolveOperationRequest) returns (ResolveOperationResponse);
+}

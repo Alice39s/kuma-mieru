@@ -48,6 +48,7 @@ const emptyConfig = (): CanonicalConfig => ({
   server: {},
   sources: [],
   pages: [],
+  controlProviders: [],
 });
 
 export const hashConfigSource = (content: string) =>

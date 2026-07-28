@@ -4,6 +4,8 @@ import {
   Fingerprint,
   KeyRound,
   Laptop,
+  Copy,
+  Network,
   Pencil,
   RefreshCw,
   ShieldAlert,
@@ -16,9 +18,14 @@ import { z } from 'zod';
 import {
   beginPasskeyRegistration,
   completePasskeyRegistration,
+  createAdminControlApiKey,
+  deleteAdminControlApiKey,
   deleteAdminPasskey,
+  getAdminControlApiKeys,
   getAdminPasskeys,
   renameAdminPasskey,
+  type AdminControlApiKey,
+  type CreatedAdminControlApiKey,
   type AdminPasskey,
   type AdminSession,
 } from './api';
@@ -38,6 +45,228 @@ const registrationSchema = z
   .strict();
 
 type RegistrationInput = z.infer<typeof registrationSchema>;
+
+const controlKeySchema = z
+  .object({
+    name: z.string().trim().min(1, 'Give this key a recognizable name.').max(100),
+    access: z.enum(['read-only', 'manager']),
+    lifetime: z.enum(['30', '90', '365', 'never']),
+  })
+  .strict();
+
+type ControlKeyInput = z.infer<typeof controlKeySchema>;
+
+const ControlApiKeys = ({ session }: { session: AdminSession }) => {
+  const [keys, setKeys] = useState<AdminControlApiKey[]>([]);
+  const [created, setCreated] = useState<CreatedAdminControlApiKey | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AdminControlApiKey | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const form = useForm<ControlKeyInput>({
+    resolver: zodResolver(controlKeySchema),
+    defaultValues: { name: '', access: 'read-only', lifetime: '90' },
+  });
+
+  const reload = useCallback(async () => {
+    if (session.role !== 'owner') return;
+    setLoading(true);
+    try {
+      setKeys(await getAdminControlApiKeys());
+    } catch (error) {
+      toast.error('Control API keys are unavailable', {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [session.role]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const create = form.handleSubmit(async input => {
+    setCreating(true);
+    setCreated(null);
+    try {
+      const lifetimeDays = input.lifetime === 'never' ? null : Number(input.lifetime);
+      const result = await createAdminControlApiKey(session, {
+        name: input.name,
+        access: input.access,
+        expiresIn: lifetimeDays === null ? null : lifetimeDays * 24 * 60 * 60,
+      });
+      setCreated(result.data);
+      form.reset({ name: '', access: 'read-only', lifetime: '90' });
+      toast.success('Control API key created', {
+        description: 'Copy the secret now. It will not be shown again.',
+      });
+      await reload();
+    } catch (error) {
+      toast.error('Control API key was not created', {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setCreating(false);
+    }
+  });
+
+  const copyCreatedKey = async () => {
+    if (!created) return;
+    try {
+      await navigator.clipboard.writeText(created.key);
+      toast.success('Control API key copied');
+    } catch {
+      toast.error('Clipboard access was denied');
+    }
+  };
+
+  const remove = async () => {
+    if (!deleteTarget || deleteConfirmation !== (deleteTarget.name ?? deleteTarget.id)) return;
+    setDeleting(true);
+    try {
+      await deleteAdminControlApiKey(session, deleteTarget.id, deleteTarget.name);
+      toast.success('Control API key revoked');
+      setDeleteTarget(null);
+      setDeleteConfirmation('');
+      await reload();
+    } catch (error) {
+      toast.error('Control API key was not revoked', {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  if (session.role !== 'owner') return null;
+  return (
+    <section className="security-passkey-card">
+      <header className="access-section-heading">
+        <div>
+          <p className="admin-eyebrow">Machine access</p>
+          <h2>Control RPC keys</h2>
+          <p>
+            Scoped Bearer credentials for the loopback-first ConnectRPC listener. Provider secrets
+            remain in the encrypted Secret Store.
+          </p>
+        </div>
+        <span>{keys.length}</span>
+      </header>
+
+      {created ? (
+        <div className="security-unavailable">
+          <KeyRound aria-hidden="true" size={22} />
+          <div>
+            <strong>Copy this key now; it is shown once.</strong>
+            <code>{created.key}</code>
+          </div>
+          <button
+            className="admin-secondary-button"
+            onClick={() => void copyCreatedKey()}
+            type="button"
+          >
+            <Copy aria-hidden="true" size={14} /> Copy
+          </button>
+        </div>
+      ) : null}
+
+      <form className="admin-form" onSubmit={create}>
+        <label className="admin-field">
+          <span>Key name</span>
+          <input
+            autoComplete="off"
+            placeholder="Grafana control bridge"
+            {...form.register('name')}
+          />
+          <small>
+            {form.formState.errors.name?.message ?? 'Use the consuming application name.'}
+          </small>
+        </label>
+        <label className="admin-field">
+          <span>Access</span>
+          <select {...form.register('access')}>
+            <option value="read-only">Read only</option>
+            <option value="manager">Monitor manager</option>
+          </select>
+        </label>
+        <label className="admin-field">
+          <span>Lifetime</span>
+          <select {...form.register('lifetime')}>
+            <option value="30">30 days</option>
+            <option value="90">90 days</option>
+            <option value="365">365 days</option>
+            <option value="never">No expiry</option>
+          </select>
+        </label>
+        <button className="admin-primary-button" disabled={creating} type="submit">
+          <Network aria-hidden="true" size={15} /> {creating ? 'Creating…' : 'Create scoped key'}
+        </button>
+      </form>
+
+      {loading ? (
+        <div className="workbench-loading">Reading Control API keys…</div>
+      ) : keys.length ? (
+        <div className="security-passkey-list">
+          {keys.map(key => (
+            <article key={key.id}>
+              <span className="security-passkey-icon">
+                <Network aria-hidden="true" size={19} />
+              </span>
+              <div>
+                <strong>{key.name ?? key.id}</strong>
+                <small>
+                  {key.access} · {key.start ?? key.prefix ?? 'redacted'}
+                  {key.expiresAt
+                    ? ` · expires ${new Date(key.expiresAt).toLocaleDateString()}`
+                    : ' · no expiry'}
+                </small>
+              </div>
+              <button
+                className="admin-danger-button"
+                onClick={() => {
+                  setDeleteTarget(key);
+                  setDeleteConfirmation('');
+                }}
+                type="button"
+              >
+                <Trash2 aria-hidden="true" size={14} /> Revoke
+              </button>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="editor-empty">
+          <strong>No Control API key.</strong>
+          <p>The Control RPC listener rejects every unauthenticated request.</p>
+        </div>
+      )}
+
+      {deleteTarget ? (
+        <div className="security-unavailable">
+          <ShieldAlert aria-hidden="true" size={22} />
+          <label className="admin-field">
+            <span>Type {deleteTarget.name ?? deleteTarget.id} to revoke this key</span>
+            <input
+              autoComplete="off"
+              onChange={event => setDeleteConfirmation(event.target.value)}
+              value={deleteConfirmation}
+            />
+          </label>
+          <button
+            className="admin-danger-button"
+            disabled={deleting || deleteConfirmation !== (deleteTarget.name ?? deleteTarget.id)}
+            onClick={() => void remove()}
+            type="button"
+          >
+            {deleting ? 'Revoking…' : 'Revoke key'}
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+};
 
 export const SecurityWorkbench = ({ session }: { session: AdminSession }) => {
   const [passkeys, setPasskeys] = useState<AdminPasskey[]>([]);
@@ -192,6 +421,8 @@ export const SecurityWorkbench = ({ session }: { session: AdminSession }) => {
       ) : null}
 
       <TwoFactorSecurity session={session} />
+
+      <ControlApiKeys session={session} />
 
       <div className="security-grid">
         <section className="security-passkey-card">

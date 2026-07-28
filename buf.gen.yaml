@@ -1,0 +1,8 @@
+version: v2
+clean: true
+plugins:
+  - local: protoc-gen-es
+    out: src/server/control/gen
+    include_imports: true
+    opt:
+      - target=ts

@@ -299,6 +299,27 @@ const oidcMappingSchema = z
 const oidcMappingDeleteSchema = z
   .object({ expectedSubject: z.string().trim().min(1).max(512) })
   .strict();
+const controlApiKeyCreateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100),
+    access: z.enum(['read-only', 'manager']),
+    expiresIn: z
+      .number()
+      .int()
+      .min(24 * 60 * 60)
+      .max(365 * 24 * 60 * 60)
+      .nullable(),
+  })
+  .strict();
+const controlApiKeyDeleteSchema = z
+  .object({ expectedName: z.string().max(100).nullable() })
+  .strict();
+
+const controlPermissions = (access: z.infer<typeof controlApiKeyCreateSchema>['access']) => ({
+  provider: access === 'manager' ? ['read', 'write'] : ['read'],
+  monitor: access === 'manager' ? ['read', 'write'] : ['read'],
+  operation: access === 'manager' ? ['read', 'resolve'] : ['read'],
+});
 
 export interface AdminRouteOptions {
   database?: Database.Database;
@@ -547,6 +568,142 @@ export const registerAdminRoutes = (
           : null,
       },
     });
+  });
+
+  app.get('/api/v1/admin/security/control-api-keys', async context => {
+    const authorization = await requireAdmin(context, ['owner']);
+    if (!authorization.ok) return authorization.response;
+    if (!auth) {
+      return errorResponse(context, 503, 'AUTH_NOT_READY', 'Authentication is unavailable');
+    }
+    try {
+      const result = await auth.api.listApiKeys({
+        headers: context.req.raw.headers,
+        query: { configId: 'control-rpc', limit: 100, offset: 0 },
+      });
+      return context.json({
+        data: result.apiKeys.map(key => ({
+          id: key.id,
+          name: key.name,
+          prefix: key.prefix,
+          start: key.start,
+          enabled: key.enabled,
+          access: key.metadata?.access === 'manager' ? 'manager' : 'read-only',
+          expiresAt: key.expiresAt?.toISOString() ?? null,
+          lastRequest: key.lastRequest?.toISOString() ?? null,
+          createdAt: key.createdAt.toISOString(),
+        })),
+      });
+    } catch {
+      writeRouteAudit(context, authorization.principal.userId, 'failed', 'CONTROL_KEY_LIST_FAILED');
+      return errorResponse(
+        context,
+        500,
+        'CONTROL_KEY_LIST_FAILED',
+        'Control API keys are unavailable'
+      );
+    }
+  });
+
+  app.post('/api/v1/admin/security/control-api-keys', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!auth) {
+      return errorResponse(context, 503, 'AUTH_NOT_READY', 'Authentication is unavailable');
+    }
+    try {
+      const input = controlApiKeyCreateSchema.parse(await context.req.json());
+      const result = await auth.api.createApiKey({
+        body: {
+          configId: 'control-rpc',
+          name: input.name,
+          expiresIn: input.expiresIn,
+          userId: authorization.principal.userId,
+          permissions: controlPermissions(input.access),
+          metadata: { access: input.access },
+        },
+      });
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json(
+        {
+          data: {
+            id: result.id,
+            name: result.name,
+            key: result.key,
+            prefix: result.prefix,
+            start: result.start,
+            enabled: result.enabled,
+            access: input.access,
+            expiresAt: result.expiresAt?.toISOString() ?? null,
+            lastRequest: result.lastRequest?.toISOString() ?? null,
+            createdAt: result.createdAt.toISOString(),
+          },
+        },
+        201
+      );
+    } catch (error) {
+      const code = error instanceof z.ZodError ? 'VALIDATION_FAILED' : 'CONTROL_KEY_CREATE_FAILED';
+      writeRouteAudit(context, authorization.principal.userId, 'failed', code);
+      return errorResponse(
+        context,
+        error instanceof z.ZodError ? 400 : 500,
+        code,
+        error instanceof z.ZodError
+          ? 'Control API key input is invalid'
+          : 'Control API key was not created',
+        error instanceof z.ZodError ? error.issues : undefined
+      );
+    }
+  });
+
+  app.delete('/api/v1/admin/security/control-api-keys/:keyId', async context => {
+    const authorization = await requireAdmin(context, ['owner'], true, true);
+    if (!authorization.ok) return authorization.response;
+    if (!auth) {
+      return errorResponse(context, 503, 'AUTH_NOT_READY', 'Authentication is unavailable');
+    }
+    try {
+      const input = controlApiKeyDeleteSchema.parse(await context.req.json());
+      const listed = await auth.api.listApiKeys({
+        headers: context.req.raw.headers,
+        query: { configId: 'control-rpc', limit: 100, offset: 0 },
+      });
+      const key = listed.apiKeys.find(candidate => candidate.id === context.req.param('keyId'));
+      if (!key) {
+        return errorResponse(
+          context,
+          404,
+          'CONTROL_KEY_NOT_FOUND',
+          'Control API key was not found'
+        );
+      }
+      if (key.name !== input.expectedName) {
+        return errorResponse(
+          context,
+          409,
+          'CONTROL_KEY_CHANGED',
+          'Control API key metadata changed; refresh before deleting'
+        );
+      }
+      await auth.api.deleteApiKey({
+        headers: context.req.raw.headers,
+        body: { configId: 'control-rpc', keyId: key.id },
+      });
+      writeRouteAudit(context, authorization.principal.userId, 'success', null);
+      return context.json({ data: { id: key.id, deleted: true } });
+    } catch (error) {
+      const code = error instanceof z.ZodError ? 'VALIDATION_FAILED' : 'CONTROL_KEY_DELETE_FAILED';
+      writeRouteAudit(context, authorization.principal.userId, 'failed', code);
+      return errorResponse(
+        context,
+        error instanceof z.ZodError ? 400 : 500,
+        code,
+        error instanceof z.ZodError
+          ? 'Control API key input is invalid'
+          : 'Control API key was not deleted',
+        error instanceof z.ZodError ? error.issues : undefined
+      );
+    }
   });
 
   app.get('/api/v1/admin/config/revisions', async context => {

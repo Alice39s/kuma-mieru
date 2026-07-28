@@ -454,6 +454,22 @@ export interface AdminPasskey {
   createdAt: string | null;
 }
 
+export interface AdminControlApiKey {
+  id: string;
+  name: string | null;
+  prefix: string | null;
+  start: string | null;
+  enabled: boolean;
+  access: 'read-only' | 'manager';
+  expiresAt: string | null;
+  lastRequest: string | null;
+  createdAt: string;
+}
+
+export interface CreatedAdminControlApiKey extends AdminControlApiKey {
+  key: string;
+}
+
 export interface AdminTwoFactorStatus {
   enabled: boolean;
   setupPending: boolean;
@@ -1382,6 +1398,37 @@ export const deleteAdminOidcMapping = (
 
 export const getAdminPasskeys = async () =>
   (await request<{ data: AdminPasskey[] }>('/api/v1/admin/security/passkeys')).data;
+
+export const getAdminControlApiKeys = async () =>
+  (await request<{ data: AdminControlApiKey[] }>('/api/v1/admin/security/control-api-keys')).data;
+
+export const createAdminControlApiKey = (
+  session: AdminSession,
+  input: {
+    name: string;
+    access: AdminControlApiKey['access'];
+    expiresIn: number | null;
+  }
+) =>
+  request<{ data: CreatedAdminControlApiKey }>('/api/v1/admin/security/control-api-keys', {
+    method: 'POST',
+    headers: mutationHeaders(session),
+    body: JSON.stringify(input),
+  });
+
+export const deleteAdminControlApiKey = (
+  session: AdminSession,
+  keyId: string,
+  expectedName: string | null
+) =>
+  request<{ data: { id: string; deleted: true } }>(
+    `/api/v1/admin/security/control-api-keys/${encodeURIComponent(keyId)}`,
+    {
+      method: 'DELETE',
+      headers: mutationHeaders(session),
+      body: JSON.stringify({ expectedName }),
+    }
+  );
 
 export const beginPasskeyRegistration = (
   session: AdminSession,

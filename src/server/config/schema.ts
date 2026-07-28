@@ -67,6 +67,17 @@ export const statusPageSchema = z.object({
   sourceRefs: z.array(z.string().min(1)).min(1),
 });
 
+export const controlProviderSchema = z
+  .object({
+    id: z.string().min(1).max(120),
+    kind: z.enum(['uptime-robot-v3', 'better-stack-uptime-v2']),
+    displayName: z.string().min(1).max(200),
+    enabled: z.boolean().default(true),
+    sourceRef: z.string().min(1).max(200).optional(),
+    secretRef: z.string().startsWith('sec_'),
+  })
+  .strict();
+
 const smtpAddressSchema = z.object({
   address: z.email().max(320),
   name: z.string().trim().min(1).max(200).optional(),
@@ -181,6 +192,7 @@ export const canonicalConfigSchema = z
       .optional(),
     sources: z.array(sourceSchema),
     pages: z.array(statusPageSchema),
+    controlProviders: z.array(controlProviderSchema).optional(),
   })
   .superRefine((config, context) => {
     if (config.delivery?.smtp?.enabled && !config.server.publicBaseUrl) {
@@ -200,6 +212,25 @@ export const canonicalConfigSchema = z
         });
       }
       sourceIds.add(source.id);
+    });
+
+    const controlProviderIds = new Set<string>();
+    (config.controlProviders ?? []).forEach((provider, index) => {
+      if (controlProviderIds.has(provider.id)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['controlProviders', index, 'id'],
+          message: `Duplicate control provider id: ${provider.id}`,
+        });
+      }
+      if (provider.sourceRef && !sourceIds.has(provider.sourceRef)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['controlProviders', index, 'sourceRef'],
+          message: `Unknown source reference: ${provider.sourceRef}`,
+        });
+      }
+      controlProviderIds.add(provider.id);
     });
 
     const pageIds = new Set<string>();

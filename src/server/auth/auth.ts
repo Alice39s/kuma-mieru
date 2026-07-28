@@ -1,4 +1,5 @@
 import { passkey } from '@better-auth/passkey';
+import { apiKey } from '@better-auth/api-key';
 import type Database from 'better-sqlite3';
 import { betterAuth } from 'better-auth';
 import { genericOAuth, twoFactor } from 'better-auth/plugins';
@@ -77,6 +78,17 @@ export const createAuth = ({
       },
     },
     plugins: [
+      apiKey({
+        configId: 'control-rpc',
+        defaultPrefix: 'kmc_',
+        maximumNameLength: 100,
+        enableMetadata: true,
+        rateLimit: {
+          enabled: true,
+          timeWindow: 60_000,
+          maxRequests: 60,
+        },
+      }),
       passkey(),
       twoFactor({
         issuer: 'Kuma Mieru',

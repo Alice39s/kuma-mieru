@@ -196,6 +196,65 @@ test('requires a Better Auth session, trusted origin and bound CSRF token for co
     };
     assert.ok(sessionBody.data.csrfToken);
 
+    const controlKeyCreated = await app.request('/api/v1/admin/security/control-api-keys', {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        Origin: baseURL,
+        'Sec-Fetch-Site': 'same-origin',
+        'Content-Type': 'application/json',
+        'X-Kuma-CSRF': sessionBody.data.csrfToken,
+      },
+      body: JSON.stringify({
+        name: 'test bridge',
+        access: 'manager',
+        expiresIn: 30 * 24 * 60 * 60,
+      }),
+    });
+    const controlKeyCreatedBody = (await controlKeyCreated.json()) as {
+      data?: { id: string; name: string; key: string; access: string };
+      error?: { code: string; message: string };
+    };
+    assert.equal(controlKeyCreated.status, 201, JSON.stringify(controlKeyCreatedBody));
+    assert.equal(controlKeyCreatedBody.data?.name, 'test bridge');
+    assert.equal(controlKeyCreatedBody.data?.access, 'manager');
+    assert.match(controlKeyCreatedBody.data?.key ?? '', /^kmc_/u);
+    const verifiedControlKey = await auth.api.verifyApiKey({
+      body: {
+        key: controlKeyCreatedBody.data?.key ?? '',
+        configId: 'control-rpc',
+        permissions: { monitor: ['write'] },
+      },
+    });
+    assert.equal(verifiedControlKey.valid, true);
+
+    const controlKeys = await app.request('/api/v1/admin/security/control-api-keys', {
+      headers: { Cookie: cookie },
+    });
+    const controlKeysBody = (await controlKeys.json()) as {
+      data: Array<{ id: string; key?: string; access: string }>;
+    };
+    assert.equal(controlKeys.status, 200);
+    assert.equal(controlKeysBody.data.length, 1);
+    assert.equal(controlKeysBody.data[0]?.access, 'manager');
+    assert.equal('key' in (controlKeysBody.data[0] ?? {}), false);
+
+    const controlKeyDeleted = await app.request(
+      `/api/v1/admin/security/control-api-keys/${controlKeyCreatedBody.data?.id}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Cookie: cookie,
+          Origin: baseURL,
+          'Sec-Fetch-Site': 'same-origin',
+          'Content-Type': 'application/json',
+          'X-Kuma-CSRF': sessionBody.data.csrfToken,
+        },
+        body: JSON.stringify({ expectedName: 'test bridge' }),
+      }
+    );
+    assert.equal(controlKeyDeleted.status, 200);
+
     const sources = await app.request('/api/v1/admin/sources', {
       headers: { Cookie: cookie },
     });

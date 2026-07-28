@@ -339,7 +339,7 @@ Kuma Mieru 与备受好评的开源监控工具 [Uptime Kuma](https://github.com
 
 Kuma Mieru 设计之初就是为了解决 Uptime Kuma 的不足，所以 v1 暂时不考虑支持其他监控数据源。
 
-不过 v2 版本可能会考虑支持 Uptime Robot / Better Stack 等其他监控工具的 API 接口。
+v2 开发分支已提供 UptimeRobot v3 与 Better Stack Uptime v2 的只读状态数据源，并提供独立、Loopback-first 的 [ConnectRPC Control API](./docs/v2/control-rpc.md)，用于以最小权限管理 HTTP(S) Monitor。Control API 不支持删除 Monitor，也不会让 LLM-Mieru 反向依赖 Kuma Mieru。
 
 ## 贡献指南 :handshake:
 
