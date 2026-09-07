@@ -2,6 +2,14 @@ import { title } from '@/components/basic/primitives';
 import { PageConfigProvider } from '@/components/context/PageConfigContext';
 import { AppShell } from '@/components/layout/AppShell';
 import { getConfig, toPublicConfig } from '@/config/api';
+import { buildStatusPageMetadata } from '@/app/lib/site-metadata';
+
+export function generateMetadata() {
+  return {
+    ...buildStatusPageMetadata(getConfig(), { isAbout: true }),
+    title: { absolute: 'Kuma Mieru' },
+  };
+}
 
 export default function AboutPage() {
   const pageConfig = getConfig();

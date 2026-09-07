@@ -25,14 +25,50 @@ export const buildDefaultMetadata = (): Metadata => ({
   ...BASE_METADATA,
 });
 
-export const buildStatusPageMetadata = (config?: Config | null): Metadata => {
+interface MetadataOptions {
+  monitorId?: string;
+  monitorName?: string;
+  isAbout?: boolean;
+}
+
+export const buildStatusPageMetadata = (
+  config?: Pick<Config, 'pageId' | 'siteMeta'> | null,
+  options: MetadataOptions = {}
+): Metadata => {
   const resolvedTitle = config?.siteMeta.title?.trim() || DEFAULT_SITE_TITLE;
   const resolvedDescription = config?.siteMeta.description?.trim() || DEFAULT_SITE_DESCRIPTION;
   const resolvedIcon = config ? buildIconProxyUrl(config.pageId) : DEFAULT_SITE_ICON;
+  const shareTitle = options.isAbout
+    ? `About ${DEFAULT_SITE_TITLE}`
+    : options.monitorName || resolvedTitle;
+  const params = new URLSearchParams();
+  if (config?.pageId) params.set('pageId', config.pageId);
+  if (options.monitorId) params.set('monitorId', options.monitorId);
+  if (options.isAbout) params.set('view', 'about');
+  const image = {
+    url: `/og${params.size ? `?${params}` : ''}`,
+    width: 1200,
+    height: 630,
+    alt: options.monitorName ? `${options.monitorName} - ${resolvedTitle}` : shareTitle,
+    type: 'image/png',
+  };
 
   return {
     title: resolvedTitle,
     description: resolvedDescription,
+    openGraph: {
+      type: 'website',
+      title: shareTitle,
+      description: resolvedDescription,
+      siteName: DEFAULT_SITE_TITLE,
+      images: [image],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: shareTitle,
+      description: resolvedDescription,
+      images: [image],
+    },
     icons: {
       icon: [resolvedIcon],
     },

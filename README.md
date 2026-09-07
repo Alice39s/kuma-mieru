@@ -267,6 +267,10 @@ docker run -d \
 
 ## 环境变量配置
 
+状态页、探针详情页和关于页面均提供动态 OpenGraph 与 Twitter 分享预览图。Takumi 根据监控数据渲染 1200 x 630 PNG，并使用随项目分发的 Noto CJK 字体显示多语言标题。正常图片在容量上限为 8 MiB 的进程缓存中保留 60 秒；上游数据不可用时生成明确标识该状态的图片，且不缓存。
+
+设置 `SITE_URL=https://status.example.com` 可固定分享元数据使用的公开站点地址；未设置时根据请求主机和转发协议推导。图片渲染在 Node.js 服务端运行，standalone 和 Docker 构建均包含所需资源。
+
 首先，假设您的 Uptime Kuma 状态页面 URL 为：
 
 `https://example.kuma-mieru.invalid/status/test1`

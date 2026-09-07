@@ -5,11 +5,21 @@ import type { Metadata, Viewport } from 'next';
 import { buildDefaultMetadata } from '@/app/lib/site-metadata';
 import { fontMono, fontSans } from '@/config/fonts';
 import { getLocale, getMessages } from 'next-intl/server';
+import { headers } from 'next/headers';
 import { Providers } from './providers';
 
 import { Toaster } from 'sonner';
 
-export const metadata: Metadata = buildDefaultMetadata();
+export async function generateMetadata(): Promise<Metadata> {
+  const requestHeaders = await headers();
+  const host =
+    requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host') ?? 'localhost:3881';
+  const protocol = requestHeaders.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+  return {
+    ...buildDefaultMetadata(),
+    metadataBase: new URL(process.env.SITE_URL || `${protocol}://${host}`),
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: [

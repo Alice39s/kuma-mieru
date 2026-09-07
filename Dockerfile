@@ -7,10 +7,12 @@ RUN npm install -g bun@latest
 
 WORKDIR /app
 
+ARG UPTIME_KUMA_URLS=
+
 # 构建时固定的环境变量
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    UPTIME_KUMA_URLS= \
+    UPTIME_KUMA_URLS=${UPTIME_KUMA_URLS} \
     UPTIME_KUMA_BASE_URL=https://whimsical-sopapillas-78abba.netlify.app \
     PAGE_ID=demo \
     KUMA_MIERU_EDIT_THIS_PAGE=false \

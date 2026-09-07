@@ -266,6 +266,10 @@ docker run -d \
 
 ## Environment Variables
 
+Status pages, monitor detail pages, and the About page include dynamic OpenGraph and Twitter preview images. Takumi renders 1200 x 630 PNGs from monitoring data, with a bundled Noto CJK font for multilingual titles. Successful images are cached for 60 seconds in a bounded 8 MiB process cache; unavailable upstream data produces an uncached unavailable-state image.
+
+Set `SITE_URL=https://status.example.com` to fix the public origin used in sharing metadata. Otherwise, the origin is derived from the request host and forwarded protocol. The image renderer runs on the Node.js server and is included in standalone and Docker builds.
+
 First, assume your Uptime Kuma status page URL is:
 
 `https://example.kuma-mieru.invalid/status/test1`

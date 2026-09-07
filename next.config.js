@@ -75,6 +75,10 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 const baseConfig = {
   // The build script runs Oxlint's type checker after generating route types.
   typescript: { ignoreBuildErrors: true },
+  serverExternalPackages: ['@takumi-rs/core'],
+  outputFileTracingIncludes: {
+    '/og': ['./assets/og/*', './public/icon.svg'],
+  },
   poweredByHeader: false,
   compress: true,
 
@@ -138,7 +142,7 @@ const productionConfig = {
     reactRemoveProperties: true,
   },
 
-  serverExternalPackages: ['sharp', 'cheerio'],
+  serverExternalPackages: ['sharp', 'cheerio', '@takumi-rs/core'],
 
   async headers() {
     const baseHeaders = [
@@ -150,16 +154,22 @@ const productionConfig = {
         key: 'X-XSS-Protection',
         value: '1; mode=block',
       },
-      {
-        key: 'Cache-Control',
-        value: 'public, max-age=300, stale-while-revalidate=60',
-      },
     ];
 
     return [
       {
         source: '/(.*)',
         headers: baseHeaders,
+      },
+      {
+        // OpenGraph controls freshness and must not cache unavailable-state images.
+        source: '/((?!og$).*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=300, stale-while-revalidate=60',
+          },
+        ],
       },
       {
         source: '/api/(.*)',
