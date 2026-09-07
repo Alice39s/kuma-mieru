@@ -141,24 +141,16 @@ export function NodeSearchProvider({ children }: { children: React.ReactNode }) 
     updateUrl({ search: '', status: 'all', group: false });
   }, [updateUrl]);
 
+  const urlSearchTerm = searchParams.get(SEARCH_PARAM) || '';
+  const urlFilterStatus = (searchParams.get(STATUS_PARAM) as FilterStatus) || 'all';
+  const urlSearchInGroup = searchParams.get(SEARCH_GROUP_PARAM) === 'true';
+
   useEffect(() => {
-    const urlSearchTerm = searchParams.get(SEARCH_PARAM) || '';
-    const urlFilterStatus = (searchParams.get(STATUS_PARAM) as FilterStatus) || 'all';
-    const urlSearchInGroup = searchParams.get(SEARCH_GROUP_PARAM) === 'true';
-
-    if (urlSearchTerm !== searchTerm && urlSearchTerm !== inputValue) {
-      setInputValueState(urlSearchTerm);
-      setSearchTerm(urlSearchTerm);
-    }
-
-    if (urlFilterStatus !== filterStatus) {
-      setFilterStatusLocal(urlFilterStatus);
-    }
-
-    if (urlSearchInGroup !== searchInGroup) {
-      setSearchInGroupLocal(urlSearchInGroup);
-    }
-  }, [searchParams, searchTerm, inputValue, filterStatus, searchInGroup]);
+    setInputValueState(urlSearchTerm);
+    setSearchTerm(urlSearchTerm);
+    setFilterStatusLocal(urlFilterStatus);
+    setSearchInGroupLocal(urlSearchInGroup);
+  }, [urlSearchTerm, urlFilterStatus, urlSearchInGroup]);
 
   useEffect(() => {
     return () => {
