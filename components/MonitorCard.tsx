@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { LayoutList } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { MonitorCardLite } from './MonitorCardLite';
 import { MonitoringChart } from './charts/MonitoringChart';
 import { ResponsStats } from './charts/ResponsStats';
@@ -21,7 +21,7 @@ import {
 
 const VIEW_PREFERENCE_KEY = 'view-preference-monitor-card';
 
-export function MonitorCard({
+export const MonitorCard = memo(function MonitorCard({
   monitor,
   heartbeats,
   uptime24h,
@@ -176,4 +176,4 @@ export function MonitorCard({
       </Card>
     </motion.div>
   );
-}
+});

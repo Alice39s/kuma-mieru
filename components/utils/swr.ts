@@ -1,10 +1,10 @@
 'use client';
 
 import { usePageConfig } from '@/components/context/PageConfigContext';
-import type { GlobalConfig } from '@/types/config';
-import type { MonitorResponse, MonitoringData } from '@/types/monitor';
+import type { GlobalConfig, Maintenance } from '@/types/config';
+import type { Heartbeat, MonitorGroup, MonitorResponse, MonitoringData } from '@/types/monitor';
 import type { PageTabMeta, PageTabsStatusMatrix } from '@/types/page';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import useSWR, { mutate } from 'swr';
 import type { SWRConfiguration } from 'swr';
 
@@ -21,7 +21,6 @@ export interface ConfigResponse extends GlobalConfig {
   status?: ApiEnvelope['status'];
   failureType?: PageTabMeta['failureType'];
   error?: string;
-  timestamp?: number;
 }
 
 /**
@@ -52,8 +51,15 @@ const fetcher = async <T>(url: string): Promise<T> => {
     throw new Error(`HTTP ${response.status} ${statusText}: ${errorMessage}`);
   }
 
+  // Transport timestamps must not invalidate unchanged monitoring snapshots.
+  delete data.timestamp;
   return data as T;
 };
+
+const EMPTY_GROUPS: MonitorGroup[] = [];
+const EMPTY_HEARTBEATS: Heartbeat[] = [];
+const EMPTY_MAINTENANCES: Maintenance[] = [];
+const EMPTY_MONITORING_DATA: MonitoringData = { heartbeatList: {}, uptimeList: {} };
 
 /**
  * SWR Cache Key
@@ -194,8 +200,8 @@ export function useMonitorData(config?: SWRConfiguration) {
   });
 
   return {
-    monitorGroups: data?.monitorGroups || [],
-    monitoringData: data?.data || { heartbeatList: {}, uptimeList: {} },
+    monitorGroups: data?.monitorGroups || EMPTY_GROUPS,
+    monitoringData: data?.data || EMPTY_MONITORING_DATA,
     isLoading,
     isError: !!error,
     error,
@@ -224,18 +230,24 @@ export function useMonitor(monitorId: number | string, config?: SWRConfiguration
     ...config,
   });
 
-  const monitor = data?.monitorGroups
-    ?.flatMap(group => group.monitorList)
-    .find(m => m.id === numericId);
+  const monitor = useMemo(() => {
+    for (const group of data?.monitorGroups ?? EMPTY_GROUPS) {
+      const match = group.monitorList.find(item => item.id === numericId);
+      if (match) return match;
+    }
+  }, [data?.monitorGroups, numericId]);
 
-  const monitoringData: MonitoringData = {
-    heartbeatList: {
-      [numericId]: data?.data?.heartbeatList[numericId] || [],
-    },
-    uptimeList: {
-      [`${numericId}_24`]: data?.data?.uptimeList[`${numericId}_24`] || 0,
-    },
-  };
+  const monitoringData: MonitoringData = useMemo(
+    () => ({
+      heartbeatList: {
+        [numericId]: data?.data?.heartbeatList[numericId] || EMPTY_HEARTBEATS,
+      },
+      uptimeList: {
+        [`${numericId}_24`]: data?.data?.uptimeList[`${numericId}_24`] || 0,
+      },
+    }),
+    [data?.data, numericId]
+  );
 
   return {
     monitor,
@@ -296,7 +308,7 @@ export function useMaintenanceData(config?: SWRConfiguration) {
   });
 
   return {
-    maintenanceList: data?.maintenanceList || [],
+    maintenanceList: data?.maintenanceList || EMPTY_MAINTENANCES,
     isLoading,
     isError: !!error,
     error,

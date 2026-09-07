@@ -1,5 +1,5 @@
 import { getConfig } from '@/config/api';
-import type { Config, GlobalConfig, Maintenance } from '@/types/config';
+import type { Config, GlobalConfig, Maintenance, PreloadData } from '@/types/config';
 import type { PageTabMeta, PageTabsStatusMatrix } from '@/types/page';
 import { ConfigError } from '@/utils/errors';
 import { buildIconProxyUrl } from '@/utils/icon-proxy';
@@ -8,6 +8,7 @@ import { cache } from 'react';
 import { ApiDataError, logApiError } from './utils/api-service';
 import { customFetchOptions, ensureUTCTimezone } from './utils/common';
 import { customFetch } from './utils/fetch';
+import { createInFlightLoader } from './utils/in-flight';
 import { classifyRequestError, extractHttpStatusDetails } from './utils/request-error';
 
 export interface GlobalConfigResult {
@@ -327,7 +328,13 @@ export const getUpstreamIconUrl = cache(async (config: Config): Promise<string |
   }
 });
 
-export async function getPreloadData(config: Config) {
+const loadInFlight = createInFlightLoader<string, PreloadData>();
+
+export const getPreloadData = cache((config: Config) =>
+  loadInFlight(config.htmlEndpoint, () => loadPreloadData(config))
+);
+
+async function loadPreloadData(config: Config) {
   try {
     const htmlResponse = await customFetch(config.htmlEndpoint, customFetchOptions);
 

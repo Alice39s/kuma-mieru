@@ -110,7 +110,6 @@ async function makeRequest(
       {
         method: mergedOptions.method || 'GET',
         headers,
-        timeout,
         ...(isHttps
           ? {
               rejectUnauthorized: !allowInsecureTls,
@@ -122,6 +121,8 @@ async function makeRequest(
       },
       res => {
         const chunks: Buffer[] = [];
+
+        res.on('error', reject);
 
         res.on('data', (chunk: Buffer | string) => {
           if (typeof chunk === 'string') {
@@ -157,7 +158,10 @@ async function makeRequest(
       }
     );
 
-    req.on('error', async (error: NodeError) => {
+    let hasRequestFailed = false;
+    const handleRequestError = async (error: NodeError) => {
+      if (hasRequestFailed) return;
+      hasRequestFailed = true;
       const shouldRetry =
         retryCount < maxRetries &&
         (error.code === 'ECONNRESET' ||
@@ -194,14 +198,19 @@ async function makeRequest(
         });
         reject(error);
       }
+    };
+    req.on('error', error => {
+      void handleRequestError(error);
     });
 
-    req.on('timeout', () => {
-      req.destroy();
+    const timeoutHandle = setTimeout(() => {
       const error = new Error('请求超时');
       (error as NodeError).code = 'ETIMEDOUT';
-      req.emit('error', error);
-    });
+      // Bun does not emit the supplied destroy(error); Node may emit a second error.
+      void handleRequestError(error);
+      req.destroy();
+    }, timeout);
+    req.once('close', () => clearTimeout(timeoutHandle));
 
     if (mergedOptions.body) {
       req.write(mergedOptions.body);

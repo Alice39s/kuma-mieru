@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   createContext,
   useCallback,
@@ -35,7 +35,6 @@ const DEBOUNCE_DELAY = 500;
 const NodeSearchContext = createContext<NodeSearchContextType | undefined>(undefined);
 
 export function NodeSearchProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -85,9 +84,9 @@ export function NodeSearchProvider({ children }: { children: React.ReactNode }) 
 
       const queryString = urlParams.toString();
       const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
-      router.replace(newUrl, { scroll: false });
+      window.history.replaceState(null, '', newUrl);
     },
-    [pathname, router, searchParams]
+    [pathname, searchParams]
   );
 
   const setInputValue = useCallback(

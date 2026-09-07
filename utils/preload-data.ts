@@ -1,5 +1,4 @@
 import type { CheerioAPI } from 'cheerio';
-import * as cheerio from 'cheerio';
 import type { PreloadData } from '../types/config';
 import { ConfigError } from './errors';
 import { extractPreloadData } from './json-processor';
@@ -273,7 +272,8 @@ export async function resolvePreloadDataFromHtml({
     }
   }
 
-  const $ = cheerio.load(html);
+  const { load } = await import('cheerio');
+  const $ = load(html);
   const { payload: cheerioPayload, source: cheerioSource } = getPreloadPayload($);
 
   if (cheerioPayload) {

@@ -2,7 +2,7 @@ import type { Heartbeat } from '@/types/monitor';
 import { Tab, Tabs } from '@heroui/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Key as ReactKey } from 'react';
 import {
   Area,
@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { ChartTooltip } from '../ui/ChartTooltip';
-import { formatLatencyForAxis, getLatencyColor } from '../utils/format';
+import { formatLatencyForAxis } from '../utils/format';
 
 interface MonitoringChartProps {
   heartbeats: Heartbeat[];
@@ -122,7 +122,7 @@ function SimplifiedChart({
   );
 }
 
-export function MonitoringChart({
+export const MonitoringChart = memo(function MonitoringChart({
   heartbeats,
   height = 200,
   showGrid = false,
@@ -182,14 +182,22 @@ export function MonitoringChart({
       .map(hb => ({
         time: new Date(hb.time).getTime(),
         ping: hb.ping || 0,
-        status: hb.status,
-        color: getLatencyColor(hb.ping || 0),
       }));
   }, [availableRanges, heartbeats, selectedRange]);
 
-  const pings = filteredData.map(d => d.ping).filter(p => p > 0 && !Number.isNaN(p));
-  const minPing = pings.length > 0 ? Math.max(0, Math.min(...pings) - 10) : 0;
-  const maxPing = pings.length > 0 ? Math.max(...pings) + 10 : 100;
+  const { minPing, maxPing } = useMemo(() => {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const { ping } of filteredData) {
+      if (ping > 0) {
+        min = Math.min(min, ping);
+        max = Math.max(max, ping);
+      }
+    }
+    return max === -Infinity
+      ? { minPing: 0, maxPing: 100 }
+      : { minPing: Math.max(0, min - 10), maxPing: max + 10 };
+  }, [filteredData]);
 
   const handleRangeChange = useCallback((key: ReactKey) => {
     setSelectedRange(key as RangeKey);
@@ -248,4 +256,4 @@ export function MonitoringChart({
       </AnimatePresence>
     </div>
   );
-}
+});

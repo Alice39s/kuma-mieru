@@ -9,8 +9,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const pageId = searchParams.get('pageId') ?? undefined;
   const resolvedConfig = getConfig(pageId) ?? getConfig();
-  const result = await getGlobalConfigResult(pageId ?? undefined);
-  const tabsResult = await getPageTabsMetadataResult();
+  const [result, tabsResult] = await Promise.all([
+    getGlobalConfigResult(pageId),
+    getPageTabsMetadataResult(),
+  ]);
   const resolvedPageId = resolvedConfig?.pageId;
   const isAllFailed = result.status === 'all_failed';
 

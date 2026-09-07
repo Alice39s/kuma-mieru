@@ -2,10 +2,13 @@
 
 import { MonitorCard } from '@/components/MonitorCard';
 import { MonitorCardSkeleton } from '@/components/ui/CommonSkeleton';
-import type { MonitorGroup, MonitoringData } from '@/types/monitor';
+import type { Heartbeat, MonitorGroup, MonitoringData } from '@/types/monitor';
 import { Button, Chip } from '@heroui/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
+import { memo } from 'react';
+
+const EMPTY_HEARTBEATS: Heartbeat[] = [];
 
 interface EnhancedMonitorGroup extends MonitorGroup {
   isGroupMatched?: boolean;
@@ -20,7 +23,7 @@ interface MonitorGroupListProps {
   clearSearch: () => void;
 }
 
-export default function MonitorGroupList({
+const MonitorGroupList = memo(function MonitorGroupList({
   isLoading,
   monitorGroups,
   monitoringData,
@@ -90,7 +93,7 @@ export default function MonitorGroupList({
                   >
                     <MonitorCard
                       monitor={monitor}
-                      heartbeats={monitoringData.heartbeatList[monitor.id] || []}
+                      heartbeats={monitoringData.heartbeatList[monitor.id] || EMPTY_HEARTBEATS}
                       uptime24h={monitoringData.uptimeList[`${monitor.id}_24`] || 0}
                       isHome={true}
                       isLiteView={isGlobalLiteView}
@@ -105,4 +108,6 @@ export default function MonitorGroupList({
       </motion.div>
     </AnimatePresence>
   );
-}
+});
+
+export default MonitorGroupList;

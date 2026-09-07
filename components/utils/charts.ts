@@ -3,11 +3,9 @@ import { COLOR_SYSTEM, getStatusColorByStats } from './colors';
 
 export const getStatusColor = (heartbeat: Heartbeat, pingStats: PingStats | null) => {
   const { status, ping } = heartbeat;
-
   if (status === 0) return COLOR_SYSTEM.error;
   if (status === 3) return COLOR_SYSTEM.maintenance;
   if (status === 2) return COLOR_SYSTEM.warning;
-
   if (!ping || !pingStats) return COLOR_SYSTEM.excellent;
   return getStatusColorByStats(ping, pingStats);
 };
@@ -26,48 +24,57 @@ export interface PingMetrics {
   trimmedAvgPing: number;
 }
 
-export const calculatePingStats = (heartbeats: Heartbeat[]): PingStats | null => {
-  const onlinePings = heartbeats
-    .filter(hb => hb.status === 1 && hb.ping)
-    .map(hb => hb.ping as number);
+interface HeartbeatSummary {
+  stats: PingStats;
+  metrics: PingMetrics;
+}
 
-  if (onlinePings.length === 0) return null;
+// SWR snapshots are immutable; weak keys release statistics with their source data.
+const summaries = new WeakMap<Heartbeat[], HeartbeatSummary | null>();
 
-  const sorted = [...onlinePings].sort((a, b) => a - b);
-  return {
-    min: sorted[0],
-    p25: sorted[Math.floor(sorted.length * 0.25)],
-    p50: sorted[Math.floor(sorted.length * 0.5)],
-    p75: sorted[Math.floor(sorted.length * 0.75)],
-    max: sorted[sorted.length - 1],
+function summarizeHeartbeats(heartbeats: Heartbeat[]): HeartbeatSummary | null {
+  if (summaries.has(heartbeats)) return summaries.get(heartbeats) ?? null;
+
+  const sorted: number[] = [];
+  let total = 0;
+  for (const heartbeat of heartbeats) {
+    if (heartbeat.status === 1 && heartbeat.ping) {
+      sorted.push(heartbeat.ping);
+      total += heartbeat.ping;
+    }
+  }
+  if (sorted.length === 0) {
+    summaries.set(heartbeats, null);
+    return null;
+  }
+
+  sorted.sort((a, b) => a - b);
+  const count = sorted.length;
+  const trimStart = Math.floor(count * 0.1);
+  const trimEnd = Math.ceil(count * 0.9);
+  let trimmedTotal = 0;
+  for (let index = trimStart; index < trimEnd; index++) trimmedTotal += sorted[index];
+
+  const summary = {
+    stats: {
+      min: sorted[0],
+      p25: sorted[Math.floor(count * 0.25)],
+      p50: sorted[Math.floor(count * 0.5)],
+      p75: sorted[Math.floor(count * 0.75)],
+      max: sorted[count - 1],
+    },
+    metrics: {
+      latestPing: heartbeats[heartbeats.length - 1]?.ping || 0,
+      avgPing: Math.round(total / count),
+      trimmedAvgPing: Math.round(trimmedTotal / (trimEnd - trimStart)),
+    },
   };
-};
+  summaries.set(heartbeats, summary);
+  return summary;
+}
 
-export const calculatePingMetrics = (heartbeats: Heartbeat[]): PingMetrics | null => {
-  const onlinePings = heartbeats
-    .filter(hb => hb.status === 1 && hb.ping)
-    .map(hb => hb.ping as number);
+export const calculatePingStats = (heartbeats: Heartbeat[]): PingStats | null =>
+  summarizeHeartbeats(heartbeats)?.stats ?? null;
 
-  if (onlinePings.length === 0) return null;
-
-  // 最新延迟
-  const latestPing = heartbeats[heartbeats.length - 1]?.ping || 0;
-
-  // 平均延迟
-  const avgPing = Math.round(onlinePings.reduce((acc, curr) => acc + curr, 0) / onlinePings.length);
-
-  // 去除峰值后的平均延迟（去除最高和最低的 10%）
-  const sorted = [...onlinePings].sort((a, b) => a - b);
-  const trimStart = Math.floor(sorted.length * 0.1);
-  const trimEnd = Math.ceil(sorted.length * 0.9);
-  const trimmedPings = sorted.slice(trimStart, trimEnd);
-  const trimmedAvgPing = Math.round(
-    trimmedPings.reduce((acc, curr) => acc + curr, 0) / trimmedPings.length
-  );
-
-  return {
-    latestPing,
-    avgPing,
-    trimmedAvgPing,
-  };
-};
+export const calculatePingMetrics = (heartbeats: Heartbeat[]): PingMetrics | null =>
+  summarizeHeartbeats(heartbeats)?.metrics ?? null;

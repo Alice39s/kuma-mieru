@@ -24,7 +24,14 @@ jobs:
         run: bun test
 
       - name: Generate configuration and route types
-        run: bun run generate && bunx next typegen
+        env:
+          UPTIME_KUMA_URLS: http://127.0.0.1:43880/status/default
+        run: |
+          bun tests/fixtures/upstream.ts &
+          fixture_pid=$!
+          trap 'kill "$fixture_pid"' EXIT
+          bun run generate
+          bunx next typegen
 
       - name: Check types and lint
         run: bun run lint

@@ -75,8 +75,13 @@ export async function getMonitoringDataResult(pageId?: string): Promise<Monitori
   }
 
   try {
-    // 使用共享的预加载数据获取函数
-    const preloadData = await getPreloadData(config);
+    // Start independent upstream work together, preserving preload error precedence.
+    const [preloadResult, apiResult] = await Promise.allSettled([
+      getPreloadData(config),
+      customFetch(config.apiEndpoint, customFetchOptions),
+    ]);
+    if (preloadResult.status === 'rejected') throw preloadResult.reason;
+    const preloadData = preloadResult.value;
 
     // 验证监控组数据
     if (!Array.isArray(preloadData.publicGroupList)) {
@@ -84,7 +89,8 @@ export async function getMonitoringDataResult(pageId?: string): Promise<Monitori
     }
 
     // 获取监控数据
-    const apiResponse = await customFetch(config.apiEndpoint, customFetchOptions);
+    if (apiResult.status === 'rejected') throw apiResult.reason;
+    const apiResponse = apiResult.value;
 
     if (!apiResponse.ok) {
       throw new MonitorDataError(

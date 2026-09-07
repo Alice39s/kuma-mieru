@@ -18,6 +18,8 @@ interface StatusBlockIndicatorProps {
 const BLOCK_BASE_CLASS =
   'flex-1 h-full cursor-pointer transition-all hover:opacity-80 dark:hover:opacity-90 min-w-[2px]';
 
+const LEGEND_COLORS = Object.entries(COLOR_SYSTEM).filter(([, value]) => value.showInLegend);
+
 export function StatusBlockIndicator({
   heartbeats,
   className,
@@ -80,14 +82,12 @@ export function StatusBlockIndicator({
           )}
         >
           {showHeader &&
-            Object.entries(COLOR_SYSTEM)
-              .filter(([_, value]) => value.showInLegend)
-              .map(([key, value]) => (
-                <div key={key} className="flex items-center gap-1 text-xs">
-                  <div className={clsx('w-1.5 h-1.5 rounded-full', value.bg.dark)} />
-                  <span>{t(value.label)}</span>
-                </div>
-              ))}
+            LEGEND_COLORS.map(([key, value]) => (
+              <div key={key} className="flex items-center gap-1 text-xs">
+                <div className={clsx('w-1.5 h-1.5 rounded-full', value.bg.dark)} />
+                <span>{t(value.label)}</span>
+              </div>
+            ))}
         </div>
       </div>
 
