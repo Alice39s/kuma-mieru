@@ -1,15 +1,14 @@
 'use client';
 
 import Script from 'next/script';
-import { z } from 'zod';
+import { maxLength, pipe, regex, safeParse, string, trim } from 'valibot';
 
-const analyticsIdSchema = z
-  .string()
-  .trim()
-  .max(32)
-  .refine(value => /^(G-[A-Z0-9]+|UA-\d+-\d+|AW-\d+|DC-\d+)$/i.test(value), {
-    message: 'Invalid Google Analytics ID format',
-  });
+const analyticsIdSchema = pipe(
+  string(),
+  trim(),
+  maxLength(32),
+  regex(/^(G-[A-Z0-9]+|UA-\d+-\d+|AW-\d+|DC-\d+)$/i, 'Invalid Google Analytics ID format')
+);
 
 interface AnalyticsProps {
   id: string;
@@ -17,7 +16,7 @@ interface AnalyticsProps {
 
 export default function Analytics({ id }: AnalyticsProps) {
   if (!id) return null;
-  const parsedId = analyticsIdSchema.safeParse(id);
+  const parsedId = safeParse(analyticsIdSchema, id);
 
   if (!parsedId.success) {
     if (process.env.NODE_ENV !== 'production') {
@@ -26,7 +25,7 @@ export default function Analytics({ id }: AnalyticsProps) {
     return null;
   }
 
-  const safeId = parsedId.data;
+  const safeId = parsedId.output;
 
   return (
     <>

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { z } from 'zod';
+import { object, optional, parse, picklist } from 'valibot';
 import { generatedConfigSchema } from './schemas';
 
 function loadGeneratedConfig() {
@@ -16,14 +16,14 @@ function loadGeneratedConfig() {
 }
 
 // 确保配置符合schema
-const config = generatedConfigSchema.parse(loadGeneratedConfig());
+const config = parse(generatedConfigSchema, loadGeneratedConfig());
 
 // 仅包含运行时环境变量
-const runtimeEnvSchema = z.object({
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+const runtimeEnvSchema = object({
+  NODE_ENV: optional(picklist(['development', 'production', 'test']), 'development'),
 });
 
-const runtimeEnv = runtimeEnvSchema.parse({
+const runtimeEnv = parse(runtimeEnvSchema, {
   NODE_ENV: process.env.NODE_ENV,
 });
 

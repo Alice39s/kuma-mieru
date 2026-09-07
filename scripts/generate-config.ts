@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { parse } from 'valibot';
 import {
   DEFAULT_SITE_ICON,
   DEFAULT_SITE_META as DEFAULT_SITE_META_VALUES,
@@ -12,7 +13,7 @@ import { resolveEndpointConfig } from './lib/uptime-kuma';
 
 import 'dotenv/config';
 
-const DEFAULT_SITE_META = siteMetaSchema.parse(DEFAULT_SITE_META_VALUES);
+const DEFAULT_SITE_META = parse(siteMetaSchema, DEFAULT_SITE_META_VALUES);
 
 interface StringOverride {
   value: string | undefined;
@@ -85,7 +86,7 @@ const resolveSiteMeta = ({
     DEFAULT_SITE_META.icon
   );
 
-  return siteMetaSchema.parse({
+  return parse(siteMetaSchema, {
     title,
     description,
     icon: iconCandidates[0],
@@ -161,7 +162,7 @@ async function fetchSiteMeta(baseUrl: string, pageId: string) {
       return resolveSiteMeta({ overrides });
     }
 
-    return siteMetaSchema.parse(DEFAULT_SITE_META);
+    return parse(siteMetaSchema, DEFAULT_SITE_META);
   }
 }
 
@@ -218,7 +219,7 @@ async function generateConfig() {
         pageConfigEntries.push({
           id: page.id,
           baseUrl: page.baseUrl,
-          siteMeta: siteMetaSchema.parse(DEFAULT_SITE_META),
+          siteMeta: parse(siteMetaSchema, DEFAULT_SITE_META),
         });
       }
     }
@@ -229,7 +230,7 @@ async function generateConfig() {
       throw new Error(`Unable to resolve site metadata for default page "${defaultPageId}"`);
     }
 
-    const config = generatedConfigSchema.parse({
+    const config = parse(generatedConfigSchema, {
       baseUrl,
       pageId: defaultPageId,
       pageIds,

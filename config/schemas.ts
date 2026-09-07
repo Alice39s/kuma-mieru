@@ -1,27 +1,34 @@
-import { z } from 'zod';
+import { array, boolean, check, minLength, object, pipe, string, trim } from 'valibot';
+import type { InferOutput } from 'valibot';
 
-export const siteMetaSchema = z.object({
-  title: z.string(),
-  description: z.string(),
-  icon: z.string(),
-  iconCandidates: z.array(z.string()).min(1),
+const absoluteUrlSchema = pipe(
+  string(),
+  trim(),
+  check(value => URL.canParse(value), 'Invalid URL')
+);
+
+export const siteMetaSchema = object({
+  title: string(),
+  description: string(),
+  icon: string(),
+  iconCandidates: pipe(array(string()), minLength(1)),
 });
 
-export const generatedPageConfigSchema = z.object({
-  id: z.string(),
-  baseUrl: z.url(),
+export const generatedPageConfigSchema = object({
+  id: string(),
+  baseUrl: absoluteUrlSchema,
   siteMeta: siteMetaSchema,
 });
 
-export const generatedConfigSchema = z.object({
-  baseUrl: z.url(),
-  pageId: z.string(),
-  pageIds: z.array(z.string()).min(1),
-  pages: z.array(generatedPageConfigSchema).min(1),
+export const generatedConfigSchema = object({
+  baseUrl: absoluteUrlSchema,
+  pageId: string(),
+  pageIds: pipe(array(string()), minLength(1)),
+  pages: pipe(array(generatedPageConfigSchema), minLength(1)),
   siteMeta: siteMetaSchema,
-  isPlaceholder: z.boolean(),
-  isEditThisPage: z.boolean(),
-  isShowStarButton: z.boolean(),
+  isPlaceholder: boolean(),
+  isEditThisPage: boolean(),
+  isShowStarButton: boolean(),
 });
 
-export type SiteMeta = z.infer<typeof siteMetaSchema>;
+export type SiteMeta = InferOutput<typeof siteMetaSchema>;
