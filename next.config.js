@@ -73,6 +73,8 @@ const getImageRemotePatterns = () => {
 const isDevelopment = process.env.NODE_ENV === 'development';
 
 const baseConfig = {
+  // The build script runs Oxlint's type checker after generating route types.
+  typescript: { ignoreBuildErrors: true },
   poweredByHeader: false,
   compress: true,
 

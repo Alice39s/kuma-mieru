@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, v1-exp]
   pull_request:
     branches: [main]
 
@@ -22,3 +22,9 @@ jobs:
 
       - name: Run tests
         run: bun test
+
+      - name: Generate configuration and route types
+        run: bun run generate && bunx next typegen
+
+      - name: Check types and lint
+        run: bun run lint
