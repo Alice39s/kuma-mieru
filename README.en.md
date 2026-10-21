@@ -134,7 +134,7 @@ Go to <https://vercel.com/new>, select **Import** to import the repository you j
 
 2. **Install Dependencies**
 
-   Kuma Mieru uses [Bun](https://bun.sh/) as its package manager, please install Bun first:
+   Kuma Mieru uses [Bun](https://bun.sh/) as its package manager; builds and the Node.js standalone runtime require Node.js `26.12.1` (declared consistently by `.nvmrc` and `package.json`). Install Bun and Node.js first:
 
    ```bash
    # Linux/macOS

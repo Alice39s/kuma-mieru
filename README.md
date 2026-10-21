@@ -142,7 +142,7 @@ Fork 本仓库到您的 GitHub 用户下，如图所示：
 
 2. **安装依赖**
 
-   Kuma Mieru 使用 [Bun](https://bun.sh/) 作为包管理器，您需要先安装 Bun：
+   Kuma Mieru 使用 [Bun](https://bun.sh/) 作为包管理器；构建和 Node.js standalone 运行时需要 Node.js `26.12.1`（版本由 `.nvmrc` 和 `package.json` 统一声明）。您需要先安装 Bun 和 Node.js：
 
    ```bash
    # Linux/macOS

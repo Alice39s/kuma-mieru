@@ -11,6 +11,9 @@
   },
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=26.12.1 <27"
+  },
   "scripts": {
     "dev": "bun run generate && bun run lint:fix && next dev --turbopack --port 3881",
     "start": "bun run generate && bun ./scripts/init-start.ts && bun .next/standalone/server.js",
