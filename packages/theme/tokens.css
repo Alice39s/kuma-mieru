@@ -10,8 +10,14 @@
   --card-foreground: hsl(var(--heroui-content1-foreground));
   --popover: hsl(var(--heroui-content1));
   --popover-foreground: hsl(var(--heroui-content1-foreground));
-  --primary: hsl(var(--heroui-primary));
-  --primary-foreground: hsl(var(--heroui-primary-foreground));
+  /*
+   * Primary is text as well as a surface here (current navigation, tabs, links on tinted rows). HeroUI's 600 step
+   * reaches 4.5:1 for text on the background and on a 10% primary tint in both themes; HeroUI reverses the scale in
+   * the dark theme, so the step is the darker blue in light and the lighter blue in dark. Its 50 step is the text on
+   * primary surfaces.
+   */
+  --primary: hsl(var(--heroui-primary-600));
+  --primary-foreground: hsl(var(--heroui-primary-50));
   --secondary: hsl(var(--heroui-default-100));
   --secondary-foreground: hsl(var(--heroui-default-foreground));
   --muted: hsl(var(--heroui-default-100));

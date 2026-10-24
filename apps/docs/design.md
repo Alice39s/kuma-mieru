@@ -1,7 +1,7 @@
 ---
 name: kuma-mieru-docs-design
 description: 用于 Kuma Mieru 文档站（apps/docs）的长文文档页、语言入口页、未找到页和构建生成的链接预览图。读者是部署和维护监控面板的运维与开发者，在桌面上对照命令和配置逐项操作，也会在手机上查阅；目标是沿用仪表盘的 HeroUI 色板与字体，中性表面、单一蓝色强调、心跳条装饰，中英双语，浅色与深色主题。
-version: 2026-10-25
+version: 2026-10-25.2
 ---
 
 ## 1. 范围与优先级
@@ -92,6 +92,8 @@ version: 2026-10-25
 | `destructive`      | 失败、错误、不可用                         |
 | `muted-foreground` | 次要文字、图标                             |
 
+- [MUST] 文字与背景的对比度至少 4.5:1，包括 primary 文字在 10% primary 底色上（当前导航、标签页）。为此 `primary` 取 HeroUI primary 色阶的 600 档（HeroUI 在深色主题中反转色阶，浅色为较深的蓝、深色为较浅的蓝），primary 表面上的文字取 50 档。（决策：HeroUI 的 primary 默认档在深色表面和浅色底色上低于 4.5:1。来源：2026-10-25 无障碍检查。）
+- [SHOULD] 代码高亮用 `github-light-default` 与 `github-dark-default` 主题，注释在代码块表面上达到 4.5:1。
 - [SHOULD] 心跳条的颜色与仪表盘的状态色一致：正常为 success（按延迟分 100%、80%、60% 三档），等待为 warning，离线为 danger，维护为 60% primary。
 
 ### 布局与表面

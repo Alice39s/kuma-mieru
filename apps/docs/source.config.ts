@@ -9,6 +9,8 @@ export default defineConfig({
   mdxOptions: {
     // Remote images keep their natural size, so the build needs no network access.
     remarkImageOptions: { external: false },
+    // GitHub's default themes keep comments at 4.5:1 on the code block surface in both themes.
+    rehypeCodeOptions: { themes: { light: 'github-light-default', dark: 'github-dark-default' } },
     // ```npm code blocks become npm, pnpm, yarn and bun tabs; the reader's choice is kept across pages.
     remarkNpmOptions: { persist: { id: 'package-manager' } },
     // Content links are rewritten before Fumadocs' own plugins, so the processed Markdown for LLMs carries page URLs;
