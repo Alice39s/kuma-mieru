@@ -41,11 +41,12 @@ Please be respectful and considerate of others when contributing to this project
    bun run dev
    ```
 
-4. Make sure your code follows the project's coding standards:
+4. Make sure your code follows the project's coding standards. `lint` runs Oxlint with type-aware rules and the TypeScript type check; `lint:fix` applies Oxlint fixes and formats with Oxfmt:
 
    ```bash
+   bun run lint:fix
    bun run lint
-   bun run format
+   bun run test
    ```
 
 5. Commit your changes with a descriptive commit message:
@@ -106,7 +107,7 @@ Please be respectful and considerate of others when contributing to this project
 - Implement proper type safety and inference
 - Use `satisfies` operator for type validation
 
-### React 19 and Next.js 15 Best Practices
+### React 19 and Next.js 16 Best Practices
 
 - Favor React Server Components (RSC) where possible
 - Minimize 'use client' directives
@@ -121,19 +122,20 @@ Please be respectful and considerate of others when contributing to this project
 
 ## Documentation
 
-- Update the README.md and README.zh.md if your changes affect the project's functionality
+- Update the docs site pages in `apps/docs/content/docs` (Chinese `page.mdx` and English `page.en.mdx`) if your changes affect the project's functionality
+- Follow `apps/docs/design.md` when you change the docs site interface
 - Document your components with descriptive comments
 
 ## I18n
 
 ### Update the i18n translations
 
-- Update the messages in the `./messages/` folder
+- Update the messages in the `apps/web/messages/` folder
 
 ### Add your language to the i18n
 
-- Add your language to the locales array in the `./utils/i18n/config.ts` file
-- Add your language to the languages json file in the `./messages/` folder, example: `./messages/en-US.json`
+- Add your language to the locales array in the `apps/web/utils/i18n/config.ts` file
+- Add your language to the languages json file in the `apps/web/messages/` folder, example: `apps/web/messages/en-US.json`
 
 ## Questions?
 
