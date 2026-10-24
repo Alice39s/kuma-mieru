@@ -1,6 +1,7 @@
 import { remarkMdxFiles, remarkMdxMermaid } from 'fumadocs-core/mdx-plugins';
 import { remarkSteps } from 'fumadocs-core/mdx-plugins/remark-steps';
 import { defineConfig } from 'fumadocs-mdx/config';
+import { rehypeCodeLabels } from './lib/rehype-code-labels.ts';
 import { remarkContentLinks } from './lib/remark-content-links.ts';
 import { remarkLabelColumns } from './lib/remark-label-columns.ts';
 
@@ -23,5 +24,7 @@ export default defineConfig({
       remarkMdxFiles,
       remarkSteps,
     ],
+    // After syntax highlighting, which reads the title from the code fence.
+    rehypePlugins: defaults => [...defaults, rehypeCodeLabels],
   },
 });

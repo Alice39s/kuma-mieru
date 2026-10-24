@@ -13,7 +13,8 @@ const contentDir = resolve('content/docs');
 const CONTENT_LINK = /^(\.{1,2}\/[^#?]*\.mdx)(#[^?]*)?$/;
 const LOCALE_SUFFIX = /\.([a-z]{2})\.mdx$/;
 
-function localeOf(file: string): string {
+/** The language of a content file, from its `.en.mdx` style suffix; the default language has none. */
+export function localeOf(file: string): string {
   const suffix = LOCALE_SUFFIX.exec(file)?.[1];
   if (suffix === undefined) return i18n.defaultLanguage;
   if (!i18n.languages.some(language => language === suffix)) {

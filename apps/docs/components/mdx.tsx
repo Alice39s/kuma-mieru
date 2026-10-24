@@ -1,5 +1,6 @@
 import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
 import { Cards } from 'fumadocs-ui/components/card';
+import { CodeBlock, Pre } from 'fumadocs-ui/components/codeblock';
 import { File, Files, Folder } from 'fumadocs-ui/components/files';
 import { ImageZoom } from 'fumadocs-ui/components/image-zoom';
 import { Step, Steps } from 'fumadocs-ui/components/steps';
@@ -16,6 +17,18 @@ import { iconComponents } from '@/lib/icons';
 import { routeHref } from '@/lib/shared';
 
 const DefaultLink = defaultMdxComponents.a;
+
+type PreProps = ComponentProps<'pre'> & { 'data-label'?: string };
+
+/** A code block whose scroll region is named by `rehypeCodeLabels`. */
+function LabelledPre({ 'data-label': label, children, ref: _ref, ...props }: PreProps) {
+  if (label === undefined) throw new Error('A code block reached the page without a label.');
+  return (
+    <CodeBlock {...props} viewportProps={{ 'aria-label': label }}>
+      <Pre>{children}</Pre>
+    </CodeBlock>
+  );
+}
 
 function imageSource(src: ComponentProps<'img'>['src']): ImageProps['src'] {
   if (src instanceof Blob)
@@ -34,6 +47,7 @@ export function getMDXComponents(components?: MDXComponents) {
     img: ({ src, ...props }: ComponentProps<'img'>) => (
       <ImageZoom {...props} src={imageSource(src)} />
     ),
+    pre: LabelledPre,
     Accordion,
     Accordions,
     Callout,
