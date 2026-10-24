@@ -2,7 +2,7 @@ import { createApiResponse } from '@/app/lib/api-utils';
 
 export async function GET() {
   // Directly return, dont need to cache
-  return createApiResponse(async () => ({
+  return createApiResponse(() => ({
     status: 'ok',
     uptime: process.uptime(),
   }));

@@ -11,7 +11,7 @@ import { motion } from 'framer-motion';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+import { useClientSnapshot } from '../utils/client-snapshot';
 
 const mode = {
   light: {
@@ -35,11 +35,7 @@ export const ThemeSwitch = ({
 }) => {
   const t = useTranslations();
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useClientSnapshot(() => true, false);
 
   const currentTheme = (theme as keyof typeof mode) || 'system';
   const themeIcon = mode[currentTheme]?.icon || mode.system.icon;

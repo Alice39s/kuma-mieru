@@ -19,9 +19,16 @@ import { filterMonitorByStatus } from '@/utils/monitorFilters';
 import { Button, Tooltip } from '@heroui/react';
 import { LayoutGrid, LayoutList } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useTransition } from 'react';
+import { useLocalStorage } from 'usehooks-ts';
 
 const GLOBAL_VIEW_PREFERENCE_KEY = 'view-preference';
+
+const viewPreferenceStorageOptions = {
+  initializeWithValue: false,
+  serializer: (isLiteView: boolean) => (isLiteView ? 'lite' : 'full'),
+  deserializer: (storedValue: string) => storedValue === 'lite',
+};
 
 interface EnhancedMonitorGroup extends MonitorGroup {
   isGroupMatched?: boolean;
@@ -35,25 +42,14 @@ export function StatusPage() {
   const { searchTerm, isFiltering, clearSearch, filterStatus, searchInGroup } = useNodeSearch();
   const currentPageConfig = usePageConfig();
 
-  const [isGlobalLiteView, setIsGlobalLiteView] = useState(false);
+  const [isGlobalLiteView, setIsGlobalLiteView] = useLocalStorage(
+    GLOBAL_VIEW_PREFERENCE_KEY,
+    false,
+    viewPreferenceStorageOptions
+  );
   const [, startTransition] = useTransition();
 
   const viewT = useTranslations('view');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedPreference = localStorage.getItem(GLOBAL_VIEW_PREFERENCE_KEY);
-      if (savedPreference === 'lite') {
-        setIsGlobalLiteView(true);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(GLOBAL_VIEW_PREFERENCE_KEY, isGlobalLiteView ? 'lite' : 'full');
-    }
-  }, [isGlobalLiteView]);
 
   const isLoading = isLoadingMonitors;
 
@@ -71,8 +67,8 @@ export function StatusPage() {
     });
   };
 
-  const filteredMonitorGroups = useMemo(() => {
-    if (!isFiltering) return monitorGroups as EnhancedMonitorGroup[];
+  const filteredMonitorGroups = useMemo<EnhancedMonitorGroup[]>(() => {
+    if (!isFiltering) return monitorGroups;
 
     const searchTermLower = searchTerm.toLowerCase();
     const hasSearchTerm = searchTermLower.length > 0;

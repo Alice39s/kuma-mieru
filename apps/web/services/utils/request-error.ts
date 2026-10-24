@@ -20,7 +20,7 @@ export function extractHttpStatusDetails(error: unknown): HttpStatusDetails {
         break;
       }
 
-      chain.push(current as ErrorWithCode);
+      chain.push(current);
       current = (current as ErrorWithCode).cause;
     }
 
@@ -30,7 +30,7 @@ export function extractHttpStatusDetails(error: unknown): HttpStatusDetails {
   const errorChain = getErrorChain(error);
   const message =
     errorChain.map(item => item.message).find(item => item && item.length > 0) ??
-    String(error ?? '');
+    (typeof error === 'string' ? error : '');
 
   const directMatch = message.match(/\b([1-5]\d\d)\s+([A-Za-z][A-Za-z\s-]{1,})\b/);
 

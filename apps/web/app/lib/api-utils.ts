@@ -15,7 +15,7 @@ type SuccessResponse<T> = T & ApiResponse;
 type ErrorResponse = ApiResponse;
 
 export async function createApiResponse<T>(
-  handler: () => Promise<T>,
+  handler: () => T | Promise<T>,
   options: CacheOptions = {}
 ): Promise<NextResponse<SuccessResponse<T> | ErrorResponse>> {
   try {

@@ -9,18 +9,18 @@ import { validatePreloadData } from './json-sanitizer';
  * 使用 `node:vm` 模块直接执行 JS 获取预加载数据，可免去手动解析 unicode / html 转义字符的烦恼。
  */
 export const executePreloadScript = (script: string): unknown => {
-  const ctx = createContext({ window: {} });
+  const sandbox = { window: {} };
 
   try {
-    runInNewContext(script, ctx);
+    runInNewContext(script, createContext(sandbox));
 
-    if (ctx.window?.preloadData) {
-      return ctx.window.preloadData;
+    if ('preloadData' in sandbox.window && sandbox.window.preloadData) {
+      return sandbox.window.preloadData;
     }
 
     throw new Error("Can't find window.preloadData");
   } catch (error) {
-    console.error('[executePreloadScript] Error:', error as Error);
+    console.error('[executePreloadScript] Error:', error);
     throw error;
   }
 };
@@ -36,8 +36,7 @@ export const preprocessJson = (str: string): string => {
     .trim();
 
   try {
-    const parsed = JSON5.parse(processed);
-    return JSON.stringify(parsed);
+    return JSON.stringify(JSON5.parse(processed));
   } catch (error) {
     console.debug('Failed to parse JSON5, returning original processed string', error);
     return processed;
@@ -53,9 +52,9 @@ export const extractPreloadData = (jsonStr: string): PreloadData => {
     const scriptWithContext = `window.preloadData = ${jsonStr};`;
     const result = executePreloadScript(scriptWithContext);
 
-    if (validatePreloadData(result as PreloadData)) {
+    if (validatePreloadData(result)) {
       console.debug('Successfully parsed preload data using node:vm');
-      return result as PreloadData;
+      return result;
     }
   } catch (error) {
     console.debug('Failed to parse preload data using node:vm, trying other methods', error);
@@ -68,9 +67,9 @@ export const extractPreloadData = (jsonStr: string): PreloadData => {
       const script = `window.preloadData = ${scriptMatch[1]};`;
       const result = executePreloadScript(script);
 
-      if (validatePreloadData(result as PreloadData)) {
+      if (validatePreloadData(result)) {
         console.debug('Successfully parsed preload data by extracting JS and using VM');
-        return result as PreloadData;
+        return result;
       }
     } catch (error) {
       console.debug('Failed to parse preload data by extracting JS and using VM', error);
@@ -87,7 +86,7 @@ export const extractPreloadData = (jsonStr: string): PreloadData => {
 
     // 使用标准 JSON 解析
     try {
-      const parsed = JSON.parse(processedJson);
+      const parsed: unknown = JSON.parse(processedJson);
       if (validatePreloadData(parsed)) {
         return parsed;
       }
@@ -95,8 +94,7 @@ export const extractPreloadData = (jsonStr: string): PreloadData => {
       console.debug('Failed to parse JSON, trying JSON5:', jsonError);
 
       // 尝试 JSON5 解析
-      const parsed = JSON5.parse(processedJson);
-      const decodedData = decodeUnicodeEscapes(parsed);
+      const decodedData = decodeUnicodeEscapes(JSON5.parse(processedJson));
 
       if (validatePreloadData(decodedData)) {
         return decodedData;

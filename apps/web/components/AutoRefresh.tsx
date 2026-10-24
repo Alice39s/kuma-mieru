@@ -83,7 +83,7 @@ export default function AutoRefresh({ onRefresh, interval = 60000, children }: A
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [timeLeft, setTimeLeft] = useState<number>(interval);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastRefreshTime, setLastRefreshTime] = useState<number>(Date.now());
+  const [lastRefreshTime, setLastRefreshTime] = useState(() => Date.now());
   const [showRefreshAnimation, setShowRefreshAnimation] = useState<boolean>(false);
 
   const handleRefresh = useCallback(

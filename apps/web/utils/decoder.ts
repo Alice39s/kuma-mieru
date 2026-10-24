@@ -1,5 +1,3 @@
-type DeepRecord = { [key: string]: DeepRecord | unknown };
-
 // HTML实体映射表
 const HTML_ENTITIES: Record<string, string> = {
   '&amp;': '&',
@@ -42,9 +40,13 @@ function decodeUnicodeEscapes(value: unknown): unknown {
       )
 
       // 处理 Unicode 转义序列 - \uXXXX
-      .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+      .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) =>
+        String.fromCharCode(Number.parseInt(hex, 16))
+      )
       // 二次转义序列
-      .replace(/\\\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)));
+      .replace(/\\\\u([0-9a-fA-F]{4})/g, (_, hex: string) =>
+        String.fromCharCode(Number.parseInt(hex, 16))
+      );
 
     // 处理HTML实体
     // 1. 替换命名实体
@@ -53,10 +55,12 @@ function decodeUnicodeEscapes(value: unknown): unknown {
     }
 
     // 2. 替换数字实体 (十进制, 如 &#169;)
-    result = result.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number.parseInt(dec, 10)));
+    result = result.replace(/&#(\d+);/g, (_, dec: string) =>
+      String.fromCharCode(Number.parseInt(dec, 10))
+    );
 
     // 3. 替换数字实体 (十六进制, 如 &#x00A9;)
-    result = result.replace(/&#x([0-9a-f]+);/gi, (_, hex) =>
+    result = result.replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
       String.fromCharCode(Number.parseInt(hex, 16))
     );
 
@@ -71,7 +75,7 @@ function decodeUnicodeEscapes(value: unknown): unknown {
   // 对象类型递归处理每个属性
   if (value && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value as DeepRecord).map(([k, v]) => [k, decodeUnicodeEscapes(v)])
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, decodeUnicodeEscapes(v)])
     );
   }
 

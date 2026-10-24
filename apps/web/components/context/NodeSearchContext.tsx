@@ -48,6 +48,31 @@ export function NodeSearchProvider({ children }: { children: React.ReactNode }) 
     () => searchParams.get(SEARCH_GROUP_PARAM) === 'true'
   );
 
+  const searchParamsKey = searchParams.toString();
+  const [syncedSearchParamsKey, setSyncedSearchParamsKey] = useState(searchParamsKey);
+
+  // Adopt URL changes made outside this provider (e.g. back/forward navigation) while rendering.
+  if (syncedSearchParamsKey !== searchParamsKey) {
+    setSyncedSearchParamsKey(searchParamsKey);
+
+    const urlSearchTerm = searchParams.get(SEARCH_PARAM) || '';
+    const urlFilterStatus = (searchParams.get(STATUS_PARAM) as FilterStatus) || 'all';
+    const urlSearchInGroup = searchParams.get(SEARCH_GROUP_PARAM) === 'true';
+
+    if (urlSearchTerm !== searchTerm && urlSearchTerm !== inputValue) {
+      setInputValueState(urlSearchTerm);
+      setSearchTerm(urlSearchTerm);
+    }
+
+    if (urlFilterStatus !== filterStatus) {
+      setFilterStatusLocal(urlFilterStatus);
+    }
+
+    if (urlSearchInGroup !== searchInGroup) {
+      setSearchInGroupLocal(urlSearchInGroup);
+    }
+  }
+
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialRef = useRef(true);
 
@@ -141,25 +166,6 @@ export function NodeSearchProvider({ children }: { children: React.ReactNode }) 
 
     updateUrl({ search: '', status: 'all', group: false });
   }, [updateUrl]);
-
-  useEffect(() => {
-    const urlSearchTerm = searchParams.get(SEARCH_PARAM) || '';
-    const urlFilterStatus = (searchParams.get(STATUS_PARAM) as FilterStatus) || 'all';
-    const urlSearchInGroup = searchParams.get(SEARCH_GROUP_PARAM) === 'true';
-
-    if (urlSearchTerm !== searchTerm && urlSearchTerm !== inputValue) {
-      setInputValueState(urlSearchTerm);
-      setSearchTerm(urlSearchTerm);
-    }
-
-    if (urlFilterStatus !== filterStatus) {
-      setFilterStatusLocal(urlFilterStatus);
-    }
-
-    if (urlSearchInGroup !== searchInGroup) {
-      setSearchInGroupLocal(urlSearchInGroup);
-    }
-  }, [searchParams, searchTerm, inputValue, filterStatus, searchInGroup]);
 
   useEffect(() => {
     return () => {

@@ -186,7 +186,7 @@ export function useMonitorData(config?: SWRConfiguration) {
     error,
     isLoading,
     mutate: revalidate,
-  } = useSWR<MonitorResponse>(SWR_KEYS.MONITOR(pageId), fetcher, {
+  } = useSWR<MonitorResponse, Error>(SWR_KEYS.MONITOR(pageId), fetcher, {
     ...DEFAULT_SWR_CONFIG,
     refreshInterval: 60000, // 每60秒刷新一次
     keepPreviousData: true, // 页面切换时保留旧数据，避免闪烁
@@ -218,7 +218,7 @@ export function useMonitor(monitorId: number | string, config?: SWRConfiguration
     error,
     isLoading,
     mutate: revalidate,
-  } = useSWR<MonitorResponse>(SWR_KEYS.MONITOR(pageId), fetcher, {
+  } = useSWR<MonitorResponse, Error>(SWR_KEYS.MONITOR(pageId), fetcher, {
     ...DEFAULT_SWR_CONFIG,
     refreshInterval: 60000,
     ...config,
@@ -260,7 +260,7 @@ export function useConfig(config?: SWRConfiguration) {
     error,
     isLoading,
     mutate: revalidate,
-  } = useSWR<ConfigResponse>(SWR_KEYS.CONFIG(pageId), fetcher, {
+  } = useSWR<ConfigResponse, Error>(SWR_KEYS.CONFIG(pageId), fetcher, {
     ...DEFAULT_SWR_CONFIG,
     revalidateIfStale: false, // 除非明确要求，否则不重新验证陈旧数据
     keepPreviousData: true, // 页面切换时保留旧数据，避免闪烁
@@ -289,7 +289,7 @@ export function useMaintenanceData(config?: SWRConfiguration) {
     error,
     isLoading,
     mutate: revalidate,
-  } = useSWR<ConfigResponse>(SWR_KEYS.CONFIG(pageId), fetcher, {
+  } = useSWR<ConfigResponse, Error>(SWR_KEYS.CONFIG(pageId), fetcher, {
     ...DEFAULT_SWR_CONFIG,
     refreshInterval: 60000, // 每60秒刷新一次
     ...config,

@@ -3,7 +3,7 @@
 import { ExpandableAlert } from '@/components/alerts/ExpandableAlert';
 import type { Incident } from '@/types/monitor';
 import { CircleAlert, Info, TriangleAlert } from 'lucide-react';
-import { useFormatter, useTranslations } from 'next-intl';
+import { useFormatter, useNow, useTranslations } from 'next-intl';
 import type { DateTimeFormatOptions } from 'next-intl';
 import { useMemo } from 'react';
 import { dateStringToTimestamp, timezoneOffsetToMs } from '../utils/format';
@@ -12,17 +12,16 @@ import { extractPlainText, getMarkdownClasses, useMarkdown } from '../utils/mark
 function IncidentMarkdownAlert({ incident }: { incident: Incident }) {
   const t = useTranslations('alert');
   const format = useFormatter();
-  const now = Date.now();
+  const now = useNow({ updateInterval: 60_000 });
   const dateTimeFormat: DateTimeFormatOptions = {
     dateStyle: 'medium',
     timeStyle: 'short',
     timeZone: 'UTC',
   };
 
-  let { style, title, content, createdDate, lastUpdatedDate } = incident;
-
-  createdDate = createdDate ? `${createdDate} +00:00` : '';
-  lastUpdatedDate = lastUpdatedDate ? `${lastUpdatedDate} +00:00` : '';
+  const { style, title, content } = incident;
+  const createdDate = incident.createdDate ? `${incident.createdDate} +00:00` : '';
+  const lastUpdatedDate = incident.lastUpdatedDate ? `${incident.lastUpdatedDate} +00:00` : '';
 
   const alertColor = useMemo(() => {
     switch (style) {

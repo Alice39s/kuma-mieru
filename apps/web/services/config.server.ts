@@ -342,11 +342,7 @@ export async function getPreloadData(config: Config) {
       html,
       baseUrl: config.baseUrl,
       pageId: config.pageId,
-      fetchFn: (url, init) =>
-        customFetch(
-          url,
-          init as RequestInit & { maxRetries?: number; retryDelay?: number; timeout?: number }
-        ),
+      fetchFn: (url, init) => customFetch(url, init),
       requestInit: customFetchOptions,
       logger: console,
       includeHtmlDiagnostics: true,
