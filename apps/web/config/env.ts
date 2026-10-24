@@ -1,29 +1,45 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { z } from 'zod';
-import { generatedConfigSchema } from './schemas';
+import { object, optional, parse, picklist, safeParse, summarize } from 'valibot';
+import { generatedConfigFileSchema } from './schemas';
 
-function loadGeneratedConfig() {
-  const configPath = join(process.cwd(), 'config', 'generated-config.json');
-
+function readGeneratedConfigFile(configPath: string): string {
   try {
-    const raw = readFileSync(configPath, 'utf8');
-    return JSON.parse(raw);
+    return readFileSync(configPath, 'utf8');
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to load generated config at ${configPath}: ${reason}`);
   }
 }
 
+function loadGeneratedConfig() {
+  const configPath = join(process.cwd(), 'config', 'generated-config.json');
+  const result = safeParse(generatedConfigFileSchema, readGeneratedConfigFile(configPath));
+
+  if (!result.success) {
+    throw new Error(
+      `Failed to load generated config at ${configPath}: ${summarize(result.issues)}`
+    );
+  }
+
+  return result.output;
+}
+
 // 确保配置符合schema
-const config = generatedConfigSchema.parse(loadGeneratedConfig());
+const config = loadGeneratedConfig();
 
 // 仅包含运行时环境变量
-const runtimeEnvSchema = z.object({
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+const runtimeEnvSchema = object({
+  NODE_ENV: optional(
+    picklist(
+      ['development', 'production', 'test'],
+      'NODE_ENV must be "development", "production" or "test"'
+    ),
+    'development'
+  ),
 });
 
-const runtimeEnv = runtimeEnvSchema.parse({
+const runtimeEnv = parse(runtimeEnvSchema, {
   NODE_ENV: process.env.NODE_ENV,
 });
 

@@ -1,22 +1,45 @@
 import packageJson from '@/package.json';
-import { z } from 'zod';
+import {
+  integer,
+  maxValue,
+  minValue,
+  number,
+  object,
+  optional,
+  parse,
+  picklist,
+  pipe,
+  string,
+  transform,
+} from 'valibot';
 
-function envIntWithDefault(defaultValue: number, min: number, max: number) {
-  return z.preprocess(value => {
-    if (value === undefined || value === null || value === '') {
-      return defaultValue;
-    }
-    return Number(value);
-  }, z.number().int().min(min).max(max));
+export function envIntWithDefault(name: string, defaultValue: number, min: number, max: number) {
+  const message = `${name} must be an integer between ${min} and ${max}`;
+
+  return pipe(
+    optional(string(message), ''),
+    transform(value => (value === '' ? defaultValue : Number(value))),
+    number(message),
+    integer(message),
+    minValue(min, message),
+    maxValue(max, message)
+  );
 }
 
-const requestPolicySchema = z.object({
-  maxRetries: envIntWithDefault(3, 0, 10),
-  retryDelay: envIntWithDefault(500, 100, 10000),
-  timeout: envIntWithDefault(8000, 1000, 60000),
+export function envFlag(name: string) {
+  return pipe(
+    optional(picklist(['true', 'false'], `${name} must be "true" or "false"`), 'false'),
+    transform(value => value === 'true')
+  );
+}
+
+const requestPolicySchema = object({
+  maxRetries: envIntWithDefault('REQUEST_RETRY_MAX', 3, 0, 10),
+  retryDelay: envIntWithDefault('REQUEST_RETRY_DELAY_MS', 500, 100, 10000),
+  timeout: envIntWithDefault('REQUEST_TIMEOUT_MS', 8000, 1000, 60000),
 });
 
-const requestPolicy = requestPolicySchema.parse({
+const requestPolicy = parse(requestPolicySchema, {
   maxRetries: process.env.REQUEST_RETRY_MAX,
   retryDelay: process.env.REQUEST_RETRY_DELAY_MS,
   timeout: process.env.REQUEST_TIMEOUT_MS,
@@ -34,23 +57,13 @@ export const customFetchOptions = {
   timeout: requestPolicy.timeout,
 };
 
-const insecureTlsSchema = z
-  .enum(['true', 'false'])
-  .optional()
-  .default('false')
-  .transform(value => value === 'true');
-
-export const allowInsecureTls = insecureTlsSchema.parse(
+export const allowInsecureTls = parse(
+  envFlag('ALLOW_INSECURE_TLS'),
   process.env.ALLOW_INSECURE_TLS?.toLowerCase()
 );
 
-const ssrStrictModeSchema = z
-  .enum(['true', 'false'])
-  .optional()
-  .default('false')
-  .transform(value => value === 'true');
-
-export const isSsrStrictMode = ssrStrictModeSchema.parse(
+export const isSsrStrictMode = parse(
+  envFlag('SSR_STRICT_MODE'),
   process.env.SSR_STRICT_MODE?.toLowerCase()
 );
 
