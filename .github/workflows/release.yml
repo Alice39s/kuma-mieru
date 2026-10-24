@@ -3,7 +3,7 @@ name: Create Release
 on:
   push:
     paths:
-      - 'package.json'
+      - 'apps/web/package.json'
       - '.github/workflows/release.yml'
     branches:
       - main
@@ -36,7 +36,7 @@ jobs:
       - name: Get version from package.json
         id: package_version
         run: |
-          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+          echo "version=$(node -p "require('./apps/web/package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Check if release exists
         id: check_release

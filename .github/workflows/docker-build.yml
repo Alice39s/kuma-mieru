@@ -4,14 +4,14 @@ on:
   push:
     branches: ['main']
     paths:
-      - 'package.json'
+      - 'apps/web/package.json'
       - 'Dockerfile'
       - '.github/workflows/docker-build.yml'
       - 'docker-compose.yml'
   pull_request:
     branches: ['main']
     paths:
-      - 'package.json'
+      - 'apps/web/package.json'
       - 'Dockerfile'
   workflow_dispatch:
 
@@ -38,7 +38,7 @@ jobs:
       - name: Get package version
         id: package_version
         run: |
-          version=$(node -p "require('./package.json').version")
+          version=$(node -p "require('./apps/web/package.json').version")
           major=$(echo "$version" | cut -d. -f1)
           minor=$(echo "$version" | cut -d. -f2)
           echo "version=$version" >> $GITHUB_OUTPUT
@@ -74,7 +74,7 @@ jobs:
             type=sha,format=short,prefix=sha-
           labels: |
             org.opencontainers.image.title=Kuma Mieru
-            org.opencontainers.image.description=A 3rd-party Uptime Kuma monitoring dashboard built on Next.js 15, TypeScript and Recharts.
+            org.opencontainers.image.description=A 3rd-party Uptime Kuma monitoring dashboard built on Next.js 16, TypeScript and Recharts.
             org.opencontainers.image.version=${{ steps.package_version.outputs.version }}
             org.opencontainers.image.licenses=MPL-2.0
 
