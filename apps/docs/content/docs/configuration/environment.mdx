@@ -1,0 +1,196 @@
+---
+title: 环境变量
+description: 列出 Kuma Mieru 读取的全部环境变量，以及它们的默认值和生效时机。
+icon: Settings2
+---
+
+## 最小配置
+
+假设 Uptime Kuma 状态页的 URL 是 `https://example.kuma-mieru.invalid/status/test1`，只需要设置一个变量：
+
+```ini title=".env"
+UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/test1
+```
+
+有多个状态页时，用 `|` 分隔完整 URL：
+
+```ini title=".env"
+UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/test1|https://example.kuma-mieru.invalid/status/test2
+```
+
+变量模板是 `apps/web/.env.example`。各部署方式的设置位置：
+
+| 部署方式                       | 设置位置                              |
+| ------------------------------ | ------------------------------------- |
+| Vercel、Netlify、EdgeOne Pages | 平台控制台中的环境变量设置            |
+| Docker Compose                 | 仓库根目录的 `.env`                   |
+| docker run                     | `-e` 参数，或 `--env-file` 指定的文件 |
+| 从源码运行                     | `apps/web/.env`                       |
+
+## 生效时机
+
+| 变量                                                                               | 读取时机                                                                                                                  |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `UPTIME_KUMA_URLS`、`UPTIME_KUMA_BASE_URL`、`PAGE_ID`、`KUMA_MIERU_*`、`FEATURE_*` | `generate` 脚本运行时。结果写入 `apps/web/config/generated-config.json` 和 `apps/web/config/generated/image-domains.json` |
+| `STRICT_IMAGE_REMOTE_PATTERNS`                                                     | `next build` 构建时                                                                                                       |
+| `ALLOW_EMBEDDING`                                                                  | 服务运行时                                                                                                                |
+
+`generate` 脚本在托管平台的构建阶段运行，在 Docker 容器中每次启动时运行。所以：
+
+- 在 Vercel、Netlify 或 EdgeOne Pages 修改任何变量后，需要重新部署。
+- 在 Docker Compose 中修改 `.env` 后，运行 `docker compose up -d --force-recreate`，让容器重新读取环境变量。
+
+## 变量一览
+
+| 变量                              | 必填 | 默认值       | 说明                                                                          |
+| --------------------------------- | ---- | ------------ | ----------------------------------------------------------------------------- |
+| `UPTIME_KUMA_URLS`                | 是\* | 无           | 推荐。一个或多个完整的状态页 URL，可以来自不同的 Uptime Kuma 实例             |
+| `UPTIME_KUMA_BASE_URL`            | 是\* | 无           | 兼容旧版。Uptime Kuma 实例的基础 URL，只在未设置 `UPTIME_KUMA_URLS` 时使用    |
+| `PAGE_ID`                         | 是\* | 无           | 兼容旧版。状态页 ID，多个 ID 用逗号分隔，只在未设置 `UPTIME_KUMA_URLS` 时使用 |
+| `KUMA_MIERU_TITLE`                | 否   | 状态页的标题 | 自定义页面标题                                                                |
+| `KUMA_MIERU_DESCRIPTION`          | 否   | 状态页的描述 | 自定义页面描述                                                                |
+| `KUMA_MIERU_ICON`                 | 否   | 状态页的图标 | 自定义页面图标的 URL                                                          |
+| `KUMA_MIERU_EDIT_THIS_PAGE`       | 否   | `false`      | 是否显示 Edit This Page 按钮                                                  |
+| `KUMA_MIERU_SHOW_STAR_BUTTON`     | 否   | `true`       | 是否显示 Star on GitHub 按钮                                                  |
+| `ALLOW_INSECURE_TLS`              | 否   | `false`      | 是否跳过上游 Uptime Kuma 的 HTTPS 证书校验                                    |
+| `REQUEST_TIMEOUT_MS`              | 否   | `8000`       | 上游请求的超时时间，单位毫秒                                                  |
+| `REQUEST_RETRY_MAX`               | 否   | `3`          | 上游请求的最大重试次数                                                        |
+| `REQUEST_RETRY_DELAY_MS`          | 否   | `500`        | 上游请求重试的基础间隔，单位毫秒                                              |
+| `SSR_STRICT_MODE`                 | 否   | `false`      | 是否启用严格 SSR 失败模式                                                     |
+| `NEXT_PUBLIC_ERROR_PAGE_DEV_MODE` | 否   | `false`      | 是否在错误页显示完整堆栈                                                      |
+| `ALLOW_EMBEDDING`                 | 否   | `false`      | 是否允许其他网站用 iframe 嵌入                                                |
+| `STRICT_IMAGE_REMOTE_PATTERNS`    | 否   | `false`      | 是否只允许白名单中的远程图片域名                                              |
+
+\* `UPTIME_KUMA_URLS` 与 `UPTIME_KUMA_BASE_URL` 加 `PAGE_ID` 二选一。两者都设置时，使用 `UPTIME_KUMA_URLS`。
+
+`FEATURE_*` 开头的旧变量名见[旧变量名](#旧变量名)。
+
+## 状态页地址
+
+### UPTIME_KUMA_URLS
+
+推荐的写法，值是一个或多个完整的状态页 URL：
+
+- 每个 URL 的格式是 `https://<主机>/status/<页面 ID>`。`/status/` 前面的部分是 Uptime Kuma 的基础 URL，可以带路径前缀；`/status/` 后面的一段是页面 ID。
+- 多个 URL 用 `|` 分隔，可以来自不同的 Uptime Kuma 实例。第一个 URL 是默认页面。
+- 页面 ID 在所有实例之间必须唯一。同一个页面 ID 出现在两个不同的基础 URL 下时，配置生成失败。
+- 设置了 `UPTIME_KUMA_URLS` 后，`UPTIME_KUMA_BASE_URL` 和 `PAGE_ID` 会被忽略。
+
+URL 的解析示例见[连接 Uptime Kuma](./uptime-kuma.mdx)。
+
+### UPTIME_KUMA_BASE_URL 和 PAGE_ID
+
+兼容旧版的写法，只在没有设置 `UPTIME_KUMA_URLS` 时使用。所有状态页都来自同一个 Uptime Kuma 实例：
+
+```ini title=".env"
+UPTIME_KUMA_BASE_URL=https://example.kuma-mieru.invalid
+PAGE_ID=default,status-asia
+```
+
+`PAGE_ID` 中的多个 ID 用逗号分隔，第一个 ID 是默认页面。
+
+## 页面外观
+
+### 标题、描述和图标
+
+`KUMA_MIERU_TITLE`、`KUMA_MIERU_DESCRIPTION` 和 `KUMA_MIERU_ICON` 按以下顺序取值：
+
+1. 环境变量的值。设置后对所有状态页生效。
+2. Uptime Kuma 状态页自身的标题、描述和图标。
+3. 默认值：标题 `Kuma Mieru`，描述 `A beautiful and modern uptime monitoring dashboard`，图标 `/icon.svg`。
+
+请求状态页失败时，未设置的项使用默认值。
+
+<Callout type="info">
+把 `KUMA_MIERU_TITLE` 或 `KUMA_MIERU_DESCRIPTION` 设为空值也算已设置，页面会显示空的标题或描述。`KUMA_MIERU_ICON` 为空值时不生效，图标按上面的第 2、3 项取值。
+
+Docker 镜像内置的 `KUMA_MIERU_TITLE` 默认值是 `Uptime Kuma`。
+
+</Callout>
+
+### 按钮
+
+| 变量                          | 默认值  | 作用                     |
+| ----------------------------- | ------- | ------------------------ |
+| `KUMA_MIERU_EDIT_THIS_PAGE`   | `false` | 显示 Edit This Page 按钮 |
+| `KUMA_MIERU_SHOW_STAR_BUTTON` | `true`  | 显示 Star on GitHub 按钮 |
+
+值为 `true`（不区分大小写）时开启，其他值都视为关闭。
+
+### 旧变量名
+
+`KUMA_MIERU_*` 没有设置时，Kuma Mieru 读取对应的 `FEATURE_*` 变量。两者都设置时，使用 `KUMA_MIERU_*`。
+
+| 变量                          | 旧变量名                   |
+| ----------------------------- | -------------------------- |
+| `KUMA_MIERU_TITLE`            | `FEATURE_TITLE`            |
+| `KUMA_MIERU_DESCRIPTION`      | `FEATURE_DESCRIPTION`      |
+| `KUMA_MIERU_ICON`             | `FEATURE_ICON`             |
+| `KUMA_MIERU_EDIT_THIS_PAGE`   | `FEATURE_EDIT_THIS_PAGE`   |
+| `KUMA_MIERU_SHOW_STAR_BUTTON` | `FEATURE_SHOW_STAR_BUTTON` |
+
+## 上游请求
+
+### ALLOW_INSECURE_TLS
+
+控制 Kuma Mieru 请求上游 Uptime Kuma 时是否校验 HTTPS 证书。默认值 `false`，严格校验证书。设为 `true` 会跳过证书校验，存在安全风险，只在受信任的自签名证书环境中使用。
+
+### 超时与重试
+
+以下变量作用于所有上游请求：
+
+| 变量                     | 默认值 | 含义                     |
+| ------------------------ | ------ | ------------------------ |
+| `REQUEST_TIMEOUT_MS`     | `8000` | 请求超时时间，单位毫秒   |
+| `REQUEST_RETRY_MAX`      | `3`    | 最大重试次数             |
+| `REQUEST_RETRY_DELAY_MS` | `500`  | 重试的基础间隔，单位毫秒 |
+
+## 错误处理
+
+### SSR_STRICT_MODE
+
+控制严格 SSR 失败模式，默认值 `false`。设为 `true` 后，在多页面模式下所有页面都请求失败时，根布局抛出错误，页面显示全局错误页。
+
+### NEXT_PUBLIC_ERROR_PAGE_DEV_MODE
+
+控制错误页的调试详情，默认值 `false`。设为 `true` 后，错误页显示完整的错误堆栈。这个变量对客户端可见。
+
+## 安全
+
+### ALLOW_EMBEDDING
+
+控制其他网站能否用 iframe 嵌入仪表盘。这个变量在运行时读取，修改后不需要重新构建镜像。
+
+| 值               | 效果                                   |
+| ---------------- | -------------------------------------- |
+| `false` 或不设置 | 禁止嵌入。这是默认值，也是最安全的设置 |
+| `true`           | 允许任何网站嵌入，不推荐               |
+| 逗号分隔的源列表 | 只允许同源页面和列出的源嵌入           |
+
+```ini
+# 允许同源页面和 example.com
+ALLOW_EMBEDDING=example.com
+# 允许同源页面和多个源
+ALLOW_EMBEDDING=example.com,app.example.com
+# 源可以带协议
+ALLOW_EMBEDDING=https://example.com
+```
+
+<Callout type="warn">
+  设为 `true` 后，任何网站都能嵌入你的仪表盘，可能导致点击劫持攻击。请尽量列出允许的源。
+</Callout>
+
+### STRICT_IMAGE_REMOTE_PATTERNS
+
+控制 `next/image` 允许加载的远程图片域名，在 `next build` 构建时生效。
+
+| 值      | 效果                                                                                                      |
+| ------- | --------------------------------------------------------------------------------------------------------- |
+| `false` | 默认值。允许所有远程图片域名                                                                              |
+| `true`  | 只允许 `generate-image-domains` 脚本生成的域名：各 Uptime Kuma 基础 URL 的域名和 `KUMA_MIERU_ICON` 的域名 |
+
+<Callout type="warn">
+  默认放开远程图片域名限制，是为了避免 Docker
+  运行时域名变化导致图片加载失败。运行在高安全要求的环境时，建议在自建镜像时设置
+  `STRICT_IMAGE_REMOTE_PATTERNS=true`，并让构建阶段能生成完整的域名白名单。
+</Callout>

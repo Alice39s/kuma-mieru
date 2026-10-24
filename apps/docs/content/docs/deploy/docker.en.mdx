@@ -1,0 +1,175 @@
+---
+title: Docker
+description: Run the Kuma Mieru GHCR image on your own server with Docker Compose or docker run.
+icon: Container
+---
+
+<Callout type="info">Docker deployment is in Beta.</Callout>
+
+The image is `ghcr.io/alice39s/kuma-mieru:1`. It supports `linux/amd64` and `linux/arm64`. The service in the container listens on port 3000. The examples below map it to port 3883 on the host. For the meaning of the tags, see [Versioning](../guides/versioning.mdx).
+
+## Start
+
+<Tabs items={['Docker Compose', 'docker run']}>
+<Tab value="Docker Compose">
+
+Docker Compose is the recommended method.
+
+<Steps>
+<Step>
+
+Clone the repository:
+
+```bash
+git clone https://github.com/Alice39s/kuma-mieru.git
+cd kuma-mieru
+```
+
+</Step>
+<Step>
+
+`docker-compose.yml` reads the `.env` file in the repository root. Copy the template of the web application:
+
+```bash
+cp apps/web/.env.example .env
+```
+
+</Step>
+<Step>
+
+Edit `.env` and set at least `UPTIME_KUMA_URLS`. For the other variables, see [Environment Variables](../configuration/environment.mdx).
+
+```ini title=".env"
+UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/your-status-page-id
+```
+
+</Step>
+<Step>
+
+Start the service:
+
+```bash
+docker compose up -d
+```
+
+The service is available at `http://0.0.0.0:3883`.
+
+</Step>
+<Step>
+
+Show the logs:
+
+```bash
+docker compose logs -f
+```
+
+</Step>
+</Steps>
+
+</Tab>
+<Tab value="docker run">
+
+<Steps>
+<Step>
+
+Pull the image from GHCR:
+
+```bash
+docker pull ghcr.io/alice39s/kuma-mieru:1
+```
+
+</Step>
+<Step>
+
+Start the container. Give the environment variables with `-e`, and set `UPTIME_KUMA_URLS` first:
+
+```bash
+docker run -d \
+  --name kuma-mieru \
+  -p 3883:3000 \
+  -e UPTIME_KUMA_URLS="https://example.kuma-mieru.invalid/status/default|https://example.kuma-mieru.invalid/status/secondary" \
+  -e KUMA_MIERU_TITLE="Kuma Mieru" \
+  ghcr.io/alice39s/kuma-mieru:1
+```
+
+</Step>
+</Steps>
+
+If you have many variables, write them into a `.env` file. The template is `apps/web/.env.example` in the repository. Then use `--env-file .env` instead of many `-e` options.
+
+</Tab>
+</Tabs>
+
+## Change the configuration
+
+Each time the container starts, it runs the configuration scripts first and then starts the service. After you edit `.env`, recreate the container to apply the new environment variables:
+
+```bash
+docker compose up -d --force-recreate
+```
+
+If you use `docker run`, remove the old container. Then run `docker run` again with the new options:
+
+```bash
+docker stop kuma-mieru
+docker rm kuma-mieru
+```
+
+## Update the image
+
+<Tabs items={['Docker Compose', 'docker run']}>
+<Tab value="Docker Compose">
+
+Run these commands in the repository directory. `git pull` gets the latest `docker-compose.yml`:
+
+```bash
+git pull
+docker compose pull
+docker compose up -d
+```
+
+</Tab>
+<Tab value="docker run">
+
+Remove the old container and pull the new image:
+
+```bash
+docker stop kuma-mieru
+docker rm kuma-mieru
+docker pull ghcr.io/alice39s/kuma-mieru:1
+```
+
+Then run `docker run` again with the same options as before.
+
+</Tab>
+</Tabs>
+
+## Health check
+
+The image has a health check endpoint at `/api/health`. The Dockerfile and `docker-compose.yml` both use `curl -f` to request `http://localhost:3000/api/health` in the container every 30 seconds, with a timeout of 3 seconds. `docker-compose.yml` marks the container as unhealthy after 3 failures in a row.
+
+## Build the image yourself
+
+If the pulled image has problems, build the image locally. Edit `docker-compose.yml`: comment out the `image` line and uncomment the `build` line:
+
+```yaml title="docker-compose.yml"
+services:
+  kuma-mieru:
+    # image: ghcr.io/alice39s/kuma-mieru:1
+    build: .
+```
+
+Then build and start:
+
+```bash
+docker compose up -d --build
+```
+
+The Dockerfile has two stages:
+
+| Stage   | Content                                                                                                                                                                                 |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Build   | Based on `node:26.12.1-alpine`. Installs `@kuma-mieru/web` and its workspace dependencies with Bun 1.4.4, then runs `bun run --cwd apps/web build`                                      |
+| Runtime | Based on `node:26.12.1-alpine`. Runs as the non-root user `nextjs` with `dumb-init` as PID 1. At start, `tsx` runs the configuration scripts, then Node.js starts the standalone server |
+
+`STRICT_IMAGE_REMOTE_PATTERNS` applies only when you build the image. See [Environment Variables](../configuration/environment.mdx#strict_image_remote_patterns).

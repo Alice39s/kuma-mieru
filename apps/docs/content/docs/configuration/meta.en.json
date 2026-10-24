@@ -1,0 +1,6 @@
+{
+  "title": "Configuration",
+  "icon": "Settings2",
+  "defaultOpen": true,
+  "pages": ["environment", "uptime-kuma"]
+}

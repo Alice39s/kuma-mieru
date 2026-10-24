@@ -1,0 +1,55 @@
+---
+title: Netlify
+description: Deploy Kuma Mieru to Netlify with the Deploy button or by importing your fork.
+icon: Globe
+---
+
+<Steps>
+<Step>
+
+### Create the site
+
+Use one of these methods:
+
+- Click [Deploy to Netlify](https://app.netlify.com/start/deploy?repository=https://github.com/Alice39s/kuma-mieru) and authorize GitHub when Netlify asks. Netlify creates a repository in your account.
+- [Fork](https://github.com/Alice39s/kuma-mieru/fork) this repository, then import it at [app.netlify.com/start](https://app.netlify.com/start).
+
+</Step>
+<Step>
+
+### Set the package directory
+
+In the build settings, set `Package directory` to `apps/web` and leave `Base directory` empty. Netlify installs the dependencies in the repository root, where `bun.lock` and `.nvmrc` are, and reads the build configuration file `netlify.toml` from `apps/web`. If Netlify lists more than one site in the repository when you import it, select `apps/web`.
+
+</Step>
+<Step>
+
+### Add environment variables
+
+Add `UPTIME_KUMA_URLS` with the full URL of the status page. Separate multiple URLs with `|`. For the other variables, see [Environment Variables](../configuration/environment.mdx).
+
+</Step>
+<Step>
+
+### Deploy
+
+Click `Deploy` to start the deployment.
+
+</Step>
+</Steps>
+
+## Build settings
+
+`apps/web/netlify.toml` sets the build command `bun run --cwd apps/web build` and the publish directory `apps/web/.next`. Both paths are relative to the repository root. Netlify enables its Next.js adapter automatically. Apart from the package directory, the build settings need no manual changes.
+
+## Change environment variables
+
+`UPTIME_KUMA_URLS` and the related settings are written into the build output. After you change an environment variable, open `Deploys` and click `Trigger deploy` to apply the new configuration.
+
+## Known issues
+
+<Callout type="warn" title="Build error: Could not patch functions config manifest file">
+  The Netlify Next.js adapter `@netlify/plugin-nextjs` 5.16.4 can fail with `Could not patch
+  functions config manifest file` while it packages the Node.js Proxy (`proxy.ts`). If the build
+  fails with this error, wait until the adapter publishes a fixed version. Then redeploy.
+</Callout>

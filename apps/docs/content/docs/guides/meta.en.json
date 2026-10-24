@@ -1,0 +1,6 @@
+{
+  "title": "Guides",
+  "icon": "Compass",
+  "defaultOpen": true,
+  "pages": ["versioning", "faq"]
+}

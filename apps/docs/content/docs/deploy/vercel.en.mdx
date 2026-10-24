@@ -1,0 +1,80 @@
+---
+title: Vercel
+description: Fork the repository, import it to Vercel, add the status page URL and deploy. This is the recommended method.
+icon: Triangle
+---
+
+Vercel is the recommended deployment method. You do all steps in the browser and need no server.
+
+<Steps>
+<Step>
+
+### Fork the repository
+
+1. Open the [fork page](https://github.com/Alice39s/kuma-mieru/fork) of this repository.
+2. Click `Create fork`.
+
+<Callout type="info">
+  Keep your fork public. A private fork can prevent a quick sync of upstream updates. All
+  configuration is in environment variables, so your fork contains none of your configuration.
+</Callout>
+
+</Step>
+<Step>
+
+### Import the repository to Vercel
+
+Open [vercel.com/new](https://vercel.com/new), find your fork and click `Import`.
+
+![Import the repository](../../../../../docs/vercel-import.png)
+
+</Step>
+<Step>
+
+### Set the root directory
+
+On the project configuration page, set `Root Directory` to `apps/web`. The web application and its `vercel.json` are in this directory.
+
+</Step>
+<Step>
+
+### Add environment variables
+
+Expand `Environment Variables` and add `UPTIME_KUMA_URLS`. Use the full URL of the Uptime Kuma status page as the value. Separate multiple status pages with `|`.
+
+![Add environment variables](../../../../../docs/vercel-deploy.png)
+
+<Callout type="warn">
+  You must set `UPTIME_KUMA_URLS` (recommended) or the legacy pair `UPTIME_KUMA_BASE_URL` and
+  `PAGE_ID`. Without them, the page shows no monitoring data. For the other variables, see
+  [Environment Variables](../configuration/environment.mdx).
+</Callout>
+
+</Step>
+<Step>
+
+### Deploy
+
+Click `Deploy`.
+
+</Step>
+</Steps>
+
+## Change environment variables
+
+Vercel runs the `generate` script during the build. The script writes the environment variables and the status page data into the generated configuration. After you change an environment variable on Vercel, redeploy the project to apply it.
+
+## Sync upstream updates
+
+1. Open your fork on GitHub and click `Sync fork`.
+2. Click `Update branch` to get the latest code from the upstream repository.
+
+## Vercel configuration in the repository
+
+`apps/web/vercel.json` sets these response headers for the home page `/`:
+
+| Header                   | Value                                             |
+| ------------------------ | ------------------------------------------------- |
+| `Cache-Control`          | `public, max-age=300, stale-while-revalidate=300` |
+| `X-XSS-Protection`       | `1; mode=block`                                   |
+| `X-Content-Type-Options` | `nosniff`                                         |

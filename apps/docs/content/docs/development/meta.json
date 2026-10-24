@@ -1,0 +1,6 @@
+{
+  "title": "开发",
+  "icon": "Code",
+  "defaultOpen": true,
+  "pages": ["index", "design"]
+}

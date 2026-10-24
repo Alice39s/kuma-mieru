@@ -1,0 +1,202 @@
+---
+title: 参与开发
+description: 搭建本地开发环境，了解仓库结构、常用命令和提交 Pull Request 的流程。
+icon: Code
+---
+
+## 环境要求
+
+| 工具    | 版本    | 声明位置                                       |
+| ------- | ------- | ---------------------------------------------- |
+| Node.js | 26.12.1 | `.nvmrc`                                       |
+| Bun     | 1.4.4   | 根目录 `package.json` 的 `packageManager` 字段 |
+
+`packageManager` 字段供 Turborepo 识别包管理器。Bun 本身用官方安装脚本或 `npm i -g bun@1.4.4` 安装，不经过 Corepack。各系统的安装命令见[从源码运行](../deploy/source.mdx)。
+
+## 仓库结构
+
+<Files>
+  <Folder name="apps" defaultOpen>
+    <Folder name="web" defaultOpen>
+      <Folder name="config" />
+      <Folder name="messages" />
+      <Folder name="scripts" />
+      <File name=".env.example" />
+      <File name="package.json" />
+    </Folder>
+    <Folder name="docs" defaultOpen>
+      <Folder name="content" />
+      <File name="design.md" />
+      <File name="package.json" />
+    </Folder>
+  </Folder>
+  <Folder name="packages" defaultOpen>
+    <Folder name="theme" />
+    <Folder name="tsconfig" />
+  </Folder>
+  <File name=".nvmrc" />
+  <File name=".oxfmtrc.json" />
+  <File name=".oxlintrc.json" />
+  <File name="package.json" />
+  <File name="turbo.json" />
+</Files>
+
+| 路径                  | 内容                                                                             |
+| --------------------- | -------------------------------------------------------------------------------- |
+| `apps/web`            | Kuma Mieru Web 应用，包名 `@kuma-mieru/web`                                      |
+| `apps/web/config`     | 配置的 schema，以及 `generate` 脚本生成的配置文件                                |
+| `apps/web/messages`   | 界面翻译，每种语言一个 JSON 文件                                                 |
+| `apps/web/scripts`    | `generate` 等脚本                                                                |
+| `apps/docs`           | 文档站，包名 `@kuma-mieru/docs`，基于 Fumadocs 构建为静态站点                    |
+| `apps/docs/design.md` | 文档站的设计规范，见[设计规范](./design.mdx)                                     |
+| `packages/theme`      | Web 应用和文档站共用的主题，包名 `@kuma-mieru/theme`                             |
+| `packages/tsconfig`   | 共用的 TypeScript 配置 `base.json` 和 `nextjs.json`，包名 `@kuma-mieru/tsconfig` |
+| `turbo.json`          | Turborepo 的任务定义                                                             |
+| `.oxlintrc.json`      | Oxlint 规则                                                                      |
+| `.oxfmtrc.json`       | Oxfmt 格式化配置                                                                 |
+
+## 常用命令
+
+在仓库根目录执行：
+
+| 命令                   | 作用                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `bun install`          | 安装所有 workspace 的依赖                                                           |
+| `bun run dev`          | 用 Turborepo 同时启动 Web 应用（3881 端口）和文档站（3882 端口）                    |
+| `bun run build`        | 构建所有包                                                                          |
+| `bun run lint`         | 运行 Oxlint 类型感知检查，一次完成 lint 和类型检查（基于 TypeScript 7 与 tsgolint） |
+| `bun run lint:fix`     | 用 Oxlint 自动修复问题，再用 Oxfmt 格式化                                           |
+| `bun run format`       | 用 Oxfmt 格式化代码                                                                 |
+| `bun run format:check` | 只检查格式，不修改文件                                                              |
+| `bun run test`         | 运行测试                                                                            |
+
+只运行一个包的任务时，用 Turborepo 的 `--filter` 参数：
+
+```bash
+bunx turbo run dev --filter=@kuma-mieru/web
+```
+
+Web 应用的 `dev` 脚本会先运行 `generate`，所以开发前要先创建 `apps/web/.env`，步骤见[从源码运行](../deploy/source.mdx)。
+
+### Web 应用的脚本
+
+在 `apps/web` 目录执行：
+
+| 命令                       | 作用                                                                |
+| -------------------------- | ------------------------------------------------------------------- |
+| `bun run generate`         | 依次运行 `generate:config`、`generate:domains` 和 `generate:banner` |
+| `bun run generate:config`  | 生成 `config/generated-config.json`                                 |
+| `bun run generate:domains` | 生成 `config/generated/image-domains.json`                          |
+| `bun run generate:banner`  | 在终端打印启动横幅和当前配置                                        |
+| `bun run build:analyze`    | 构建并生成 bundle 分析报告                                          |
+| `bun run start`            | 运行构建好的 standalone 服务                                        |
+
+## 代码规范
+
+- 数据校验使用 Valibot。
+- 全部代码使用 TypeScript，写简洁、易读的代码。
+- 使用函数式和声明式的写法，遵循 DRY 原则，用提前返回减少嵌套。
+- 组件文件按导出、子组件、辅助函数、类型的顺序组织。
+- 布尔变量名带助动词，例如 `isLoading`、`hasError`。
+- 事件处理函数以 `handle` 开头，例如 `handleClick`、`handleSubmit`。
+- 目录名使用小写字母加短横线，例如 `components/auth-wizard`。
+- 组件优先使用具名导出。
+- 优先使用 interface；用 const 映射代替 enum；用 `satisfies` 运算符校验类型。
+- 尽量使用 React Server Components，减少 `'use client'` 指令；为组件设置错误边界；异步操作配合 Suspense 使用。
+
+## 国际化
+
+界面翻译放在 `apps/web/messages/`，每种语言一个 JSON 文件，例如 `apps/web/messages/en-US.json`。添加一种新语言：
+
+1. 在 `apps/web/utils/i18n/config.ts` 的 `locales` 数组中加入这种语言。
+2. 在 `apps/web/messages/` 中添加这种语言的翻译文件。
+
+## 提交 Pull Request
+
+<Steps>
+<Step>
+
+### 准备仓库
+
+在 GitHub 上 Fork 本仓库，然后克隆你的 Fork，添加上游仓库并安装依赖：
+
+```bash
+git clone https://github.com/YOUR-USERNAME/kuma-mieru.git
+cd kuma-mieru
+git remote add upstream https://github.com/Alice39s/kuma-mieru.git
+bun install
+```
+
+</Step>
+<Step>
+
+### 创建分支
+
+新功能使用 `feature/` 前缀，修复问题使用 `fix/` 前缀：
+
+```bash
+git checkout -b feature/amazing-feature
+```
+
+</Step>
+<Step>
+
+### 修改并检查
+
+用 `bun run dev` 测试改动。提交前运行：
+
+```bash
+bun run lint
+bun run format
+```
+
+</Step>
+<Step>
+
+### 提交改动
+
+提交信息使用 Conventional Commits 格式：
+
+```bash
+git commit -m 'feat(component): add some amazing feature'
+```
+
+| 类型       | 用途                               |
+| ---------- | ---------------------------------- |
+| `feat`     | 新功能                             |
+| `fix`      | 修复缺陷                           |
+| `docs`     | 文档改动                           |
+| `style`    | 不影响代码含义的改动，例如格式调整 |
+| `refactor` | 既不修复缺陷也不添加功能的代码改动 |
+| `perf`     | 性能改进                           |
+| `test`     | 添加或修正测试                     |
+| `chore`    | 构建流程或辅助工具的改动           |
+
+</Step>
+<Step>
+
+### 推送并创建 Pull Request
+
+```bash
+git push origin feature/amazing-feature
+```
+
+然后从你的 Fork 向主仓库创建 Pull Request。
+
+</Step>
+</Steps>
+
+Pull Request 需要满足以下要求：
+
+- 每个 PR 只处理一个问题或一个功能。
+- 在描述中写清 PR 做了什么。
+- 界面改动尽量附上截图。
+- 代码通过全部 lint 和格式检查。
+- 改动在亮色和暗色主题下都显示正常。
+- 用 rebase 让 PR 与 main 分支保持同步。
+
+## 测试与文档
+
+- 条件允许时为代码编写测试，用 `bun run test` 运行，确认改动不影响已有功能。
+- 改动影响功能时，同步更新 `README.md`、`README.en.md`，以及文档站 `apps/docs/content/docs` 中对应页面的中文（`页面.mdx`）和英文（`页面.en.mdx`）两份文件。
+- 为组件编写说明用途的注释。

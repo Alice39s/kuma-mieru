@@ -1,0 +1,198 @@
+---
+title: Environment Variables
+description: Lists all environment variables that Kuma Mieru reads, with their defaults and when they apply.
+icon: Settings2
+---
+
+## Minimum configuration
+
+If the URL of your Uptime Kuma status page is `https://example.kuma-mieru.invalid/status/test1`, you need only one variable:
+
+```ini title=".env"
+UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/test1
+```
+
+For multiple status pages, separate the full URLs with `|`:
+
+```ini title=".env"
+UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/test1|https://example.kuma-mieru.invalid/status/test2
+```
+
+The template of the variables is `apps/web/.env.example`. Where you set the variables depends on the deployment method:
+
+| Deployment method              | Where to set                                              |
+| ------------------------------ | --------------------------------------------------------- |
+| Vercel, Netlify, EdgeOne Pages | The environment variable settings in the platform console |
+| Docker Compose                 | `.env` in the repository root                             |
+| docker run                     | `-e` options, or the file given with `--env-file`         |
+| Run from source                | `apps/web/.env`                                           |
+
+## When variables apply
+
+| Variables                                                                          | Read                                                                                                                                           |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UPTIME_KUMA_URLS`, `UPTIME_KUMA_BASE_URL`, `PAGE_ID`, `KUMA_MIERU_*`, `FEATURE_*` | When the `generate` script runs. The result goes to `apps/web/config/generated-config.json` and `apps/web/config/generated/image-domains.json` |
+| `STRICT_IMAGE_REMOTE_PATTERNS`                                                     | During `next build`                                                                                                                            |
+| `ALLOW_EMBEDDING`                                                                  | While the server runs                                                                                                                          |
+
+Hosting platforms run the `generate` script during the build. A Docker container runs it each time it starts. Thus:
+
+- After you change a variable on Vercel, Netlify or EdgeOne Pages, redeploy.
+- After you edit `.env` for Docker Compose, run `docker compose up -d --force-recreate`. The container then reads the environment variables again.
+
+## Variable list
+
+| Variable                          | Required | Default                        | Description                                                                                        |
+| --------------------------------- | -------- | ------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `UPTIME_KUMA_URLS`                | Yes\*    | None                           | Recommended. One or more full status page URLs. They can come from different Uptime Kuma instances |
+| `UPTIME_KUMA_BASE_URL`            | Yes\*    | None                           | Legacy. Base URL of the Uptime Kuma instance. Used only when `UPTIME_KUMA_URLS` is not set         |
+| `PAGE_ID`                         | Yes\*    | None                           | Legacy. Status page IDs, separated by commas. Used only when `UPTIME_KUMA_URLS` is not set         |
+| `KUMA_MIERU_TITLE`                | No       | Title of the status page       | Custom page title                                                                                  |
+| `KUMA_MIERU_DESCRIPTION`          | No       | Description of the status page | Custom page description                                                                            |
+| `KUMA_MIERU_ICON`                 | No       | Icon of the status page        | URL of a custom page icon                                                                          |
+| `KUMA_MIERU_EDIT_THIS_PAGE`       | No       | `false`                        | Show the Edit This Page button                                                                     |
+| `KUMA_MIERU_SHOW_STAR_BUTTON`     | No       | `true`                         | Show the Star on GitHub button                                                                     |
+| `ALLOW_INSECURE_TLS`              | No       | `false`                        | Skip HTTPS certificate validation for the upstream Uptime Kuma                                     |
+| `REQUEST_TIMEOUT_MS`              | No       | `8000`                         | Timeout of upstream requests, in milliseconds                                                      |
+| `REQUEST_RETRY_MAX`               | No       | `3`                            | Maximum number of retries for upstream requests                                                    |
+| `REQUEST_RETRY_DELAY_MS`          | No       | `500`                          | Base interval between retries of upstream requests, in milliseconds                                |
+| `SSR_STRICT_MODE`                 | No       | `false`                        | Enable the strict SSR failure mode                                                                 |
+| `NEXT_PUBLIC_ERROR_PAGE_DEV_MODE` | No       | `false`                        | Show the full stack trace on error pages                                                           |
+| `ALLOW_EMBEDDING`                 | No       | `false`                        | Allow other sites to embed the dashboard in an iframe                                              |
+| `STRICT_IMAGE_REMOTE_PATTERNS`    | No       | `false`                        | Allow only remote image domains on the allowlist                                                   |
+
+\* Set either `UPTIME_KUMA_URLS` or `UPTIME_KUMA_BASE_URL` with `PAGE_ID`. If you set both, Kuma Mieru uses `UPTIME_KUMA_URLS`.
+
+For the legacy names that start with `FEATURE_`, see [Legacy variable names](#legacy-variable-names).
+
+## Status page addresses
+
+### UPTIME_KUMA_URLS
+
+This is the recommended form. The value is one or more full status page URLs:
+
+- Each URL has the format `https://<host>/status/<page ID>`. The part before `/status/` is the base URL of Uptime Kuma, and it can include a path prefix. The segment after `/status/` is the page ID.
+- Separate multiple URLs with `|`. The URLs can come from different Uptime Kuma instances. The first URL is the default page.
+- Each page ID must be unique across all instances. If the same page ID appears under two different base URLs, configuration generation fails.
+- When `UPTIME_KUMA_URLS` is set, Kuma Mieru ignores `UPTIME_KUMA_BASE_URL` and `PAGE_ID`.
+
+For examples of how Kuma Mieru parses a URL, see [Connect Uptime Kuma](./uptime-kuma.mdx).
+
+### UPTIME_KUMA_BASE_URL and PAGE_ID
+
+This is the legacy form. Kuma Mieru uses it only when `UPTIME_KUMA_URLS` is not set. All status pages come from one Uptime Kuma instance:
+
+```ini title=".env"
+UPTIME_KUMA_BASE_URL=https://example.kuma-mieru.invalid
+PAGE_ID=default,status-asia
+```
+
+Separate multiple IDs in `PAGE_ID` with commas. The first ID is the default page.
+
+## Page appearance
+
+### Title, description and icon
+
+Kuma Mieru selects the value of `KUMA_MIERU_TITLE`, `KUMA_MIERU_DESCRIPTION` and `KUMA_MIERU_ICON` in this order:
+
+1. The value of the environment variable. It applies to all status pages.
+2. The title, description and icon of the Uptime Kuma status page.
+3. The defaults: the title `Kuma Mieru`, the description `A beautiful and modern uptime monitoring dashboard` and the icon `/icon.svg`.
+
+If the request to the status page fails, each item that is not set uses its default.
+
+<Callout type="info">
+An empty value for `KUMA_MIERU_TITLE` or `KUMA_MIERU_DESCRIPTION` counts as set, so the page shows an empty title or description. An empty `KUMA_MIERU_ICON` has no effect, and the icon comes from items 2 and 3 above.
+
+The Docker image sets `Uptime Kuma` as its default value of `KUMA_MIERU_TITLE`.
+
+</Callout>
+
+### Buttons
+
+| Variable                      | Default | Effect                          |
+| ----------------------------- | ------- | ------------------------------- |
+| `KUMA_MIERU_EDIT_THIS_PAGE`   | `false` | Shows the Edit This Page button |
+| `KUMA_MIERU_SHOW_STAR_BUTTON` | `true`  | Shows the Star on GitHub button |
+
+The value `true` (in any letter case) turns a button on. All other values turn it off.
+
+### Legacy variable names
+
+If a `KUMA_MIERU_*` variable is not set, Kuma Mieru reads the matching `FEATURE_*` variable. If both are set, Kuma Mieru uses `KUMA_MIERU_*`.
+
+| Variable                      | Legacy name                |
+| ----------------------------- | -------------------------- |
+| `KUMA_MIERU_TITLE`            | `FEATURE_TITLE`            |
+| `KUMA_MIERU_DESCRIPTION`      | `FEATURE_DESCRIPTION`      |
+| `KUMA_MIERU_ICON`             | `FEATURE_ICON`             |
+| `KUMA_MIERU_EDIT_THIS_PAGE`   | `FEATURE_EDIT_THIS_PAGE`   |
+| `KUMA_MIERU_SHOW_STAR_BUTTON` | `FEATURE_SHOW_STAR_BUTTON` |
+
+## Upstream requests
+
+### ALLOW_INSECURE_TLS
+
+Controls whether Kuma Mieru validates the HTTPS certificate when it requests the upstream Uptime Kuma. The default is `false`, which validates the certificate strictly. The value `true` skips certificate validation and is a security risk. Use it only in a trusted environment with a self-signed certificate.
+
+### Timeout and retries
+
+These variables apply to all upstream requests:
+
+| Variable                 | Default | Meaning                                        |
+| ------------------------ | ------- | ---------------------------------------------- |
+| `REQUEST_TIMEOUT_MS`     | `8000`  | Request timeout, in milliseconds               |
+| `REQUEST_RETRY_MAX`      | `3`     | Maximum number of retries                      |
+| `REQUEST_RETRY_DELAY_MS` | `500`   | Base interval between retries, in milliseconds |
+
+## Error handling
+
+### SSR_STRICT_MODE
+
+Controls the strict SSR failure mode. The default is `false`. When the value is `true` and all pages fail in multi-page mode, the root layout throws an error and the global error page appears.
+
+### NEXT_PUBLIC_ERROR_PAGE_DEV_MODE
+
+Controls the debug details on error pages. The default is `false`. When the value is `true`, error pages show the full stack trace. The client can read this variable.
+
+## Security
+
+### ALLOW_EMBEDDING
+
+Controls whether other sites can embed the dashboard in an iframe. Kuma Mieru reads this variable at runtime, so a change needs no image rebuild.
+
+| Value                             | Effect                                                            |
+| --------------------------------- | ----------------------------------------------------------------- |
+| `false` or not set                | Blocks embedding. This is the default and the most secure setting |
+| `true`                            | Allows any site to embed the dashboard. Not recommended           |
+| A comma-separated list of origins | Allows only the same origin and the listed origins                |
+
+```ini
+# Allow the same origin and example.com
+ALLOW_EMBEDDING=example.com
+# Allow the same origin and multiple origins
+ALLOW_EMBEDDING=example.com,app.example.com
+# An origin can include the protocol
+ALLOW_EMBEDDING=https://example.com
+```
+
+<Callout type="warn">
+  With `true`, any site can embed your dashboard. This can allow clickjacking attacks. When
+  possible, list the allowed origins.
+</Callout>
+
+### STRICT_IMAGE_REMOTE_PATTERNS
+
+Controls which remote image domains `next/image` can load. It applies during `next build`.
+
+| Value   | Effect                                                                                                                                                   |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `false` | Default. Allows all remote image domains                                                                                                                 |
+| `true`  | Allows only the domains that the `generate-image-domains` script generates: the domains of the Uptime Kuma base URLs and the domain of `KUMA_MIERU_ICON` |
+
+<Callout type="warn">
+  The default relaxes the remote image domain restrictions. This prevents image failures when the
+  Docker runtime endpoints change. In high-security environments, set
+  `STRICT_IMAGE_REMOTE_PATTERNS=true` when you build your own image. The build step must be able to
+  generate the complete domain allowlist.
+</Callout>

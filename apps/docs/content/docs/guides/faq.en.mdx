@@ -1,0 +1,71 @@
+---
+title: FAQ
+description: Causes and fixes for time offsets, configuration changes that do not apply, build errors, iframe embedding and more.
+icon: CircleHelp
+---
+
+<Accordions type="single">
+<Accordion title="Why do the times in Kuma Mieru differ from the times in Uptime Kuma?">
+
+The times that the Uptime Kuma backend sends to the frontend carry no time zone information. To make development easier, Kuma Mieru shows all times in UTC+0.
+
+In the Uptime Kuma settings, set `Display Timezone` to a UTC+0 time zone.
+
+</Accordion>
+<Accordion title="Does Kuma Mieru support Uptime Robot, Better Stack or other monitoring data sources?">
+
+Kuma Mieru was designed to fix the shortcomings of Uptime Kuma. Thus v1 does not plan to support other monitoring data sources. v2 may add support for the APIs of other monitoring tools, such as Uptime Robot and Better Stack.
+
+</Accordion>
+<Accordion title="The page shows no monitoring data">
+
+Check these items:
+
+- `UPTIME_KUMA_URLS` is set, or both `UPTIME_KUMA_BASE_URL` and `PAGE_ID` are set.
+- Each URL contains `/status/<page ID>`.
+- The environment that runs Kuma Mieru can reach the status page URL.
+
+For more information, see [Connect Uptime Kuma](../configuration/uptime-kuma.mdx).
+
+</Accordion>
+<Accordion title="The page does not change after I change an environment variable">
+
+The configuration is generated during the build or when the container starts. After you change a variable on Vercel, Netlify or EdgeOne Pages, redeploy. For Docker Compose, run `docker compose up -d --force-recreate`. For more information, see [Environment Variables](../configuration/environment.mdx).
+
+</Accordion>
+<Accordion title="Can my fork leak my configuration?">
+
+No. All configuration is in the environment variables of the deployment platform, not in the repository. Keep your fork public. A private fork can prevent a quick sync of upstream updates.
+
+</Accordion>
+<Accordion title="Configuration generation fails with Duplicate page id">
+
+Two status pages from different Uptime Kuma instances in `UPTIME_KUMA_URLS` use the same page ID. Each page ID must be unique across all instances. Give the status page in one of the instances a different page ID.
+
+</Accordion>
+<Accordion title="The Netlify build fails with Could not patch functions config manifest file">
+
+The Netlify Next.js adapter `@netlify/plugin-nextjs` 5.16.4 can show this error while it packages the Node.js Proxy (`proxy.ts`). Wait until the adapter publishes a fixed version, then redeploy.
+
+</Accordion>
+<Accordion title="What do I do if Uptime Kuma uses a self-signed certificate?">
+
+In a trusted environment, set `ALLOW_INSECURE_TLS=true` to skip the upstream HTTPS certificate validation. This is a security risk. For more information, see [ALLOW_INSECURE_TLS](../configuration/environment.mdx#allow_insecure_tls).
+
+</Accordion>
+<Accordion title="Can I embed the dashboard in an iframe on another site?">
+
+Yes. Embedding is blocked by default. List the allowed origins in `ALLOW_EMBEDDING`, for example `ALLOW_EMBEDDING=example.com`. For more information, see [ALLOW_EMBEDDING](../configuration/environment.mdx#allow_embedding).
+
+</Accordion>
+<Accordion title="Remote images do not load">
+
+The default `STRICT_IMAGE_REMOTE_PATTERNS=false` allows all remote image domains. With `true`, the allowlist contains only the domains of the Uptime Kuma base URLs and of `KUMA_MIERU_ICON`. Images from other domains do not load. For more information, see [STRICT_IMAGE_REMOTE_PATTERNS](../configuration/environment.mdx#strict_image_remote_patterns).
+
+</Accordion>
+<Accordion title="Can I deploy to Cloudflare Workers?">
+
+Not yet. Use Vercel or Netlify instead. For the Cloudflare configuration in the repository, see [Cloudflare Workers](../deploy/cloudflare.mdx).
+
+</Accordion>
+</Accordions>

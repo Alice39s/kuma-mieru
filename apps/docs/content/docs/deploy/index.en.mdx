@@ -1,0 +1,69 @@
+---
+title: Choose a Deployment Method
+description: Compare the support status of each deployment method and how configuration changes apply, then select one.
+icon: Rocket
+---
+
+## Before you deploy
+
+- Get the full URL of an Uptime Kuma status page, for example `https://example.kuma-mieru.invalid/status/default`.
+- Set the Uptime Kuma display time zone to UTC+0.
+
+For the procedure, see [Connect Uptime Kuma](../configuration/uptime-kuma.mdx).
+
+## Deployment methods
+
+<Cards>
+  <Card
+    title="Vercel"
+    description="Recommended. Fork the repository and import it in the browser. You need no server."
+    href="./vercel.mdx"
+    icon={<Triangle />}
+  />
+  <Card
+    title="Netlify"
+    description="Deploy with the Deploy button or import your fork."
+    href="./netlify.mdx"
+    icon={<Globe />}
+  />
+  <Card
+    title="EdgeOne Pages"
+    description="Import your fork and select the Next.js framework preset."
+    href="./edgeone.mdx"
+    icon={<Zap />}
+  />
+  <Card
+    title="Cloudflare Workers"
+    description="Not supported yet. Describes the Cloudflare configuration in the repository."
+    href="./cloudflare.mdx"
+    icon={<Cloud />}
+  />
+  <Card
+    title="Docker"
+    description="Beta. Run the GHCR image on your own server."
+    href="./docker.mdx"
+    icon={<Container />}
+  />
+  <Card
+    title="Run from source"
+    description="Start a development server or build a production version with Bun."
+    href="./source.mdx"
+    icon={<Terminal />}
+  />
+</Cards>
+
+## Platform root directory
+
+The repository is a monorepo, and the web application is in `apps/web`. When you import the repository on Vercel, EdgeOne Pages or Cloudflare, set the project root directory (Root Directory) to `apps/web`. On Netlify, set Package directory to `apps/web`; see [Netlify](./netlify.mdx). The platform configuration files `vercel.json`, `netlify.toml`, `edgeone.json` and `wrangler.jsonc` are in this directory.
+
+## When the configuration applies
+
+The web application generates its configuration with the `generate` script. The script reads the environment variables, requests each status page to get its title, description and icon, and writes the result to `apps/web/config/generated-config.json`. Each deployment method runs this script at a different time. Thus the action after you change an environment variable is also different.
+
+| Deployment method              | Configuration is generated                                     | After you change a variable |
+| ------------------------------ | -------------------------------------------------------------- | --------------------------- |
+| Vercel, Netlify, EdgeOne Pages | During the platform build                                      | Redeploy                    |
+| Docker                         | When the container starts                                      | Recreate the container      |
+| Run from source                | When you run `bun run dev`, `bun run build` or `bun run start` | Run the command again       |
+
+Some variables apply at a different time. See [Environment Variables](../configuration/environment.mdx).
