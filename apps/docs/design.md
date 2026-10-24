@@ -165,7 +165,7 @@ version: 2026-10-25.2
 - [MUST] HeroUI 主题只在 `packages/theme/hero.ts` 定义；仪表盘由 `apps/web/tailwind.config.js` 加载它，文档站由 `apps/docs/app/globals.css` 的 `@plugin '@kuma-mieru/theme/hero'` 加载它。
 - [MUST] 颜色 token 与字号角色只在 `packages/theme/tokens.css` 定义；文档站在 `@import 'tailwindcss'` 之后导入它，再由 Fumadocs 的 `shadcn.css` 把颜色映射为 `fd-*`。修改主题或 token 时同时检查两个应用和预览图。
 - [SHOULD] 预览图不读 CSS 变量，颜色取 `packages/theme/palette.ts` 导出的 HeroUI 深色色板；字体由 `lib/og.server.ts` 注册 `@fontsource-variable/noto-sans-sc` 的全部子集（Takumi 不读系统字体）。
-- [SHOULD] 字体用 `next/font/google` 加载，变量名 `--font-noto-sans` 与 `--font-jetbrains-mono`，由 `globals.css` 的 `@theme` 组成 `--font-sans` 与 `--font-mono`。
+- [SHOULD] 字体用 `next/font/local` 加载 Fontsource 的拉丁变量字体文件（`@fontsource-variable/noto-sans-sc`、`@fontsource-variable/jetbrains-mono`），构建不访问字体服务；变量名 `--font-noto-sans` 与 `--font-jetbrains-mono`，由 `globals.css` 的 `@theme` 组成 `--font-sans` 与 `--font-mono`。
 - [MUST] 主题由 next-themes 在 `html` 上切换 `dark` 类，默认跟随系统；原生控件和滚动条使用当前主题的 color-scheme。
 - [SHOULD] 文档站的 MDX 组件映射在 `components/mdx.tsx`；表头与短列由 `lib/remark-label-columns.ts` 标记为不换行；内容链接由 `lib/remark-content-links.ts` 改写为页面地址。
 - [SHOULD] 浮层与菜单用 Base UI（Fumadocs 默认的组件库）；图标用 lucide-react。不引入另一套组件系统。
