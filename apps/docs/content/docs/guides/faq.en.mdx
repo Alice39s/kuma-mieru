@@ -17,15 +17,20 @@ In the Uptime Kuma settings, set `Display Timezone` to a UTC+0 time zone.
 Kuma Mieru was designed to fix the shortcomings of Uptime Kuma. Thus v1 does not plan to support other monitoring data sources. v2 may add support for the APIs of other monitoring tools, such as Uptime Robot and Better Stack.
 
 </Accordion>
-<Accordion title="The page shows no monitoring data">
+<Accordion title="The build fails, or the Docker container stops right after it starts">
 
-Check these items:
+The `generate` script stops with an error in these cases. The platform build then fails. In Docker, the start command of the container stops. With the `docker-compose.yml` of the repository, the container restarts again and again because of `restart: unless-stopped`.
 
-- `UPTIME_KUMA_URLS` is set, or both `UPTIME_KUMA_BASE_URL` and `PAGE_ID` are set.
-- Each URL contains `/status/<page ID>`.
-- The environment that runs Kuma Mieru can reach the status page URL.
+- Neither `UPTIME_KUMA_URLS` nor `UPTIME_KUMA_BASE_URL` with `PAGE_ID` is set. The log shows `UPTIME_KUMA_BASE_URL is required (or set UPTIME_KUMA_URLS)` or `PAGE_ID is required (or set UPTIME_KUMA_URLS)`.
+- A URL in `UPTIME_KUMA_URLS` does not contain `/status/<page ID>`. The error in the log starts with `Expected status page URL like`.
+- Two status pages from different instances use the same page ID. See the next item.
 
-For more information, see [Connect Uptime Kuma](../configuration/uptime-kuma.mdx).
+If you start the container with `docker run` and do not set `UPTIME_KUMA_URLS`, the container connects to the built-in demo status page of the image. See [Docker](../deploy/docker.mdx). For the format of the status page addresses, see [Connect Uptime Kuma](../configuration/uptime-kuma.mdx).
+
+</Accordion>
+<Accordion title="Configuration generation fails with Duplicate page id">
+
+Two status pages from different Uptime Kuma instances in `UPTIME_KUMA_URLS` use the same page ID. Each page ID must be unique across all instances. Give the status page in one of the instances a different page ID.
 
 </Accordion>
 <Accordion title="The page does not change after I change an environment variable">
@@ -38,11 +43,6 @@ The configuration is generated during the build or when the container starts. Af
 No. All configuration is in the environment variables of the deployment platform, not in the repository. Keep your fork public. A private fork can prevent a quick sync of upstream updates.
 
 </Accordion>
-<Accordion title="Configuration generation fails with Duplicate page id">
-
-Two status pages from different Uptime Kuma instances in `UPTIME_KUMA_URLS` use the same page ID. Each page ID must be unique across all instances. Give the status page in one of the instances a different page ID.
-
-</Accordion>
 <Accordion title="The Netlify build fails with Could not patch functions config manifest file">
 
 The Netlify Next.js adapter `@netlify/plugin-nextjs` 5.16.4 can show this error while it packages the Node.js Proxy (`proxy.ts`). Wait until the adapter publishes a fixed version, then redeploy.
@@ -50,7 +50,9 @@ The Netlify Next.js adapter `@netlify/plugin-nextjs` 5.16.4 can show this error 
 </Accordion>
 <Accordion title="What do I do if Uptime Kuma uses a self-signed certificate?">
 
-In a trusted environment, set `ALLOW_INSECURE_TLS=true` to skip the upstream HTTPS certificate validation. This is a security risk. For more information, see [ALLOW_INSECURE_TLS](../configuration/environment.mdx#allow_insecure_tls).
+In a trusted environment, set `ALLOW_INSECURE_TLS=true`. The server then skips the HTTPS certificate validation of Uptime Kuma at runtime. This is a security risk.
+
+This variable does not affect the requests of the `generate` script that read the status page metadata. These requests still validate the certificate, so the title, description and icon come from the environment variables or the defaults. Set the title and the description with `KUMA_MIERU_TITLE` and `KUMA_MIERU_DESCRIPTION`, and point `KUMA_MIERU_ICON` to the icon on Uptime Kuma. For more information, see [ALLOW_INSECURE_TLS](../configuration/environment.mdx#allow_insecure_tls).
 
 </Accordion>
 <Accordion title="Can I embed the dashboard in an iframe on another site?">

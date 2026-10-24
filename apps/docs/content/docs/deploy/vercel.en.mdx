@@ -46,7 +46,8 @@ Expand `Environment Variables` and add `UPTIME_KUMA_URLS`. Use the full URL of t
 
 <Callout type="warn">
   You must set `UPTIME_KUMA_URLS` (recommended) or the legacy pair `UPTIME_KUMA_BASE_URL` and
-  `PAGE_ID`. Without them, the page shows no monitoring data. For the other variables, see
+  `PAGE_ID`. If neither is set, or a URL has no `/status/<page ID>` part, the `generate` script
+  stops with an error and the Vercel build fails. For the other variables, see
   [Environment Variables](../configuration/environment.mdx).
 </Callout>
 

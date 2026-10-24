@@ -43,6 +43,8 @@ Edit `.env` and set at least `UPTIME_KUMA_URLS`. For the other variables, see [E
 UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/your-status-page-id
 ```
 
+The template lines `KUMA_MIERU_TITLE`, `KUMA_MIERU_DESCRIPTION` and `KUMA_MIERU_ICON` replace the title, description and icon of the status page. Change the title and the description to the values that you need. To keep the icon of the status page, delete the `KUMA_MIERU_ICON` line.
+
 </Step>
 <Step>
 
@@ -65,6 +67,16 @@ docker compose logs -f
 
 </Step>
 </Steps>
+
+<Callout type="warn" title="Missing variables in .env become empty values">
+The `environment` section of `docker-compose.yml` lists the status page addresses and the `KUMA_MIERU_*` variables. If one of them is missing from `.env`, it goes to the container as an empty value and replaces the built-in default of the image:
+
+- If neither `UPTIME_KUMA_URLS` nor `UPTIME_KUMA_BASE_URL` with `PAGE_ID` is set, the configuration script stops with an error and the container start stops.
+- If `KUMA_MIERU_SHOW_STAR_BUTTON` is missing, the Star button is hidden. To show it, write `KUMA_MIERU_SHOW_STAR_BUTTON=true`.
+- If `KUMA_MIERU_TITLE` or `KUMA_MIERU_DESCRIPTION` is missing, the browser tab title and the page description use the Kuma Mieru defaults.
+- If `KUMA_MIERU_ICON` is missing, the icon of the status page is used.
+
+</Callout>
 
 </Tab>
 <Tab value="docker run">
@@ -92,13 +104,36 @@ docker run -d \
   ghcr.io/alice39s/kuma-mieru:1
 ```
 
+If `UPTIME_KUMA_URLS` is not set, the container connects to the built-in demo status page of the image. For the other built-in values, see [Built-in defaults of the image](#built-in-defaults-of-the-image).
+
 </Step>
 </Steps>
 
-If you have many variables, write them into a `.env` file. The template is `apps/web/.env.example` in the repository. Then use `--env-file .env` instead of many `-e` options.
+If you have many variables, write them into a `.env` file. Then use `--env-file .env` instead of many `-e` options. The `--env-file` option of the Docker CLI does not remove the quotes around a value. If you use `apps/web/.env.example` from the repository as the template, remove the quotes first. For example, change `KUMA_MIERU_TITLE="Kuma Mieru"` to `KUMA_MIERU_TITLE=Kuma Mieru`.
 
 </Tab>
 </Tabs>
+
+## Built-in defaults of the image
+
+The image sets defaults for these variables. When you start the container with `docker run`, each variable that you do not set with `-e` or `--env-file` uses its default:
+
+| Variable                      | Default                                              |
+| ----------------------------- | ---------------------------------------------------- |
+| `UPTIME_KUMA_URLS`            | Empty                                                |
+| `UPTIME_KUMA_BASE_URL`        | `https://whimsical-sopapillas-78abba.netlify.app`    |
+| `PAGE_ID`                     | `demo`                                               |
+| `KUMA_MIERU_TITLE`            | `Uptime Kuma`                                        |
+| `KUMA_MIERU_DESCRIPTION`      | `A beautiful and modern uptime monitoring dashboard` |
+| `KUMA_MIERU_ICON`             | Empty                                                |
+| `KUMA_MIERU_EDIT_THIS_PAGE`   | `false`                                              |
+| `KUMA_MIERU_SHOW_STAR_BUTTON` | `true`                                               |
+| `ALLOW_EMBEDDING`             | `false`                                              |
+
+- If `UPTIME_KUMA_URLS` is not set, the container uses the built-in `UPTIME_KUMA_BASE_URL` and `PAGE_ID` and connects to the demo status page.
+- The browser tab title and the page description use the environment variables or the built-in values of the image. They do not use the values of the status page. Set `KUMA_MIERU_TITLE` and `KUMA_MIERU_DESCRIPTION` to the values that you need. The navigation bar and the multi-page tabs still show the live title of the Uptime Kuma status page first. See [Environment Variables](../configuration/environment.mdx).
+- The built-in `KUMA_MIERU_ICON` is empty, so the icon of the status page is used.
+- With the `docker-compose.yml` of the repository, the variables in its `environment` section replace these defaults. See the Docker Compose notes above.
 
 ## Change the configuration
 

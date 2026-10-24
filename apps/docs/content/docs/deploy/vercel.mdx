@@ -45,8 +45,7 @@ Vercel 是推荐的部署方式。整个流程在网页上完成，不需要自�
 ![添加环境变量](../../../../../docs/vercel-deploy.png)
 
 <Callout type="warn">
-  必须设置 `UPTIME_KUMA_URLS`（推荐）或旧版的 `UPTIME_KUMA_BASE_URL` 加
-  `PAGE_ID`，否则页面无法显示监控数据。其他变量见[环境变量](../configuration/environment.mdx)。
+  必须设置 `UPTIME_KUMA_URLS`（推荐）或旧版的 `UPTIME_KUMA_BASE_URL` 加 `PAGE_ID`。两者都没有设置，或者 URL 中没有 `/status/<页面 ID>` 时，`generate` 脚本报错退出，Vercel 构建失败。其他变量见[环境变量](../configuration/environment.mdx)。
 </Callout>
 
 </Step>

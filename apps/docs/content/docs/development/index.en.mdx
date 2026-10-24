@@ -6,10 +6,10 @@ icon: Code
 
 ## Requirements
 
-| Tool    | Version | Declared in                                           |
-| ------- | ------- | ----------------------------------------------------- |
-| Node.js | 26.12.1 | `.nvmrc`                                              |
-| Bun     | 1.4.4   | The `packageManager` field of the root `package.json` |
+| Tool    | Version              | Declared in                                                                     |
+| ------- | -------------------- | ------------------------------------------------------------------------------- |
+| Node.js | 26, at least 26.12.1 | `.nvmrc` pins 26.12.1. The `engines` field of `package.json` is `>=26.12.1 <27` |
+| Bun     | 1.4.4                | The `packageManager` field of the root `package.json`                           |
 
 Turborepo reads the `packageManager` field to identify the package manager. Install Bun itself with the official install script or with `npm i -g bun@1.4.4`, not with Corepack. For the commands on each operating system, see [Run from Source](../deploy/source.mdx).
 
@@ -110,6 +110,8 @@ Interface translations are in `apps/web/messages/`, one JSON file for each langu
 
 1. Add the language to the `locales` array in `apps/web/utils/i18n/config.ts`.
 2. Add the translation file of the language to `apps/web/messages/`.
+3. Register the import of the translation file in `messageLoaders` in `apps/web/utils/i18n/messages.ts`. Kuma Mieru cannot load the translations of a language that is not registered.
+4. To show a flag in the language menu, add the matching flag component from `@sankyu/react-circle-flags` to the `flagComponents` maps in `apps/web/components/basic/i18n-switch.tsx` and `apps/web/app/global-error.tsx`. Use the `alpha2Code` of the language as the key.
 
 ## Submit a pull request
 

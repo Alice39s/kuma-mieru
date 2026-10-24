@@ -17,15 +17,20 @@ Uptime Kuma 后端传给前端的时间不带时区信息。为了便于开发�
 Kuma Mieru 的设计目标是弥补 Uptime Kuma 的不足，所以 v1 暂不考虑支持其他监控数据源。v2 可能会考虑接入 Uptime Robot、Better Stack 等监控工具的 API。
 
 </Accordion>
-<Accordion title="页面没有显示监控数据">
+<Accordion title="构建失败，或 Docker 容器启动后立即退出">
 
-检查以下几项：
+`generate` 脚本在以下情况报错退出。平台构建因此失败；Docker 容器的启动命令中止，使用仓库的 `docker-compose.yml` 时，容器按 `restart: unless-stopped` 反复重启。
 
-- 已设置 `UPTIME_KUMA_URLS`，或者同时设置了 `UPTIME_KUMA_BASE_URL` 和 `PAGE_ID`。
-- 每个 URL 都包含 `/status/<页面 ID>`。
-- 运行 Kuma Mieru 的环境能访问状态页 URL。
+- 既没有设置 `UPTIME_KUMA_URLS`，也没有设置 `UPTIME_KUMA_BASE_URL` 和 `PAGE_ID`。日志中的报错是 `UPTIME_KUMA_BASE_URL is required (or set UPTIME_KUMA_URLS)` 或 `PAGE_ID is required (or set UPTIME_KUMA_URLS)`。
+- `UPTIME_KUMA_URLS` 中有 URL 不包含 `/status/<页面 ID>`。日志中的报错以 `Expected status page URL like` 开头。
+- 两个来自不同实例的状态页使用了同一个页面 ID，见下一条。
 
-详见[连接 Uptime Kuma](../configuration/uptime-kuma.mdx)。
+用 `docker run` 启动且没有设置 `UPTIME_KUMA_URLS` 时，容器连接镜像内置的 demo 状态页，见 [Docker](../deploy/docker.mdx)。状态页地址的写法见[连接 Uptime Kuma](../configuration/uptime-kuma.mdx)。
+
+</Accordion>
+<Accordion title="配置生成时报错 Duplicate page id">
+
+`UPTIME_KUMA_URLS` 中两个来自不同 Uptime Kuma 实例的状态页使用了同一个页面 ID。页面 ID 在所有实例之间必须唯一，请在其中一个实例中给状态页换一个页面 ID。
 
 </Accordion>
 <Accordion title="修改环境变量后页面没有变化">
@@ -38,11 +43,6 @@ Kuma Mieru 的设计目标是弥补 Uptime Kuma 的不足，所以 v1 暂不考�
 不会。所有配置都通过部署平台的环境变量设置，不写入仓库。请保持 Fork 为公开仓库，否则后续可能无法快速同步上游的更新。
 
 </Accordion>
-<Accordion title="配置生成时报错 Duplicate page id">
-
-`UPTIME_KUMA_URLS` 中两个来自不同 Uptime Kuma 实例的状态页使用了同一个页面 ID。页面 ID 在所有实例之间必须唯一，请在其中一个实例中给状态页换一个页面 ID。
-
-</Accordion>
 <Accordion title="Netlify 构建报错 Could not patch functions config manifest file">
 
 Netlify 的 Next.js 适配器 `@netlify/plugin-nextjs` 5.16.4 在打包 Node.js Proxy（`proxy.ts`）时可能报出这个错误。请等待适配器发布修复版本，再重新部署。
@@ -50,7 +50,9 @@ Netlify 的 Next.js 适配器 `@netlify/plugin-nextjs` 5.16.4 在打包 Node.js 
 </Accordion>
 <Accordion title="Uptime Kuma 使用自签名证书怎么办？">
 
-在受信任的环境中，可以设置 `ALLOW_INSECURE_TLS=true`，跳过上游 HTTPS 证书校验。这样做有安全风险，详见 [ALLOW_INSECURE_TLS](../configuration/environment.mdx#allow_insecure_tls)。
+在受信任的环境中，可以设置 `ALLOW_INSECURE_TLS=true`，让服务端在运行时跳过 Uptime Kuma 的 HTTPS 证书校验。这样做有安全风险。
+
+`generate` 脚本读取状态页元信息的请求不受这个变量影响，仍然校验证书，所以标题、描述和图标使用环境变量的值或默认值。可以用 `KUMA_MIERU_TITLE` 和 `KUMA_MIERU_DESCRIPTION` 设置标题和描述，用 `KUMA_MIERU_ICON` 指向 Uptime Kuma 上的图标。详见 [ALLOW_INSECURE_TLS](../configuration/environment.mdx#allow_insecure_tls)。
 
 </Accordion>
 <Accordion title="能把仪表盘嵌入其他网站的 iframe 吗？">

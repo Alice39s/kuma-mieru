@@ -6,12 +6,12 @@ icon: Terminal
 
 ## 环境要求
 
-| 工具    | 版本    | 声明位置                                       |
-| ------- | ------- | ---------------------------------------------- |
-| Node.js | 26.12.1 | `.nvmrc` 和 `package.json` 的 `engines` 字段   |
-| Bun     | 1.4.4   | 根目录 `package.json` 的 `packageManager` 字段 |
+| 工具    | 版本               | 声明位置                                                                    |
+| ------- | ------------------ | --------------------------------------------------------------------------- |
+| Node.js | 26，不低于 26.12.1 | `.nvmrc` 固定为 26.12.1，`package.json` 的 `engines` 字段为 `>=26.12.1 <27` |
+| Bun     | 1.4.4              | 根目录 `package.json` 的 `packageManager` 字段                              |
 
-构建和 Node.js standalone 运行需要 Node.js 26.12.1。项目用 Bun 作为包管理器，安装方法任选一种：
+构建和 Node.js standalone 运行需要 Node.js 26，且版本不低于 26.12.1。项目用 Bun 作为包管理器，安装方法任选一种：
 
 <Tabs items={['Linux / macOS', 'Windows', 'npm']}>
 <Tab value="Linux / macOS">
@@ -82,6 +82,8 @@ UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/your-status-page-id
 ```ini title="apps/web/.env"
 UPTIME_KUMA_URLS=https://status.kuma-mieru.invalid/status/prod|https://status.kuma-mieru.invalid/status/staging
 ```
+
+模板中的 `KUMA_MIERU_TITLE`、`KUMA_MIERU_DESCRIPTION` 和 `KUMA_MIERU_ICON` 三行会覆盖状态页自身的标题、描述和图标。想沿用状态页的值时，删掉这三行。
 
 必填项和其他变量见[环境变量](../configuration/environment.mdx)。
 
