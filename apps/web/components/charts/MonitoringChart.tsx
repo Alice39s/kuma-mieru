@@ -33,6 +33,9 @@ const countRanges = [
   { key: '10-points', count: 10 },
 ];
 
+const resolveAvailableRange = (range: RangeKey, ranges: typeof countRanges): RangeKey =>
+  ranges.some(item => item.key === range) ? range : '50-points';
+
 function SimplifiedChart({
   data,
   height,
@@ -74,7 +77,7 @@ function SimplifiedChart({
             type="number"
             scale="time"
             domain={['dataMin', 'dataMax']}
-            tickFormatter={time => new Date(time).toLocaleTimeString()}
+            tickFormatter={(time: number) => new Date(time).toLocaleTimeString()}
             axisLine={false}
             tickLine={false}
             minTickGap={30}
@@ -130,7 +133,6 @@ export function MonitoringChart({
   defaultRange = '50-points',
 }: MonitoringChartProps) {
   const t = useTranslations();
-  const [selectedRange, setSelectedRange] = useState<RangeKey>(defaultRange);
   const [chartReady, setChartReady] = useState(false);
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
@@ -139,18 +141,22 @@ export function MonitoringChart({
     [heartbeats.length]
   );
 
-  useEffect(() => {
-    const nextRange = availableRanges.some(range => range.key === defaultRange)
-      ? defaultRange
-      : '50-points';
-    setSelectedRange(nextRange);
-  }, [availableRanges, defaultRange]);
+  const [rangeState, setRangeState] = useState(() => ({
+    heartbeatCount: heartbeats.length,
+    defaultRange,
+    selectedRange: resolveAvailableRange(defaultRange, availableRanges),
+  }));
 
-  useEffect(() => {
-    if (!availableRanges.some(range => range.key === selectedRange)) {
-      setSelectedRange('50-points');
-    }
-  }, [availableRanges, selectedRange]);
+  // Reset the selection while rendering whenever the data size or the default range changes.
+  if (rangeState.heartbeatCount !== heartbeats.length || rangeState.defaultRange !== defaultRange) {
+    setRangeState({
+      heartbeatCount: heartbeats.length,
+      defaultRange,
+      selectedRange: resolveAvailableRange(defaultRange, availableRanges),
+    });
+  }
+
+  const { selectedRange } = rangeState;
 
   useEffect(() => {
     let mounted = true;
@@ -192,7 +198,7 @@ export function MonitoringChart({
   const maxPing = pings.length > 0 ? Math.max(...pings) + 10 : 100;
 
   const handleRangeChange = useCallback((key: ReactKey) => {
-    setSelectedRange(key as RangeKey);
+    setRangeState(previous => ({ ...previous, selectedRange: key as RangeKey }));
   }, []);
 
   if (!filteredData.length) {

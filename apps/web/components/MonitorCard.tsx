@@ -12,6 +12,7 @@ import { MonitoringChart } from './charts/MonitoringChart';
 import { ResponsStats } from './charts/ResponsStats';
 import { StatusBlockIndicator } from './charts/StatusBlockIndicator';
 import { usePageConfig } from './context/PageConfigContext';
+import { useClientSnapshot } from './utils/client-snapshot';
 import {
   getMonitorCardStatusMeta,
   getMonitorDetailPath,
@@ -20,6 +21,17 @@ import {
 } from './utils/monitor-card';
 
 const VIEW_PREFERENCE_KEY = 'view-preference-monitor-card';
+
+const detectSafari = () => {
+  const userAgent = window.navigator.userAgent;
+  return (
+    /Safari/i.test(userAgent) &&
+    !/Chrome/i.test(userAgent) &&
+    !/Chromium/i.test(userAgent) &&
+    !/Edge/i.test(userAgent) &&
+    !/Firefox/i.test(userAgent)
+  );
+};
 
 export function MonitorCard({
   monitor,
@@ -31,7 +43,7 @@ export function MonitorCard({
 }: MonitorCardProps) {
   const router = useRouter();
   const pageConfig = usePageConfig();
-  const [isSafari, setIsSafari] = useState(false);
+  const isSafari = useClientSnapshot(detectSafari, false);
   const [localLiteView, setLocalLiteView] = useState(() => {
     if (typeof window !== 'undefined') {
       const savedPreference = localStorage.getItem(VIEW_PREFERENCE_KEY);
@@ -43,20 +55,6 @@ export function MonitorCard({
 
   // 使用外部提供的视图模式或本地模式
   const isLiteView = externalLiteView !== undefined ? externalLiteView : localLiteView;
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const userAgent = window.navigator.userAgent;
-      const isSafariBrowser =
-        /Safari/i.test(userAgent) &&
-        !/Chrome/i.test(userAgent) &&
-        !/Chromium/i.test(userAgent) &&
-        !/Edge/i.test(userAgent) &&
-        !/Firefox/i.test(userAgent);
-
-      setIsSafari(isSafariBrowser);
-    }
-  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && externalLiteView === undefined) {

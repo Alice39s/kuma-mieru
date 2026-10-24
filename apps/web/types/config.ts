@@ -62,7 +62,7 @@ export interface Maintenance {
   id: number;
   title: string;
   description: string;
-  strategy: 'manual' | 'single' | 'scheduled' | 'recurring-interval' | string;
+  strategy: 'manual' | 'single' | 'scheduled' | 'recurring-interval' | (string & {});
   intervalDay: number; // 总维护天数
   active: boolean; // 是否展示
   dateRange: string[]; // example: ["2025-04-22T13:00", "2025-04-22T13:59"]
@@ -75,7 +75,7 @@ export interface Maintenance {
   timezone: string;
   timezoneOption: string;
   timezoneOffset: string; // example: "+08:00"，使用时区以此为准 (仅 Maintenance 中有效)
-  status: 'inactive' | 'under-maintenance' | 'scheduled' | 'ended' | 'unknown' | string;
+  status: 'inactive' | 'under-maintenance' | 'scheduled' | 'ended' | 'unknown' | (string & {});
 }
 
 /**

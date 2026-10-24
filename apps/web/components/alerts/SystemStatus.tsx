@@ -16,7 +16,7 @@ export function SystemStatusAlert() {
   const { monitoringData, monitorGroups, isLoading: isLoadingMonitors } = useMonitorData();
 
   const isLoading = isLoadingMonitors;
-  const [animate, setAnimate] = useState(false);
+  const [animate, setAnimate] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -24,7 +24,6 @@ export function SystemStatusAlert() {
       setTimeout(() => setAnimate(false), 1000);
     }, 1000);
 
-    setAnimate(true);
     setTimeout(() => setAnimate(false), 1000);
 
     return () => clearInterval(interval);

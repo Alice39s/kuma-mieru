@@ -36,7 +36,7 @@ const parseUrl = (url: string | null): { hostname: string; protocol: ImageProtoc
     }
 
     return null;
-  } catch (e) {
+  } catch {
     return null;
   }
 };

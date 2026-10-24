@@ -353,8 +353,7 @@ export async function fetchPreloadDataFromApi({
   };
 
   const effectiveFetch =
-    fetchFn ??
-    (async (input: string, init?: Record<string, unknown>) => fetch(input, init as RequestInit));
+    fetchFn ?? (async (input: string, init?: Record<string, unknown>) => fetch(input, init));
 
   let response: MinimalResponse;
 

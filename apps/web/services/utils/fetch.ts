@@ -133,6 +133,7 @@ async function makeRequest(
 
         res.on('end', () => {
           const responseBody = Buffer.concat(chunks);
+          const text = () => Promise.resolve(responseBody.toString('utf8'));
           const response: CustomResponse = {
             ok: res.statusCode ? res.statusCode >= 200 && res.statusCode < 300 : false,
             status: res.statusCode || 0,
@@ -143,12 +144,14 @@ async function makeRequest(
                 Array.isArray(value) ? value.join(', ') : value || '',
               ])
             ),
-            text: async () => responseBody.toString('utf8'),
-            json: async () => JSON.parse(responseBody.toString('utf8')),
-            arrayBuffer: async () =>
-              responseBody.buffer.slice(
-                responseBody.byteOffset,
-                responseBody.byteOffset + responseBody.byteLength
+            text,
+            json: () => text().then((body): unknown => JSON.parse(body)),
+            arrayBuffer: () =>
+              Promise.resolve(
+                responseBody.buffer.slice(
+                  responseBody.byteOffset,
+                  responseBody.byteOffset + responseBody.byteLength
+                )
               ),
           };
 
@@ -157,7 +160,7 @@ async function makeRequest(
       }
     );
 
-    req.on('error', async (error: NodeError) => {
+    req.on('error', (error: NodeError) => {
       const shouldRetry =
         retryCount < maxRetries &&
         (error.code === 'ECONNRESET' ||
@@ -175,13 +178,9 @@ async function makeRequest(
           },
         });
 
-        try {
-          await sleep(retryDelay * (retryCount + 1));
-          const response = await makeRequest(url, options, retryCount + 1);
-          resolve(response);
-        } catch (retryError) {
-          reject(retryError);
-        }
+        sleep(retryDelay * (retryCount + 1))
+          .then(() => makeRequest(url, options, retryCount + 1))
+          .then(resolve, reject);
       } else {
         console.error('请求错误:', {
           url,

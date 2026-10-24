@@ -6,7 +6,7 @@ import type { Maintenance } from '@/types/config';
 import { Card, CardBody, Chip, Progress } from '@heroui/react';
 import clsx from 'clsx';
 import { AlertCircle, Calendar, Clock, Timer, Wrench } from 'lucide-react';
-import { useFormatter, useTranslations } from 'next-intl';
+import { useFormatter, useNow, useTranslations } from 'next-intl';
 import type { DateTimeFormatOptions } from 'next-intl';
 import { useMemo } from 'react';
 import { useMaintenanceTimeline } from './hooks/useMaintenanceTimeline';
@@ -15,14 +15,15 @@ function MaintenanceScheduleCard({
   isActive,
   timeline,
   statusTitle,
+  now,
 }: {
   isActive: boolean;
   timeline: ReturnType<typeof useMaintenanceTimeline>;
   statusTitle: string;
+  now: number;
 }) {
   const t = useTranslations('maintenance');
   const format = useFormatter();
-  const now = Date.now();
   const dateTimeFormat: DateTimeFormatOptions = {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -99,7 +100,7 @@ function MaintenanceScheduleCard({
 function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
   const t = useTranslations('maintenance');
   const format = useFormatter();
-  const now = Date.now();
+  const now = useNow({ updateInterval: 60_000 }).getTime();
   const dateTimeFormat: DateTimeFormatOptions = {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -137,7 +138,12 @@ function MaintenanceAlert({ maintenance }: { maintenance: Maintenance }) {
       icon={<StatusIcon className="h-4 w-4" />}
     >
       <div className="space-y-4">
-        <MaintenanceScheduleCard isActive={isActive} timeline={timeline} statusTitle={statusText} />
+        <MaintenanceScheduleCard
+          isActive={isActive}
+          timeline={timeline}
+          statusTitle={statusText}
+          now={now}
+        />
 
         {maintenance.description && renderedDescription ? (
           <Card className="border border-gray-200/80 bg-white/70 dark:border-gray-700/70 dark:bg-zinc-900/60">

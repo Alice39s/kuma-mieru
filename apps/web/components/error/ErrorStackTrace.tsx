@@ -15,7 +15,7 @@ export function ErrorStackTrace({ stack, errorText }: ErrorStackTraceProps) {
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(errorText).then(() => {
+    void navigator.clipboard.writeText(errorText).then(() => {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
     });

@@ -5,6 +5,7 @@ import { Footer } from '@/components/Footer';
 import { ErrorStackTrace } from '@/components/error/ErrorStackTrace';
 import enUS from '@/messages/en-US.json';
 import { defaultLocale, locales, type Locale } from '@/utils/i18n/config';
+import { loadMessages } from '@/utils/i18n/messages';
 import { resolveLocaleFromCandidates } from '@/utils/i18n/resolve-locale';
 import {
   Button,
@@ -26,7 +27,7 @@ import {
 } from '@sankyu/react-circle-flags';
 import { AlertTriangle, Languages, RotateCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from 'react';
 
 const flagComponents: Record<string, React.ComponentType<{ width?: number; height?: number }>> = {
   BR: FlagBr,
@@ -39,6 +40,18 @@ const flagComponents: Record<string, React.ComponentType<{ width?: number; heigh
   RU: FlagRu,
   FR: FlagFr,
 };
+
+const subscribeToLanguageChange = (onLanguageChange: () => void) => {
+  window.addEventListener('languagechange', onLanguageChange);
+  return () => window.removeEventListener('languagechange', onLanguageChange);
+};
+
+const getBrowserLocale = (): Locale =>
+  resolveLocaleFromCandidates(
+    navigator.languages.length > 0 ? navigator.languages : [navigator.language]
+  );
+
+const getServerLocale = (): Locale => defaultLocale;
 
 interface GlobalErrorLanguageSwitchProps {
   currentLocale: Locale;
@@ -88,7 +101,13 @@ const GlobalErrorLanguageSwitch = ({
 export default function GlobalError({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   const [isRetrying, startRetryTransition] = useTransition();
-  const [lang, setLang] = useState<Locale>(defaultLocale);
+  const browserLocale = useSyncExternalStore(
+    subscribeToLanguageChange,
+    getBrowserLocale,
+    getServerLocale
+  );
+  const [selectedLocale, setSelectedLocale] = useState<Locale | null>(null);
+  const lang = selectedLocale ?? browserLocale;
   const [messages, setMessages] = useState(enUS);
 
   useEffect(() => {
@@ -101,23 +120,12 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
     process.env.NODE_ENV === 'development';
 
   useEffect(() => {
-    const candidates =
-      typeof navigator !== 'undefined'
-        ? navigator.languages && navigator.languages.length > 0
-          ? navigator.languages
-          : [navigator.language]
-        : [];
-
-    setLang(resolveLocaleFromCandidates(candidates));
-  }, []);
-
-  useEffect(() => {
     let isMounted = true;
 
-    void import(`../messages/${lang}.json`)
-      .then(module => {
+    void loadMessages(lang)
+      .then(localeMessages => {
         if (isMounted) {
-          setMessages(module.default as typeof enUS);
+          setMessages(localeMessages);
         }
       })
       .catch(() => {
@@ -169,7 +177,10 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
                     <p className="mt-1 text-sm text-default-600">{t.globalMessage}</p>
                   </div>
                 </div>
-                <GlobalErrorLanguageSwitch currentLocale={lang} onLocaleChange={setLang} />
+                <GlobalErrorLanguageSwitch
+                  currentLocale={lang}
+                  onLocaleChange={setSelectedLocale}
+                />
               </div>
 
               <div className="mt-6 space-y-4">

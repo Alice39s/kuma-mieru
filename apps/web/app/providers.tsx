@@ -35,7 +35,7 @@ export function Providers({ children, themeProps, locale, messages }: ProvidersP
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages} timeZone={timeZone}>
-      <HeroUIProvider navigate={router.push}>
+      <HeroUIProvider navigate={(path, routerOptions) => router.push(path, routerOptions)}>
         <NextThemesProvider {...themeProps}>
           <NodeSearchProvider>{children}</NodeSearchProvider>
         </NextThemesProvider>

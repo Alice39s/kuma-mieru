@@ -1,18 +1,16 @@
 import { getRequestConfig } from 'next-intl/server';
 import { defaultLocale } from './config';
 import { getUserLocale } from './locale';
+import { hasMessages, loadMessages } from './messages';
 
 export default getRequestConfig(async () => {
   const locale = (await getUserLocale()) || defaultLocale;
-  let messages: Record<string, unknown>;
-  try {
-    messages = (await import(`../../messages/${locale}.json`)).default;
-  } catch {
+  if (!hasMessages(locale)) {
     console.warn(
       `[i18n] Locale file for "${locale}" not found, falling back to "${defaultLocale}"`
     );
-    messages = (await import(`../../messages/${defaultLocale}.json`)).default;
   }
+  const messages = await loadMessages(hasMessages(locale) ? locale : defaultLocale);
   return {
     locale,
     formats: {

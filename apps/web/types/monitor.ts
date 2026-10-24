@@ -54,7 +54,8 @@ export interface Monitor {
     | 'mqtt'
     | 'tcp'
     | 'docker'
-    | string;
+    // Uptime Kuma adds monitor types over time; `string & {}` keeps the known names for autocompletion.
+    | (string & {});
   url?: string;
   certExpiryDaysRemaining?: number; // only for 'http', 'keyword', 'certexpiry', 'json-query'
   validCert?: boolean; // only for cert expiry monitor

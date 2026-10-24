@@ -40,28 +40,32 @@ const setMarkdownCache = (content: string, promise: Promise<string>) => {
  */
 export function useMarkdown(content: string): string {
   const [html, setHtml] = useState(() => getFallbackHtml(content));
+  const [htmlSource, setHtmlSource] = useState(content);
+
+  // Adjust the displayed HTML while rendering when the content changes, before the async render
+  // finishes: keep the previous HTML to avoid flicker, or show the plain-text fallback.
+  if (htmlSource !== content) {
+    setHtmlSource(content);
+    setHtml(previousHtml => (content ? previousHtml || getFallbackHtml(content) : ''));
+  }
 
   useEffect(() => {
+    if (!content) return;
+
     let isCancelled = false;
     const fallbackHtml = getFallbackHtml(content);
 
-    if (!content) {
-      setHtml('');
-    } else {
-      setHtml(previousHtml => previousHtml || fallbackHtml);
-
-      void renderMarkdown(content)
-        .then(renderedHtml => {
-          if (!isCancelled) {
-            setHtml(renderedHtml || fallbackHtml);
-          }
-        })
-        .catch(() => {
-          if (!isCancelled) {
-            setHtml(fallbackHtml);
-          }
-        });
-    }
+    void renderMarkdown(content)
+      .then(renderedHtml => {
+        if (!isCancelled) {
+          setHtml(renderedHtml || fallbackHtml);
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setHtml(fallbackHtml);
+        }
+      });
 
     return () => {
       isCancelled = true;
