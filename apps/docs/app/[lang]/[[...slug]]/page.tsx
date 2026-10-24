@@ -16,6 +16,7 @@ import {
   basePath,
   pageImagePath,
   pageMarkdownPath,
+  pagePath,
   repository,
   repositoryUrl,
   siteName,
@@ -75,11 +76,11 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
   const locale = page.locale ?? i18n.defaultLanguage;
   const section = locale === 'en' ? siteText.en.byline : siteText.zh.byline;
   const image = absoluteUrl(pageImagePath(page));
-  const url = absoluteUrl(page.url);
+  const url = absoluteUrl(pagePath(page.url));
   const languages = Object.fromEntries(
     i18n.languages.map(language => [
       htmlLang[language],
-      absoluteUrl(source.getPage(page.slugs, language)?.url ?? page.url),
+      absoluteUrl(pagePath(source.getPage(page.slugs, language)?.url ?? page.url)),
     ])
   );
   return {
