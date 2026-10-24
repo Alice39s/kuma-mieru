@@ -19,7 +19,7 @@ icon: Tags
 
 ## Image tags
 
-Each time the `Docker Build and Push to GHCR` workflow builds the image, it pushes these tags based on the version in `apps/web/package.json`:
+The `Docker Build and Push to GHCR` workflow gives the image these tags, based on the version in `apps/web/package.json`:
 
 | Tag           | Example            | Points to                                     |
 | ------------- | ------------------ | --------------------------------------------- |
@@ -29,25 +29,30 @@ Each time the `Docker Build and Push to GHCR` workflow builds the image, it push
 | `latest`      | `latest`           | The latest build of the default branch `main` |
 | Commit        | `sha-<short hash>` | The build of one commit                       |
 
-Each tag contains the `linux/amd64` and `linux/arm64` architectures. The workflow builds and pushes the image in these cases:
+Each tag contains the `linux/amd64` and `linux/arm64` architectures. The workflow runs in these cases:
 
-- `apps/web/package.json`, `Dockerfile`, `docker-compose.yml` or the workflow file changes on the `main` branch.
-- A maintainer starts the workflow manually.
+| Trigger                                                                                                        | Builds the image | Pushes the tags |
+| -------------------------------------------------------------------------------------------------------------- | ---------------- | --------------- |
+| A push to `main` that changes `apps/web/package.json`, `Dockerfile`, `docker-compose.yml` or the workflow file | Yes              | Yes             |
+| A manual run, or a start from `Manual Version Bump`                                                            | Yes              | Yes             |
+| A pull request to `main` that changes `apps/web/package.json` or `Dockerfile`                                  | Yes              | No              |
 
 ## Release process
 
 ```mermaid
 flowchart LR
-  A[Manual Version Bump] --> B[Version in apps/web/package.json changes]
-  B --> C[Create Release]
-  B --> D[Docker Build and Push to GHCR]
-  C --> E[v tag and GitHub Release]
-  D --> F[GHCR image]
+  A["Manual Version Bump: update, commit and push the version"] -->|starts directly| C["Create Release"]
+  A -->|starts directly| D["Docker Build and Push to GHCR"]
+  M["A maintainer pushes a version commit to main"] -->|push starts| C
+  M -->|push starts| D
+  C --> E["v tag and GitHub Release"]
+  D --> F["GHCR image"]
 ```
 
-1. A maintainer runs the `Manual Version Bump` workflow manually and selects `patch`, `minor` or `major`. The workflow updates the version, commits `chore(release): bump version to <version>` and pushes the commit to `main`.
-2. The `Create Release` workflow reads the new version. If no release exists for this version, it creates the tag `v<version>` and a GitHub Release. The release notes contain a changelog built from the commits, a list of contributors, and the update procedures for Docker and Docker Compose.
-3. The `Docker Build and Push to GHCR` workflow builds the image and pushes the tags in the table above.
+1. A maintainer runs the `Manual Version Bump` workflow manually and selects `patch`, `minor` or `major`. The workflow updates the version in `apps/web/package.json`, commits `chore(release): bump version to <version>` and pushes the commit. Then it starts `Create Release` and `Docker Build and Push to GHCR` directly.
+2. A maintainer can also change the version in `apps/web/package.json` and push the commit to `main`. Then the push starts the two workflows.
+3. `Create Release` reads the version in `apps/web/package.json`. If the current version is different from the version of the latest release, it creates the tag `v<version>` and a GitHub Release. The release notes contain a changelog built from the commits, a list of contributors, and the update procedures for Docker and Docker Compose.
+4. `Docker Build and Push to GHCR` builds the image and pushes the tags in the table above.
 
 ## Upgrade
 

@@ -93,4 +93,5 @@ sequenceDiagram
 
 - The `generate` script runs during the build or when the container starts. For the details, see [Choose a Deployment Method](../deploy/index.mdx). If the script cannot reach Uptime Kuma, the title, description and icon come from the environment variables or the defaults.
 - The Kuma Mieru server requests the monitoring data from Uptime Kuma at runtime. Thus the environment that runs Kuma Mieru must be able to reach the status page URL.
-- If Uptime Kuma uses a self-signed certificate, see [ALLOW_INSECURE_TLS](./environment.mdx#allow_insecure_tls). You also set the request timeout and the retry count in [Environment Variables](./environment.mdx).
+- If Uptime Kuma uses a self-signed certificate, see [ALLOW_INSECURE_TLS](./environment.mdx#allow_insecure_tls). This variable applies to the runtime requests of the server. It does not apply to the requests of the `generate` script that read the status page metadata. With a self-signed certificate, that step fails, and the title, description and icon come from the environment variables or the defaults.
+- You also set the timeout and the retry count of the runtime server requests in [Environment Variables](./environment.mdx).

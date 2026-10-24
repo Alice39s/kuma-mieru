@@ -6,10 +6,10 @@ icon: Code
 
 ## 环境要求
 
-| 工具    | 版本    | 声明位置                                       |
-| ------- | ------- | ---------------------------------------------- |
-| Node.js | 26.12.1 | `.nvmrc`                                       |
-| Bun     | 1.4.4   | 根目录 `package.json` 的 `packageManager` 字段 |
+| 工具    | 版本               | 声明位置                                                                    |
+| ------- | ------------------ | --------------------------------------------------------------------------- |
+| Node.js | 26，不低于 26.12.1 | `.nvmrc` 固定为 26.12.1，`package.json` 的 `engines` 字段为 `>=26.12.1 <27` |
+| Bun     | 1.4.4              | 根目录 `package.json` 的 `packageManager` 字段                              |
 
 `packageManager` 字段供 Turborepo 识别包管理器。Bun 本身用官方安装脚本或 `npm i -g bun@1.4.4` 安装，不经过 Corepack。各系统的安装命令见[从源码运行](../deploy/source.mdx)。
 
@@ -110,6 +110,8 @@ Web 应用的 `dev` 脚本会先运行 `generate`，所以开发前要先创建 
 
 1. 在 `apps/web/utils/i18n/config.ts` 的 `locales` 数组中加入这种语言。
 2. 在 `apps/web/messages/` 中添加这种语言的翻译文件。
+3. 在 `apps/web/utils/i18n/messages.ts` 的 `messageLoaders` 中登记这个翻译文件的导入。没有登记的语言无法加载翻译。
+4. 需要在语言菜单中显示国旗时，在 `apps/web/components/basic/i18n-switch.tsx` 和 `apps/web/app/global-error.tsx` 的 `flagComponents` 映射表中，按这种语言的 `alpha2Code` 添加 `@sankyu/react-circle-flags` 中对应的国旗组件。
 
 ## 提交 Pull Request
 

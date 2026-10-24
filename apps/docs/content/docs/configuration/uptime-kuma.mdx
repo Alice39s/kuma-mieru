@@ -92,4 +92,5 @@ sequenceDiagram
 
 - `generate` 脚本在构建时或容器启动时运行，时机见[选择部署方式](../deploy/index.mdx)。它访问不到 Uptime Kuma 时，标题、描述和图标使用环境变量的值或默认值。
 - Kuma Mieru 的服务端在运行时向 Uptime Kuma 请求监控数据，所以运行 Kuma Mieru 的环境需要能访问状态页 URL。
-- Uptime Kuma 使用自签名证书时，见 [ALLOW_INSECURE_TLS](./environment.mdx#allow_insecure_tls)。请求超时与重试次数也在[环境变量](./environment.mdx)中设置。
+- Uptime Kuma 使用自签名证书时，见 [ALLOW_INSECURE_TLS](./environment.mdx#allow_insecure_tls)。这个变量作用于服务端运行时的请求，不作用于 `generate` 脚本读取状态页元信息的请求；自签名证书环境中，这一步请求失败，标题、描述和图标使用环境变量的值或默认值。
+- 服务端运行时请求的超时与重试次数也在[环境变量](./environment.mdx)中设置。

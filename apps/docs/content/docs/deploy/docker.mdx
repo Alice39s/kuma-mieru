@@ -43,6 +43,8 @@ cp apps/web/.env.example .env
 UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/your-status-page-id
 ```
 
+模板中的 `KUMA_MIERU_TITLE`、`KUMA_MIERU_DESCRIPTION` 和 `KUMA_MIERU_ICON` 三行会覆盖状态页自身的标题、描述和图标。把标题和描述改成你需要的值。想沿用状态页的图标时，删掉 `KUMA_MIERU_ICON` 这一行。
+
 </Step>
 <Step>
 
@@ -65,6 +67,16 @@ docker compose logs -f
 
 </Step>
 </Steps>
+
+<Callout type="warn" title=".env 中缺少的变量以空值传入">
+`docker-compose.yml` 的 `environment` 列出了状态页地址和 `KUMA_MIERU_*` 变量。`.env` 中缺少其中某个变量时，它以空值传入容器，覆盖镜像内置的默认值：
+
+- 既没有 `UPTIME_KUMA_URLS`，也没有 `UPTIME_KUMA_BASE_URL` 和 `PAGE_ID` 时，配置生成脚本报错，容器启动中止。
+- 缺少 `KUMA_MIERU_SHOW_STAR_BUTTON` 时，Star 按钮隐藏。需要显示时，写上 `KUMA_MIERU_SHOW_STAR_BUTTON=true`。
+- 缺少 `KUMA_MIERU_TITLE` 或 `KUMA_MIERU_DESCRIPTION` 时，浏览器标签页的标题和页面描述使用 Kuma Mieru 的默认值。
+- 缺少 `KUMA_MIERU_ICON` 时，使用状态页自身的图标。
+
+</Callout>
 
 </Tab>
 <Tab value="docker run">
@@ -92,13 +104,36 @@ docker run -d \
   ghcr.io/alice39s/kuma-mieru:1
 ```
 
+没有设置 `UPTIME_KUMA_URLS` 时，容器连接镜像内置的 demo 状态页。镜像的其他内置值见[镜像内置的默认值](#镜像内置的默认值)。
+
 </Step>
 </Steps>
 
-变量较多时，可以把它们写进 `.env` 文件（模板是仓库中的 `apps/web/.env.example`），再用 `--env-file .env` 代替多个 `-e` 参数。
+变量较多时，可以把它们写进 `.env` 文件，再用 `--env-file .env` 代替多个 `-e` 参数。Docker CLI 的 `--env-file` 不去掉值两边的引号。以仓库中的 `apps/web/.env.example` 为模板时，先去掉值两边的引号，例如把 `KUMA_MIERU_TITLE="Kuma Mieru"` 改为 `KUMA_MIERU_TITLE=Kuma Mieru`。
 
 </Tab>
 </Tabs>
+
+## 镜像内置的默认值
+
+镜像为以下变量设置了默认值。用 `docker run` 启动时，没有通过 `-e` 或 `--env-file` 设置的变量使用这些值：
+
+| 变量                          | 默认值                                               |
+| ----------------------------- | ---------------------------------------------------- |
+| `UPTIME_KUMA_URLS`            | 空                                                   |
+| `UPTIME_KUMA_BASE_URL`        | `https://whimsical-sopapillas-78abba.netlify.app`    |
+| `PAGE_ID`                     | `demo`                                               |
+| `KUMA_MIERU_TITLE`            | `Uptime Kuma`                                        |
+| `KUMA_MIERU_DESCRIPTION`      | `A beautiful and modern uptime monitoring dashboard` |
+| `KUMA_MIERU_ICON`             | 空                                                   |
+| `KUMA_MIERU_EDIT_THIS_PAGE`   | `false`                                              |
+| `KUMA_MIERU_SHOW_STAR_BUTTON` | `true`                                               |
+| `ALLOW_EMBEDDING`             | `false`                                              |
+
+- 没有设置 `UPTIME_KUMA_URLS` 时，容器使用内置的 `UPTIME_KUMA_BASE_URL` 和 `PAGE_ID`，连接 demo 状态页。
+- 浏览器标签页的标题和页面描述使用环境变量或镜像内置的值，不使用状态页自身的值。请把 `KUMA_MIERU_TITLE` 和 `KUMA_MIERU_DESCRIPTION` 设为你需要的内容。导航栏和多页面标签仍优先显示 Uptime Kuma 状态页的实时标题，见[环境变量](../configuration/environment.mdx)。
+- 内置的 `KUMA_MIERU_ICON` 为空，图标使用状态页自身的图标。
+- 使用仓库的 `docker-compose.yml` 时，`environment` 中列出的变量会覆盖这些默认值，见上面 Docker Compose 部分的说明。
 
 ## 修改配置
 

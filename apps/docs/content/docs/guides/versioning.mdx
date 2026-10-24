@@ -19,7 +19,7 @@ icon: Tags
 
 ## 镜像标签
 
-`Docker Build and Push to GHCR` 工作流每次构建镜像时，按 `apps/web/package.json` 中的版本号推送以下标签：
+`Docker Build and Push to GHCR` 工作流按 `apps/web/package.json` 中的版本号给镜像打以下标签：
 
 | 标签     | 示例           | 指向                       |
 | -------- | -------------- | -------------------------- |
@@ -29,25 +29,30 @@ icon: Tags
 | `latest` | `latest`       | 默认分支 `main` 的最新构建 |
 | 提交     | `sha-<短哈希>` | 某一次提交的构建           |
 
-每个标签都包含 `linux/amd64` 和 `linux/arm64` 两种架构。工作流在以下情况构建并推送镜像：
+每个标签都包含 `linux/amd64` 和 `linux/arm64` 两种架构。工作流在以下情况运行：
 
-- `main` 分支上的 `apps/web/package.json`、`Dockerfile`、`docker-compose.yml` 或工作流文件有改动。
-- 维护者手动触发工作流。
+| 触发方式                                                                                           | 构建镜像 | 推送标签 |
+| -------------------------------------------------------------------------------------------------- | -------- | -------- |
+| 推送到 `main`，并且改动了 `apps/web/package.json`、`Dockerfile`、`docker-compose.yml` 或工作流文件 | 是       | 是       |
+| 手动运行，或由 `Manual Version Bump` 启动                                                          | 是       | 是       |
+| 指向 `main` 的 Pull Request 改动了 `apps/web/package.json` 或 `Dockerfile`                         | 是       | 否       |
 
 ## 发布流程
 
 ```mermaid
 flowchart LR
-  A[Manual Version Bump] --> B[apps/web/package.json 版本号更新]
-  B --> C[Create Release]
-  B --> D[Docker Build and Push to GHCR]
-  C --> E[v 标签与 GitHub Release]
-  D --> F[GHCR 镜像]
+  A["Manual Version Bump：更新版本号、提交并推送"] -->|直接启动| C["Create Release"]
+  A -->|直接启动| D["Docker Build and Push to GHCR"]
+  M["维护者把版本号提交推送到 main"] -->|push 启动| C
+  M -->|push 启动| D
+  C --> E["v 标签与 GitHub Release"]
+  D --> F["GHCR 镜像"]
 ```
 
-1. 维护者手动运行 `Manual Version Bump` 工作流，选择 `patch`、`minor` 或 `major`。工作流更新版本号，提交 `chore(release): bump version to <版本号>`，再推送到 `main`。
-2. `Create Release` 工作流读取新的版本号。这个版本还没有 Release 时，它创建标签 `v<版本号>` 和对应的 GitHub Release。Release 说明包含按提交生成的更新日志、贡献者列表，以及 Docker 和 Docker Compose 的更新方法。
-3. `Docker Build and Push to GHCR` 工作流构建镜像，并按上表推送标签。
+1. 维护者手动运行 `Manual Version Bump` 工作流，选择 `patch`、`minor` 或 `major`。工作流更新 `apps/web/package.json` 的版本号，提交 `chore(release): bump version to <版本号>` 并推送，然后直接启动 `Create Release` 和 `Docker Build and Push to GHCR`。
+2. 维护者也可以自己修改 `apps/web/package.json` 的版本号，把提交推送到 `main`。这时两个工作流由 push 启动。
+3. `Create Release` 读取 `apps/web/package.json` 的版本号。当前版本号与最新一个 Release 的版本不同时，它创建标签 `v<版本号>` 和对应的 GitHub Release。Release 说明包含按提交生成的更新日志、贡献者列表，以及 Docker 和 Docker Compose 的更新方法。
+4. `Docker Build and Push to GHCR` 构建镜像，并按上表推送标签。
 
 ## 升级
 

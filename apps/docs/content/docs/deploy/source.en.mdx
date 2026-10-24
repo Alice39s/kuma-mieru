@@ -6,12 +6,12 @@ icon: Terminal
 
 ## Requirements
 
-| Tool    | Version | Declared in                                           |
-| ------- | ------- | ----------------------------------------------------- |
-| Node.js | 26.12.1 | `.nvmrc` and the `engines` field of `package.json`    |
-| Bun     | 1.4.4   | The `packageManager` field of the root `package.json` |
+| Tool    | Version              | Declared in                                                                     |
+| ------- | -------------------- | ------------------------------------------------------------------------------- |
+| Node.js | 26, at least 26.12.1 | `.nvmrc` pins 26.12.1. The `engines` field of `package.json` is `>=26.12.1 <27` |
+| Bun     | 1.4.4                | The `packageManager` field of the root `package.json`                           |
 
-The build and the Node.js standalone runtime need Node.js 26.12.1. The project uses Bun as its package manager. Install Bun with one of these methods:
+The build and the Node.js standalone runtime need Node.js 26, version 26.12.1 or later. The project uses Bun as its package manager. Install Bun with one of these methods:
 
 <Tabs items={['Linux / macOS', 'Windows', 'npm']}>
 <Tab value="Linux / macOS">
@@ -82,6 +82,8 @@ For multiple status pages, separate the URLs with `|`:
 ```ini title="apps/web/.env"
 UPTIME_KUMA_URLS=https://status.kuma-mieru.invalid/status/prod|https://status.kuma-mieru.invalid/status/staging
 ```
+
+The template lines `KUMA_MIERU_TITLE`, `KUMA_MIERU_DESCRIPTION` and `KUMA_MIERU_ICON` replace the title, description and icon of the status page. To keep the values of the status page, delete these three lines.
 
 For the required variables and the other variables, see [Environment Variables](../configuration/environment.mdx).
 

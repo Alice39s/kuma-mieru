@@ -32,7 +32,7 @@ UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/test1|https://example
 | 变量                                                                               | 读取时机                                                                                                                  |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `UPTIME_KUMA_URLS`、`UPTIME_KUMA_BASE_URL`、`PAGE_ID`、`KUMA_MIERU_*`、`FEATURE_*` | `generate` 脚本运行时。结果写入 `apps/web/config/generated-config.json` 和 `apps/web/config/generated/image-domains.json` |
-| `STRICT_IMAGE_REMOTE_PATTERNS`                                                     | `next build` 构建时                                                                                                       |
+| `STRICT_IMAGE_REMOTE_PATTERNS`、`NEXT_PUBLIC_ERROR_PAGE_DEV_MODE`                  | `next build` 构建时                                                                                                       |
 | `ALLOW_EMBEDDING`                                                                  | 服务运行时                                                                                                                |
 
 `generate` 脚本在托管平台的构建阶段运行，在 Docker 容器中每次启动时运行。所以：
@@ -47,23 +47,23 @@ UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/test1|https://example
 | `UPTIME_KUMA_URLS`                | 是\* | 无           | 推荐。一个或多个完整的状态页 URL，可以来自不同的 Uptime Kuma 实例             |
 | `UPTIME_KUMA_BASE_URL`            | 是\* | 无           | 兼容旧版。Uptime Kuma 实例的基础 URL，只在未设置 `UPTIME_KUMA_URLS` 时使用    |
 | `PAGE_ID`                         | 是\* | 无           | 兼容旧版。状态页 ID，多个 ID 用逗号分隔，只在未设置 `UPTIME_KUMA_URLS` 时使用 |
-| `KUMA_MIERU_TITLE`                | 否   | 状态页的标题 | 自定义页面标题                                                                |
-| `KUMA_MIERU_DESCRIPTION`          | 否   | 状态页的描述 | 自定义页面描述                                                                |
-| `KUMA_MIERU_ICON`                 | 否   | 状态页的图标 | 自定义页面图标的 URL                                                          |
+| `KUMA_MIERU_TITLE`                | 否   | 状态页的标题 | 浏览器标签页的标题                                                            |
+| `KUMA_MIERU_DESCRIPTION`          | 否   | 状态页的描述 | 页面的描述元信息                                                              |
+| `KUMA_MIERU_ICON`                 | 否   | 状态页的图标 | 页面图标，必须来自状态页所在的 Uptime Kuma 实例                               |
 | `KUMA_MIERU_EDIT_THIS_PAGE`       | 否   | `false`      | 是否显示 Edit This Page 按钮                                                  |
 | `KUMA_MIERU_SHOW_STAR_BUTTON`     | 否   | `true`       | 是否显示 Star on GitHub 按钮                                                  |
-| `ALLOW_INSECURE_TLS`              | 否   | `false`      | 是否跳过上游 Uptime Kuma 的 HTTPS 证书校验                                    |
-| `REQUEST_TIMEOUT_MS`              | 否   | `8000`       | 上游请求的超时时间，单位毫秒                                                  |
-| `REQUEST_RETRY_MAX`               | 否   | `3`          | 上游请求的最大重试次数                                                        |
-| `REQUEST_RETRY_DELAY_MS`          | 否   | `500`        | 上游请求重试的基础间隔，单位毫秒                                              |
-| `SSR_STRICT_MODE`                 | 否   | `false`      | 是否启用严格 SSR 失败模式                                                     |
-| `NEXT_PUBLIC_ERROR_PAGE_DEV_MODE` | 否   | `false`      | 是否在错误页显示完整堆栈                                                      |
+| `ALLOW_INSECURE_TLS`              | 否   | `false`      | 服务端运行时请求 Uptime Kuma 是否跳过 HTTPS 证书校验                          |
+| `REQUEST_TIMEOUT_MS`              | 否   | `8000`       | 服务端运行时请求的超时时间，单位毫秒                                          |
+| `REQUEST_RETRY_MAX`               | 否   | `3`          | 服务端运行时请求的最大重试次数                                                |
+| `REQUEST_RETRY_DELAY_MS`          | 否   | `500`        | 服务端运行时请求重试的基础间隔，单位毫秒                                      |
+| `SSR_STRICT_MODE`                 | 否   | `false`      | 只校验取值，不改变页面行为                                                    |
+| `NEXT_PUBLIC_ERROR_PAGE_DEV_MODE` | 否   | `false`      | 是否在全局错误页显示完整堆栈，构建时写入                                      |
 | `ALLOW_EMBEDDING`                 | 否   | `false`      | 是否允许其他网站用 iframe 嵌入                                                |
 | `STRICT_IMAGE_REMOTE_PATTERNS`    | 否   | `false`      | 是否只允许白名单中的远程图片域名                                              |
 
-\* `UPTIME_KUMA_URLS` 与 `UPTIME_KUMA_BASE_URL` 加 `PAGE_ID` 二选一。两者都设置时，使用 `UPTIME_KUMA_URLS`。
+\* `UPTIME_KUMA_URLS` 与 `UPTIME_KUMA_BASE_URL` 加 `PAGE_ID` 二选一。两者都设置时，使用 `UPTIME_KUMA_URLS`。两者都没有设置时，`generate` 脚本报错退出。
 
-`FEATURE_*` 开头的旧变量名见[旧变量名](#旧变量名)。
+`FEATURE_*` 开头的旧变量名见[旧变量名](#旧变量名)。Docker 镜像为部分变量内置了默认值，使用仓库的 `docker-compose.yml` 时 `.env` 中缺少的变量以空值传入，见 [Docker](../deploy/docker.mdx)。
 
 ## 状态页地址
 
@@ -91,21 +91,43 @@ PAGE_ID=default,status-asia
 
 ## 页面外观
 
-### 标题、描述和图标
+### 标题和描述
 
-`KUMA_MIERU_TITLE`、`KUMA_MIERU_DESCRIPTION` 和 `KUMA_MIERU_ICON` 按以下顺序取值：
+`KUMA_MIERU_TITLE` 和 `KUMA_MIERU_DESCRIPTION` 决定浏览器标签页的标题和页面的描述元信息（`<meta name="description">`）。`generate` 脚本按以下顺序取值：
 
 1. 环境变量的值。设置后对所有状态页生效。
-2. Uptime Kuma 状态页自身的标题、描述和图标。
-3. 默认值：标题 `Kuma Mieru`，描述 `A beautiful and modern uptime monitoring dashboard`，图标 `/icon.svg`。
+2. Uptime Kuma 状态页自身的标题和描述。
+3. 默认值：标题 `Kuma Mieru`，描述 `A beautiful and modern uptime monitoring dashboard`。
 
 请求状态页失败时，未设置的项使用默认值。
 
-<Callout type="info">
-把 `KUMA_MIERU_TITLE` 或 `KUMA_MIERU_DESCRIPTION` 设为空值也算已设置，页面会显示空的标题或描述。`KUMA_MIERU_ICON` 为空值时不生效，图标按上面的第 2、3 项取值。
+导航栏的标题和多页面标签优先显示 Uptime Kuma 状态页的实时标题和描述。实时的值为空或请求失败时，才使用上面取到的值。
 
-Docker 镜像内置的 `KUMA_MIERU_TITLE` 默认值是 `Uptime Kuma`。
+把这两个变量设为空值也算已设置。这时生成的配置不再使用状态页自身的标题或描述：浏览器标签页的标题显示 `Kuma Mieru`，描述使用默认描述，导航栏仍显示 Uptime Kuma 的实时标题。
 
+### 图标
+
+页面上的图标都通过 Kuma Mieru 的 `/api/icon` 接口从 Uptime Kuma 代理获取。`generate` 脚本按以下顺序确定图标地址：
+
+1. `KUMA_MIERU_ICON` 的值。值为空时跳过这一项。
+2. Uptime Kuma 状态页自身的图标。
+3. 默认图标 `/icon.svg`。
+
+`KUMA_MIERU_ICON` 必须指向该状态页所在 Uptime Kuma 实例上的图片：
+
+| 写法                                             | 结果                             |
+| ------------------------------------------------ | -------------------------------- |
+| 与 Uptime Kuma 基础 URL 同源的完整 URL           | 使用这张图片                     |
+| 相对路径，例如 `/logo.png`                       | 拼接到 Uptime Kuma 基础 URL 后面 |
+| 其他域名的 URL、以 `//` 开头的地址、`data:` 地址 | 忽略，显示默认图标               |
+| `/icon.svg`                                      | 显示 Kuma Mieru 的默认图标       |
+
+图片的响应类型不是 `image/*`，或者图片大于 2 MB 时，也显示默认图标。
+
+<Callout type="info" title="模板中的标题、描述和图标">
+  `apps/web/.env.example` 模板写入了 `KUMA_MIERU_TITLE`、`KUMA_MIERU_DESCRIPTION` 和
+  `KUMA_MIERU_ICON` 三行，会覆盖状态页自身的标题、描述和图标。想沿用状态页的值时，删掉这三行。在
+  Docker 中的取值见 [Docker](../deploy/docker.mdx)。
 </Callout>
 
 ### 按钮
@@ -115,7 +137,9 @@ Docker 镜像内置的 `KUMA_MIERU_TITLE` 默认值是 `Uptime Kuma`。
 | `KUMA_MIERU_EDIT_THIS_PAGE`   | `false` | 显示 Edit This Page 按钮 |
 | `KUMA_MIERU_SHOW_STAR_BUTTON` | `true`  | 显示 Star on GitHub 按钮 |
 
-值为 `true`（不区分大小写）时开启，其他值都视为关闭。
+值为 `true`（不区分大小写）时开启，其他值都视为关闭，空值也视为关闭。
+
+使用仓库的 `docker-compose.yml` 时，`.env` 中缺少 `KUMA_MIERU_SHOW_STAR_BUTTON` 会以空值传入容器，Star 按钮因此隐藏。需要显示时，在 `.env` 中写上 `KUMA_MIERU_SHOW_STAR_BUTTON=true`。
 
 ### 旧变量名
 
@@ -133,27 +157,33 @@ Docker 镜像内置的 `KUMA_MIERU_TITLE` 默认值是 `Uptime Kuma`。
 
 ### ALLOW_INSECURE_TLS
 
-控制 Kuma Mieru 请求上游 Uptime Kuma 时是否校验 HTTPS 证书。默认值 `false`，严格校验证书。设为 `true` 会跳过证书校验，存在安全风险，只在受信任的自签名证书环境中使用。
+控制 Kuma Mieru 的服务端在运行时请求 Uptime Kuma（监控数据、状态页数据和图标）时是否校验 HTTPS 证书。默认值 `false`，严格校验证书。设为 `true` 会跳过证书校验，存在安全风险，只在受信任的自签名证书环境中使用。取值必须是 `true` 或 `false`（不区分大小写），其他值会让服务端加载时报错。
+
+`generate` 脚本读取状态页标题、描述和图标的请求不受这个变量影响，仍然校验证书。在自签名证书环境中，这一步请求失败，标题、描述和图标使用环境变量的值或默认值。
 
 ### 超时与重试
 
-以下变量作用于所有上游请求：
+以下变量作用于 Kuma Mieru 的服务端在运行时向 Uptime Kuma 发出的请求。`generate` 脚本读取状态页元信息的请求不受影响。图标代理的超时时间固定为 10 秒，不读取 `REQUEST_TIMEOUT_MS`。
 
-| 变量                     | 默认值 | 含义                     |
-| ------------------------ | ------ | ------------------------ |
-| `REQUEST_TIMEOUT_MS`     | `8000` | 请求超时时间，单位毫秒   |
-| `REQUEST_RETRY_MAX`      | `3`    | 最大重试次数             |
-| `REQUEST_RETRY_DELAY_MS` | `500`  | 重试的基础间隔，单位毫秒 |
+| 变量                     | 默认值 | 取值范围      | 含义                     |
+| ------------------------ | ------ | ------------- | ------------------------ |
+| `REQUEST_TIMEOUT_MS`     | `8000` | 1000 到 60000 | 请求超时时间，单位毫秒   |
+| `REQUEST_RETRY_MAX`      | `3`    | 0 到 10       | 最大重试次数             |
+| `REQUEST_RETRY_DELAY_MS` | `500`  | 100 到 10000  | 重试的基础间隔，单位毫秒 |
+
+取值必须是范围内的整数，否则服务端加载时报错。
 
 ## 错误处理
 
 ### SSR_STRICT_MODE
 
-控制严格 SSR 失败模式，默认值 `false`。设为 `true` 后，在多页面模式下所有页面都请求失败时，根布局抛出错误，页面显示全局错误页。
+Kuma Mieru 只校验这个变量的取值：必须是 `true` 或 `false`（不区分大小写），默认值 `false`，其他值会让服务端加载时报错。它不改变页面行为。
 
 ### NEXT_PUBLIC_ERROR_PAGE_DEV_MODE
 
-控制错误页的调试详情，默认值 `false`。设为 `true` 后，错误页显示完整的错误堆栈。这个变量对客户端可见。
+控制全局错误页是否显示完整的错误堆栈，默认值 `false`。根布局出错时，页面显示全局错误页；这个变量的值为 `true` 时，全局错误页显示堆栈。`NODE_ENV=development` 时，全局错误页总会显示堆栈。普通错误页不读取这个变量，错误带有堆栈信息时就会显示。
+
+这个变量对客户端可见，它的值在 `next build` 时写入客户端代码，修改后需要重新构建。Docker 镜像的构建阶段没有传入这个变量，所以不能通过容器的环境变量开启。
 
 ## 安全
 
