@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   bump-version:
@@ -105,3 +106,11 @@ jobs:
             echo "✅ Version updated to ${{ steps.bump_version.outputs.version }} and pushed to the repository"
             echo "📦 release workflow will automatically create tag v${{ steps.bump_version.outputs.version }}"
           fi
+
+      # A push made with GITHUB_TOKEN starts no push-triggered workflow, so the release and the image build start here.
+      - name: Start release and image workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run release.yml --ref "${{ github.ref_name }}"
+          gh workflow run docker-build.yml --ref "${{ github.ref_name }}"
