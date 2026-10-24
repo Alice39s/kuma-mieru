@@ -7,6 +7,8 @@ on:
       - '.github/workflows/release.yml'
     branches:
       - main
+  # Manual Version Bump starts this workflow after pushing the new version.
+  workflow_dispatch:
 
 jobs:
   release:
