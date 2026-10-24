@@ -61,8 +61,8 @@ jobs:
           DOCS_BASE_PATH: ${{ steps.pages.outputs.base_path }}
           SITE_ORIGIN: ${{ steps.pages.outputs.origin }}
 
+      # Pull requests keep the artifact as a preview; only main deploys it.
       - name: Upload Pages artifact
-        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: apps/docs/out
