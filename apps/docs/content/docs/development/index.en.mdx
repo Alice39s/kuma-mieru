@@ -1,0 +1,202 @@
+---
+title: Contributing
+description: Set up a local development environment, and learn the repository layout, the common commands and the pull request process.
+icon: Code
+---
+
+## Requirements
+
+| Tool    | Version | Declared in                                           |
+| ------- | ------- | ----------------------------------------------------- |
+| Node.js | 26.12.1 | `.nvmrc`                                              |
+| Bun     | 1.4.4   | The `packageManager` field of the root `package.json` |
+
+Turborepo reads the `packageManager` field to identify the package manager. Install Bun itself with the official install script or with `npm i -g bun@1.4.4`, not with Corepack. For the commands on each operating system, see [Run from Source](../deploy/source.mdx).
+
+## Repository layout
+
+<Files>
+  <Folder name="apps" defaultOpen>
+    <Folder name="web" defaultOpen>
+      <Folder name="config" />
+      <Folder name="messages" />
+      <Folder name="scripts" />
+      <File name=".env.example" />
+      <File name="package.json" />
+    </Folder>
+    <Folder name="docs" defaultOpen>
+      <Folder name="content" />
+      <File name="design.md" />
+      <File name="package.json" />
+    </Folder>
+  </Folder>
+  <Folder name="packages" defaultOpen>
+    <Folder name="theme" />
+    <Folder name="tsconfig" />
+  </Folder>
+  <File name=".nvmrc" />
+  <File name=".oxfmtrc.json" />
+  <File name=".oxlintrc.json" />
+  <File name="package.json" />
+  <File name="turbo.json" />
+</Files>
+
+| Path                  | Content                                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------------------- |
+| `apps/web`            | The Kuma Mieru web application, package `@kuma-mieru/web`                                          |
+| `apps/web/config`     | The configuration schemas and the files that the `generate` script creates                         |
+| `apps/web/messages`   | Interface translations, one JSON file for each language                                            |
+| `apps/web/scripts`    | The `generate` script and other scripts                                                            |
+| `apps/docs`           | The docs site, package `@kuma-mieru/docs`, built as a static site with Fumadocs                    |
+| `apps/docs/design.md` | The design rules of the docs site. See [Design Rules](./design.mdx)                                |
+| `packages/theme`      | The theme that the web application and the docs site share, package `@kuma-mieru/theme`            |
+| `packages/tsconfig`   | The shared TypeScript configurations `base.json` and `nextjs.json`, package `@kuma-mieru/tsconfig` |
+| `turbo.json`          | The Turborepo task definitions                                                                     |
+| `.oxlintrc.json`      | The Oxlint rules                                                                                   |
+| `.oxfmtrc.json`       | The Oxfmt formatting configuration                                                                 |
+
+## Common commands
+
+Run these commands in the repository root:
+
+| Command                | Action                                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `bun install`          | Installs the dependencies of all workspaces                                                                     |
+| `bun run dev`          | Starts the web application (port 3881) and the docs site (port 3882) together with Turborepo                    |
+| `bun run build`        | Builds all packages                                                                                             |
+| `bun run lint`         | Runs the Oxlint type-aware check. One run does the lint and the type check (based on TypeScript 7 and tsgolint) |
+| `bun run lint:fix`     | Fixes problems with Oxlint, then formats with Oxfmt                                                             |
+| `bun run format`       | Formats the code with Oxfmt                                                                                     |
+| `bun run format:check` | Checks the format and changes no files                                                                          |
+| `bun run test`         | Runs the tests                                                                                                  |
+
+To run a task for one package only, use the Turborepo `--filter` option:
+
+```bash
+bunx turbo run dev --filter=@kuma-mieru/web
+```
+
+The `dev` script of the web application runs `generate` first. Thus you must create `apps/web/.env` before you start development. For the procedure, see [Run from Source](../deploy/source.mdx).
+
+### Web application scripts
+
+Run these commands in the `apps/web` directory:
+
+| Command                    | Action                                                                       |
+| -------------------------- | ---------------------------------------------------------------------------- |
+| `bun run generate`         | Runs `generate:config`, `generate:domains` and `generate:banner` in sequence |
+| `bun run generate:config`  | Creates `config/generated-config.json`                                       |
+| `bun run generate:domains` | Creates `config/generated/image-domains.json`                                |
+| `bun run generate:banner`  | Prints the startup banner and the current configuration in the terminal      |
+| `bun run build:analyze`    | Builds the application and creates a bundle analysis report                  |
+| `bun run start`            | Runs the built standalone server                                             |
+
+## Code style
+
+- Use Valibot for data validation.
+- Write all code in TypeScript. Keep the code short and easy to read.
+- Use functional and declarative patterns. Obey the DRY principle. Use early returns to reduce nesting.
+- Organize a component file in this order: exports, subcomponents, helpers, types.
+- Give boolean names an auxiliary verb, for example `isLoading` and `hasError`.
+- Start event handler names with `handle`, for example `handleClick` and `handleSubmit`.
+- Use lowercase letters and dashes for directory names, for example `components/auth-wizard`.
+- Prefer named exports for components.
+- Prefer interfaces. Use const maps instead of enums. Use the `satisfies` operator to validate types.
+- Use React Server Components where possible and keep `'use client'` directives to a minimum. Add error boundaries to components. Use Suspense for asynchronous operations.
+
+## Internationalization
+
+Interface translations are in `apps/web/messages/`, one JSON file for each language, for example `apps/web/messages/en-US.json`. To add a language:
+
+1. Add the language to the `locales` array in `apps/web/utils/i18n/config.ts`.
+2. Add the translation file of the language to `apps/web/messages/`.
+
+## Submit a pull request
+
+<Steps>
+<Step>
+
+### Prepare the repository
+
+Fork this repository on GitHub. Then clone your fork, add the upstream repository and install the dependencies:
+
+```bash
+git clone https://github.com/YOUR-USERNAME/kuma-mieru.git
+cd kuma-mieru
+git remote add upstream https://github.com/Alice39s/kuma-mieru.git
+bun install
+```
+
+</Step>
+<Step>
+
+### Create a branch
+
+Use the `feature/` prefix for a new feature and the `fix/` prefix for a bug fix:
+
+```bash
+git checkout -b feature/amazing-feature
+```
+
+</Step>
+<Step>
+
+### Change and check the code
+
+Test your changes with `bun run dev`. Before you commit, run:
+
+```bash
+bun run lint
+bun run format
+```
+
+</Step>
+<Step>
+
+### Commit the changes
+
+Write the commit message in the Conventional Commits format:
+
+```bash
+git commit -m 'feat(component): add some amazing feature'
+```
+
+| Type       | Use                                                                    |
+| ---------- | ---------------------------------------------------------------------- |
+| `feat`     | A new feature                                                          |
+| `fix`      | A bug fix                                                              |
+| `docs`     | Documentation changes                                                  |
+| `style`    | Changes that do not affect the meaning of the code, such as formatting |
+| `refactor` | Code changes that neither fix a bug nor add a feature                  |
+| `perf`     | Performance improvements                                               |
+| `test`     | New or corrected tests                                                 |
+| `chore`    | Changes to the build process or auxiliary tools                        |
+
+</Step>
+<Step>
+
+### Push and open a pull request
+
+```bash
+git push origin feature/amazing-feature
+```
+
+Then open a pull request from your fork to the main repository.
+
+</Step>
+</Steps>
+
+A pull request must meet these requirements:
+
+- Each pull request addresses one issue or one feature.
+- The description states clearly what the pull request does.
+- Interface changes include screenshots when possible.
+- The code passes all lint and format checks.
+- The changes work in both the light and the dark theme.
+- The pull request stays current with the main branch through rebase.
+
+## Tests and documentation
+
+- Write tests for your code when applicable and run them with `bun run test`. Your changes must not break existing features.
+- If your changes affect the features, update `README.md`, `README.en.md` and the matching pages in `apps/docs/content/docs`. Update both the Chinese file (`page.mdx`) and the English file (`page.en.mdx`).
+- Add comments that describe the purpose of your components.

@@ -1,0 +1,6 @@
+{
+  "title": "指南",
+  "icon": "Compass",
+  "defaultOpen": true,
+  "pages": ["versioning", "faq"]
+}

@@ -1,0 +1,69 @@
+/*
+ * design.md「字体与颜色」：文档站的颜色 token 与字号角色。颜色全部取自 HeroUI 主题（hero.ts）生成的 --heroui-* 变量，
+ * 与仪表盘使用同一套色板；Fumadocs 的 shadcn 预设再把这些名字映射为 fd-* 颜色。
+ */
+:root,
+.dark {
+  --background: hsl(var(--heroui-background));
+  --foreground: hsl(var(--heroui-foreground));
+  --card: hsl(var(--heroui-content1));
+  --card-foreground: hsl(var(--heroui-content1-foreground));
+  --popover: hsl(var(--heroui-content1));
+  --popover-foreground: hsl(var(--heroui-content1-foreground));
+  --primary: hsl(var(--heroui-primary));
+  --primary-foreground: hsl(var(--heroui-primary-foreground));
+  --secondary: hsl(var(--heroui-default-100));
+  --secondary-foreground: hsl(var(--heroui-default-foreground));
+  --muted: hsl(var(--heroui-default-100));
+  --muted-foreground: hsl(var(--heroui-default-500));
+  --accent: hsl(var(--heroui-default-100));
+  --accent-foreground: hsl(var(--heroui-foreground));
+  --destructive: hsl(var(--heroui-danger));
+  --success: hsl(var(--heroui-success));
+  --warning: hsl(var(--heroui-warning));
+  /* HeroUI bakes the divider alpha into its colour utility instead of a variable; 0.15 in both themes. */
+  --border: hsl(var(--heroui-divider) / 0.15);
+  --input: hsl(var(--heroui-default-200));
+  --ring: hsl(var(--heroui-focus));
+  --radius: var(--heroui-radius-small);
+  --radius-card: var(--heroui-radius-large);
+  --radius-badge: var(--heroui-radius-small);
+  --shadow-overlay: var(--heroui-box-shadow-medium);
+}
+
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+/* 字号角色 */
+@utility text-h1 {
+  font-size: 1.875rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+@utility text-section-title {
+  font-size: 1.25rem;
+  line-height: 1.4;
+  font-weight: 600;
+}
+@utility text-card-title {
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 600;
+}
+@utility text-body {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  font-weight: 400;
+}
+@utility text-meta {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  font-weight: 400;
+}

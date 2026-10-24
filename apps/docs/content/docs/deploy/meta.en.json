@@ -1,0 +1,6 @@
+{
+  "title": "Deploy",
+  "icon": "Rocket",
+  "defaultOpen": true,
+  "pages": ["index", "vercel", "netlify", "edgeone", "cloudflare", "docker", "source"]
+}

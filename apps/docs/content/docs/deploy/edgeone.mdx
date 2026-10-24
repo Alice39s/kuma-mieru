@@ -1,0 +1,43 @@
+---
+title: EdgeOne Pages
+description: 把 Fork 的仓库导入 EdgeOne Pages，部署 Kuma Mieru。
+icon: Zap
+---
+
+<Steps>
+<Step>
+
+### Fork 仓库
+
+打开本仓库的 [Fork 页面](https://github.com/Alice39s/kuma-mieru/fork)，点击 `Create fork`。
+
+</Step>
+<Step>
+
+### 导入仓库
+
+登录 [EdgeOne Pages](https://pages.edgeone.ai)，选择导入 Git 仓库，选中刚才 Fork 的仓库。
+
+</Step>
+<Step>
+
+### 设置构建
+
+1. 把根目录设为 `apps/web`。
+2. 框架预设选择 `Next.js`。
+
+`apps/web/edgeone.json` 已设置安装命令 `bun install --frozen-lockfile` 和构建命令 `bun run build`。
+
+</Step>
+<Step>
+
+### 添加环境变量并部署
+
+添加 `UPTIME_KUMA_URLS` 环境变量，值为状态页的完整 URL，多个 URL 用 `|` 分隔。然后点击开始部署。其他变量见[环境变量](../configuration/environment.mdx)。
+
+</Step>
+</Steps>
+
+## 修改环境变量
+
+配置在构建时生成。在 EdgeOne Pages 修改环境变量后，重新部署才会生效。

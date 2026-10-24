@@ -1,0 +1,21 @@
+{
+  "extends": "@kuma-mieru/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "app",
+    "components",
+    "lib",
+    "source.config.ts",
+    "site.config.ts",
+    ".source/**/*.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".next", "out"]
+}

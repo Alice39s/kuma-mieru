@@ -1,0 +1,31 @@
+---
+title: Cloudflare Workers
+description: Cloudflare Workers deployment is not supported yet. This page lists the Cloudflare configuration and scripts in the repository.
+icon: Cloud
+---
+
+<Callout type="warn" title="Not supported yet">
+  Cloudflare Workers deployment is not supported yet. Use [Vercel](./vercel.mdx) or
+  [Netlify](./netlify.mdx) instead. For the discussion, see
+  [#88](https://github.com/Alice39s/kuma-mieru/issues/88#issuecomment-2919619066).
+</Callout>
+
+## Cloudflare configuration in the repository
+
+The web application keeps a Cloudflare build configuration based on OpenNext (`@opennextjs/cloudflare`). The files are in the `apps/web` directory:
+
+| File                  | Content                                                                                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wrangler.jsonc`      | Worker name `uptime-kuma-pages`, the `nodejs_compat` flag, the entry `.open-next/worker.js` and the asset directory `.open-next/assets` (binding `ASSETS`) |
+| `open-next.config.ts` | The OpenNext configuration for Cloudflare                                                                                                                  |
+
+## Scripts
+
+Run these commands in the `apps/web` directory:
+
+| Command                     | Action                                                                                                |
+| --------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `bun run build:cloudflare`  | Sets `CF_DEPLOYMENT=true`, runs the `generate` script, then builds with `opennextjs-cloudflare build` |
+| `bun run deploy:cloudflare` | Sets `CF_DEPLOYMENT=true` and deploys with `opennextjs-cloudflare deploy`                             |
+
+If you try it yourself, import the repository on Cloudflare and set the root directory to `apps/web`. Then set the variables as described in [Environment Variables](../configuration/environment.mdx).

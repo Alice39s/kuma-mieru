@@ -1,0 +1,11 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "out/**", ".source/**"],
+      "env": ["DOCS_BASE_PATH", "SITE_ORIGIN"],
+      "inputs": ["$TURBO_DEFAULT$", "../../docs/*.png"]
+    }
+  }
+}

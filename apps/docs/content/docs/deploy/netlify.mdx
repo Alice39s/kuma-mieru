@@ -1,0 +1,55 @@
+---
+title: Netlify
+description: 用 Deploy 按钮或导入 Fork 的仓库，把 Kuma Mieru 部署到 Netlify。
+icon: Globe
+---
+
+<Steps>
+<Step>
+
+### 创建站点
+
+任选一种方式：
+
+- 点击 [Deploy to Netlify](https://app.netlify.com/start/deploy?repository=https://github.com/Alice39s/kuma-mieru)，按提示授权 GitHub，Netlify 会在你的账号下创建仓库。
+- 先 [Fork](https://github.com/Alice39s/kuma-mieru/fork) 本仓库，再在 [app.netlify.com/start](https://app.netlify.com/start) 导入。
+
+</Step>
+<Step>
+
+### 设置 Package directory
+
+在构建设置中把 `Package directory` 设为 `apps/web`，`Base directory` 保持为空。Netlify 在仓库根目录安装依赖（`bun.lock` 和 `.nvmrc` 都在根目录），再从 `apps/web` 读取构建配置文件 `netlify.toml`。导入仓库时，如果 Netlify 列出了仓库中的多个站点，选择 `apps/web` 即可。
+
+</Step>
+<Step>
+
+### 填写环境变量
+
+填写 `UPTIME_KUMA_URLS`，值为状态页的完整 URL，多个 URL 用 `|` 分隔。其他变量见[环境变量](../configuration/environment.mdx)。
+
+</Step>
+<Step>
+
+### 部署
+
+点击 `Deploy` 开始部署。
+
+</Step>
+</Steps>
+
+## 构建设置
+
+`apps/web/netlify.toml` 设置了构建命令 `bun run --cwd apps/web build` 和发布目录 `apps/web/.next`，路径都相对于仓库根目录。Netlify 会自动启用 Next.js 适配器。除 Package directory 外，其他构建设置不需要手动修改。
+
+## 修改环境变量
+
+`UPTIME_KUMA_URLS` 等配置在构建时写入产物。修改环境变量后，在 `Deploys` 页面点击 `Trigger deploy` 重新部署，新配置才会生效。
+
+## 已知问题
+
+<Callout type="warn" title="构建报错 Could not patch functions config manifest file">
+  Netlify 的 Next.js 适配器 `@netlify/plugin-nextjs` 5.16.4 在打包 Node.js
+  Proxy（`proxy.ts`）时，可能报出 `Could not patch functions config manifest file`
+  构建错误。遇到这个错误时，请等待适配器发布修复版本，再重新部署。
+</Callout>

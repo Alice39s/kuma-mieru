@@ -1,0 +1,135 @@
+@import 'tailwindcss';
+/* HeroUI's theme plugin emits the --heroui-* colours and radii that tokens.css maps; the dashboard uses the same plugin. */
+@plugin '@kuma-mieru/theme/hero';
+@import '@kuma-mieru/theme/tokens.css';
+@import 'fumadocs-ui/css/shadcn.css';
+@import 'fumadocs-ui/css/preset.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans:
+    var(--font-noto-sans), 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC',
+    system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+}
+
+/* Fumadocs swaps the page-tree drawer for the sidebar at `md`; the site steps up at 1024px. */
+@theme {
+  --breakpoint-md: 64rem;
+}
+
+:root {
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-ring: var(--ring);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --fd-layout-width: 1280px;
+  --km-header-height: 4rem;
+}
+
+/* Callouts and badges take the dashboard's status colours: notes in primary, then warning, danger and success. */
+:root,
+.dark {
+  --color-fd-info: var(--primary);
+  --color-fd-idea: var(--primary);
+  --color-fd-warning: var(--warning);
+  --color-fd-success: var(--success);
+  --color-fd-error: var(--destructive);
+}
+
+html {
+  scrollbar-gutter: stable;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Fumadocs locks scrolling with a padding offset; the reserved gutter already keeps the page still. */
+html > body[data-scroll-locked] {
+  margin-right: 0 !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Fumadocs clears the outline on tab panels and the collapsed table of contents without a ring; keyboard focus gets
+   the global outline back. */
+[role='tabpanel']:focus-visible,
+[data-toc-popover-trigger]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The docs layout sits under the site header, inside the dashboard's 1280px frame. */
+#nd-docs-layout {
+  --fd-banner-height: var(--km-header-height);
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  min-height: calc(100dvh - var(--km-header-height));
+}
+
+/* Long-form text: the body role with a long-form line height; headings take the section and card title roles. */
+.prose {
+  font-size: 0.9375rem;
+  line-height: 1.75;
+}
+.prose :where(h2):not(:where(.not-prose, .not-prose *)) {
+  @apply text-section-title;
+}
+.prose :where(h3):not(:where(.not-prose, .not-prose *)) {
+  @apply text-card-title;
+}
+.prose :where(table):not(:where(.not-prose, .not-prose *)) {
+  @apply text-body;
+}
+
+/* Code blocks are control-sized surfaces: the small radius, a thin border, no shadow. */
+#nd-page figure.shiki {
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+
+/* Mermaid keeps its source visible until the diagram renders in the browser. */
+.km-mermaid {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+.km-mermaid-source {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  white-space: pre-wrap;
+}
+
+/* The heartbeat strip: status bars the height of the dashboard's, colour set per bar. */
+.km-heartbeat {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 0.75rem;
+}
+.km-heartbeat > span {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

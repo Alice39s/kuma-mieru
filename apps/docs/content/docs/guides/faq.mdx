@@ -1,0 +1,71 @@
+---
+title: 常见问题
+description: 时间偏移、配置不生效、构建报错和 iframe 嵌入等问题的原因与处理方法。
+icon: CircleHelp
+---
+
+<Accordions type="single">
+<Accordion title="为什么 Kuma Mieru 显示的时间和 Uptime Kuma 不一致？">
+
+Uptime Kuma 后端传给前端的时间不带时区信息。为了便于开发，Kuma Mieru 统一把时间按 UTC+0 显示。
+
+请在 Uptime Kuma 的设置中把 `Display Timezone`（显示时区）改为任意 UTC+0 时区。
+
+</Accordion>
+<Accordion title="支持 Uptime Robot、Better Stack 或其他监控数据源吗？">
+
+Kuma Mieru 的设计目标是弥补 Uptime Kuma 的不足，所以 v1 暂不考虑支持其他监控数据源。v2 可能会考虑接入 Uptime Robot、Better Stack 等监控工具的 API。
+
+</Accordion>
+<Accordion title="页面没有显示监控数据">
+
+检查以下几项：
+
+- 已设置 `UPTIME_KUMA_URLS`，或者同时设置了 `UPTIME_KUMA_BASE_URL` 和 `PAGE_ID`。
+- 每个 URL 都包含 `/status/<页面 ID>`。
+- 运行 Kuma Mieru 的环境能访问状态页 URL。
+
+详见[连接 Uptime Kuma](../configuration/uptime-kuma.mdx)。
+
+</Accordion>
+<Accordion title="修改环境变量后页面没有变化">
+
+配置在构建时或容器启动时生成。在 Vercel、Netlify 或 EdgeOne Pages 修改变量后，需要重新部署。使用 Docker Compose 时，运行 `docker compose up -d --force-recreate`。详见[环境变量](../configuration/environment.mdx)。
+
+</Accordion>
+<Accordion title="Fork 的仓库会泄露我的配置吗？">
+
+不会。所有配置都通过部署平台的环境变量设置，不写入仓库。请保持 Fork 为公开仓库，否则后续可能无法快速同步上游的更新。
+
+</Accordion>
+<Accordion title="配置生成时报错 Duplicate page id">
+
+`UPTIME_KUMA_URLS` 中两个来自不同 Uptime Kuma 实例的状态页使用了同一个页面 ID。页面 ID 在所有实例之间必须唯一，请在其中一个实例中给状态页换一个页面 ID。
+
+</Accordion>
+<Accordion title="Netlify 构建报错 Could not patch functions config manifest file">
+
+Netlify 的 Next.js 适配器 `@netlify/plugin-nextjs` 5.16.4 在打包 Node.js Proxy（`proxy.ts`）时可能报出这个错误。请等待适配器发布修复版本，再重新部署。
+
+</Accordion>
+<Accordion title="Uptime Kuma 使用自签名证书怎么办？">
+
+在受信任的环境中，可以设置 `ALLOW_INSECURE_TLS=true`，跳过上游 HTTPS 证书校验。这样做有安全风险，详见 [ALLOW_INSECURE_TLS](../configuration/environment.mdx#allow_insecure_tls)。
+
+</Accordion>
+<Accordion title="能把仪表盘嵌入其他网站的 iframe 吗？">
+
+可以。默认禁止嵌入。用 `ALLOW_EMBEDDING` 列出允许嵌入的源，例如 `ALLOW_EMBEDDING=example.com`。详见 [ALLOW_EMBEDDING](../configuration/environment.mdx#allow_embedding)。
+
+</Accordion>
+<Accordion title="远程图片无法加载">
+
+默认值 `STRICT_IMAGE_REMOTE_PATTERNS=false` 允许所有远程图片域名。设为 `true` 后，白名单中只有 Uptime Kuma 基础 URL 和 `KUMA_MIERU_ICON` 的域名，其他域名的图片无法加载。详见 [STRICT_IMAGE_REMOTE_PATTERNS](../configuration/environment.mdx#strict_image_remote_patterns)。
+
+</Accordion>
+<Accordion title="可以部署到 Cloudflare Workers 吗？">
+
+暂不支持，请改用 Vercel 或 Netlify。仓库中保留的 Cloudflare 配置见 [Cloudflare Workers](../deploy/cloudflare.mdx)。
+
+</Accordion>
+</Accordions>

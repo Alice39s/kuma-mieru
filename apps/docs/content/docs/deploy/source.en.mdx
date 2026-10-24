@@ -1,0 +1,124 @@
+---
+title: Run from Source
+description: Start a development server from source with Bun and Node.js, or build and run the production version.
+icon: Terminal
+---
+
+## Requirements
+
+| Tool    | Version | Declared in                                           |
+| ------- | ------- | ----------------------------------------------------- |
+| Node.js | 26.12.1 | `.nvmrc` and the `engines` field of `package.json`    |
+| Bun     | 1.4.4   | The `packageManager` field of the root `package.json` |
+
+The build and the Node.js standalone runtime need Node.js 26.12.1. The project uses Bun as its package manager. Install Bun with one of these methods:
+
+<Tabs items={['Linux / macOS', 'Windows', 'npm']}>
+<Tab value="Linux / macOS">
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+</Tab>
+<Tab value="Windows">
+
+```powershell
+powershell -c "irm bun.sh/install.ps1 | iex"
+```
+
+</Tab>
+<Tab value="npm">
+
+```bash
+npm i -g bun@1.4.4
+```
+
+</Tab>
+</Tabs>
+
+## Start the development server
+
+<Steps>
+<Step>
+
+### Clone the repository
+
+```bash
+git clone https://github.com/Alice39s/kuma-mieru.git
+cd kuma-mieru
+```
+
+</Step>
+<Step>
+
+### Install the dependencies
+
+Run this command in the repository root. It installs the dependencies of all workspaces:
+
+```bash
+bun install
+```
+
+</Step>
+<Step>
+
+### Configure the environment variables
+
+The web application reads `.env` from the `apps/web` directory. Copy the template:
+
+```bash
+cp apps/web/.env.example apps/web/.env
+```
+
+Edit `apps/web/.env` and set `UPTIME_KUMA_URLS`:
+
+```ini title="apps/web/.env"
+UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/your-status-page-id
+```
+
+For multiple status pages, separate the URLs with `|`:
+
+```ini title="apps/web/.env"
+UPTIME_KUMA_URLS=https://status.kuma-mieru.invalid/status/prod|https://status.kuma-mieru.invalid/status/staging
+```
+
+For the required variables and the other variables, see [Environment Variables](../configuration/environment.mdx).
+
+</Step>
+<Step>
+
+### Start
+
+```bash
+bun run dev
+```
+
+Turborepo starts the web application and the docs site together. Open [http://localhost:3881](http://localhost:3881) to see the dashboard. The docs site runs at [http://localhost:3882](http://localhost:3882).
+
+To start only the web application, run:
+
+```bash
+bunx turbo run dev --filter=@kuma-mieru/web
+```
+
+</Step>
+</Steps>
+
+The `dev` script of the web application runs `generate` and `lint:fix`, then starts the Next.js development server.
+
+## Build and run the production version
+
+Run these commands in the `apps/web` directory:
+
+```bash
+cd apps/web
+bun run build
+bun run start
+```
+
+- `bun run build` runs `generate`, then runs `next build` to create the standalone output.
+- `bun run start` runs `generate` again, copies the static files into the standalone output directory, then runs `.next/standalone/apps/web/server.js` with Bun.
+- The server listens on port 3000 by default.
+
+If you run `bun run build` in the repository root, Turborepo builds the web application and the docs site together.

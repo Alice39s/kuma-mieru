@@ -1,0 +1,124 @@
+---
+title: 从源码运行
+description: 在本机用 Bun 和 Node.js 从源码启动开发服务器，或构建并运行生产版本。
+icon: Terminal
+---
+
+## 环境要求
+
+| 工具    | 版本    | 声明位置                                       |
+| ------- | ------- | ---------------------------------------------- |
+| Node.js | 26.12.1 | `.nvmrc` 和 `package.json` 的 `engines` 字段   |
+| Bun     | 1.4.4   | 根目录 `package.json` 的 `packageManager` 字段 |
+
+构建和 Node.js standalone 运行需要 Node.js 26.12.1。项目用 Bun 作为包管理器，安装方法任选一种：
+
+<Tabs items={['Linux / macOS', 'Windows', 'npm']}>
+<Tab value="Linux / macOS">
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+</Tab>
+<Tab value="Windows">
+
+```powershell
+powershell -c "irm bun.sh/install.ps1 | iex"
+```
+
+</Tab>
+<Tab value="npm">
+
+```bash
+npm i -g bun@1.4.4
+```
+
+</Tab>
+</Tabs>
+
+## 启动开发服务器
+
+<Steps>
+<Step>
+
+### 克隆仓库
+
+```bash
+git clone https://github.com/Alice39s/kuma-mieru.git
+cd kuma-mieru
+```
+
+</Step>
+<Step>
+
+### 安装依赖
+
+在仓库根目录执行，安装所有 workspace 的依赖：
+
+```bash
+bun install
+```
+
+</Step>
+<Step>
+
+### 配置环境变量
+
+Web 应用从 `apps/web` 目录读取 `.env`。复制模板：
+
+```bash
+cp apps/web/.env.example apps/web/.env
+```
+
+编辑 `apps/web/.env`，设置 `UPTIME_KUMA_URLS`：
+
+```ini title="apps/web/.env"
+UPTIME_KUMA_URLS=https://example.kuma-mieru.invalid/status/your-status-page-id
+```
+
+有多个状态页时，用 `|` 分隔：
+
+```ini title="apps/web/.env"
+UPTIME_KUMA_URLS=https://status.kuma-mieru.invalid/status/prod|https://status.kuma-mieru.invalid/status/staging
+```
+
+必填项和其他变量见[环境变量](../configuration/environment.mdx)。
+
+</Step>
+<Step>
+
+### 启动
+
+```bash
+bun run dev
+```
+
+Turborepo 同时启动 Web 应用和文档站。打开 [http://localhost:3881](http://localhost:3881) 查看仪表盘，文档站运行在 [http://localhost:3882](http://localhost:3882)。
+
+只启动 Web 应用时执行：
+
+```bash
+bunx turbo run dev --filter=@kuma-mieru/web
+```
+
+</Step>
+</Steps>
+
+Web 应用的 `dev` 脚本依次运行 `generate` 和 `lint:fix`，再启动 Next.js 开发服务器。
+
+## 构建并运行生产版本
+
+在 `apps/web` 目录执行：
+
+```bash
+cd apps/web
+bun run build
+bun run start
+```
+
+- `bun run build` 先运行 `generate`，再执行 `next build`，生成 standalone 输出。
+- `bun run start` 重新运行 `generate`，把静态文件复制到 standalone 输出目录，再用 Bun 运行 `.next/standalone/apps/web/server.js`。
+- 服务默认监听 3000 端口。
+
+在仓库根目录运行 `bun run build` 时，Turborepo 会同时构建 Web 应用和文档站。
