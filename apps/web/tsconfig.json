@@ -1,35 +1,23 @@
 {
+  "extends": "@kuma-mieru/tsconfig/nextjs.json",
   "compilerOptions": {
-    "target": "es2022",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "paths": {
       "@/*": ["./*"]
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
     "next-env.d.ts",
-    "dist/types/**/*.ts",
+    "app",
+    "components",
+    "config",
+    "scripts",
+    "services",
+    "types",
+    "utils",
+    "proxy.ts",
+    "open-next.config.ts",
+    ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", ".next", ".open-next"]
 }

@@ -1,6 +1,8 @@
+# Netlify builds from the repository root, where bun.lock and .nvmrc are; set the package directory to apps/web.
+# Paths are relative to the root.
 [build]
-command = "bun run build"
-publish = ".next"
+command = "bun run --cwd apps/web build"
+publish = "apps/web/.next"
 
 [template.environment]
 UPTIME_KUMA_URLS = "Uptime Kuma status page URL(s), separate multiple URLs with |"

@@ -1,0 +1,4 @@
+{
+  "extends": "@kuma-mieru/tsconfig/base.json",
+  "include": ["hero.ts", "palette.ts"]
+}

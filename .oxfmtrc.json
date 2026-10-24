@@ -11,6 +11,6 @@
   "bracketSameLine": false,
   "arrowParens": "avoid",
   "endOfLine": "lf",
-  "experimentalSortPackageJson": false,
+  "sortPackageJson": false,
   "ignorePatterns": []
 }

@@ -1,19 +1,25 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.js
 
 # testing
-/coverage
+coverage/
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
-/build
+build/
+
+# turborepo
+.turbo/
+
+# fumadocs
+.source/
 
 # misc
 .DS_Store
@@ -56,6 +62,7 @@ dist/
 !CONTRIBUTING.md
 !README*
 !SECURITY.md
+!apps/docs/design.md
 
 .agents/
 .claude/

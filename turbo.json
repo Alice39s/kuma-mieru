@@ -1,0 +1,23 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "tasks": {
+    "typegen": {
+      "outputs": [".source/**"]
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["typegen"]
+    },
+    "lint:fix": {
+      "cache": false
+    },
+    "test": {}
+  }
+}

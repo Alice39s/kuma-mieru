@@ -63,11 +63,24 @@ const getImageRemotePatterns = () => {
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
+// Turbopack and the standalone output resolve packages from the monorepo root.
+const workspaceRoot = join(import.meta.dirname, '..', '..');
+
 const baseConfig = {
   poweredByHeader: false,
   compress: true,
 
   reactStrictMode: true,
+
+  outputFileTracingRoot: workspaceRoot,
+  turbopack: {
+    root: workspaceRoot,
+  },
+
+  // The `lint` task type-checks the app with `oxlint --type-aware --type-check`.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 
   images: {
     remotePatterns: getImageRemotePatterns(),

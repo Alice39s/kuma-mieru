@@ -1,13 +1,16 @@
-import { heroui } from '@heroui/theme';
+import { fileURLToPath } from 'node:url';
+import hero from '@kuma-mieru/theme/hero';
 import typography from '@tailwindcss/typography';
+
+// HeroUI component styles live in the installed package, wherever the workspace linker puts it.
+const heroThemeDist = fileURLToPath(new URL('.', import.meta.resolve('@heroui/theme')));
 
 /** @type {import('tailwindcss').Config} */
 const config = {
   content: [
     './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
-    './node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}',
+    `${heroThemeDist}**/*.{js,ts,jsx,tsx}`,
   ],
   theme: {
     extend: {
@@ -18,7 +21,7 @@ const config = {
     },
   },
   darkMode: 'class',
-  plugins: [heroui(), typography()],
+  plugins: [hero, typography()],
 };
 
 export default config;
