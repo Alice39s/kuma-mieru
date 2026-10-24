@@ -4,7 +4,7 @@ import { DocsLayout } from 'fumadocs-ui/layouts/docs';
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { DocsBar } from '@/components/docs-bar';
+import { DocsBar, NoSidebarTitle } from '@/components/docs-bar';
 import DocsSearchDialog from '@/components/search';
 import { SiteHeader } from '@/components/site-header';
 import { fontMono, fontSans } from '@/lib/fonts';
@@ -42,7 +42,7 @@ export default async function Layout({ params, children }: LayoutProps) {
           <DocsLayout
             {...layoutOptions}
             tree={source.getPageTree(lang)}
-            slots={{ header: DocsBar }}
+            slots={{ header: DocsBar, navTitle: NoSidebarTitle }}
             sidebar={{ collapsible: false }}
           >
             {children}

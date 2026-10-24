@@ -13,7 +13,6 @@ export const translations = i18n
 export const siteText = {
   zh: {
     byline: '文档',
-    home: 'Kuma Mieru 文档首页',
     repository: 'GitHub 仓库：Alice39s/kuma-mieru',
     star: '在 GitHub 上 Star',
     switchLanguage: 'Switch to English',
@@ -30,7 +29,6 @@ export const siteText = {
   },
   en: {
     byline: 'Docs',
-    home: 'Kuma Mieru docs home',
     repository: 'GitHub repository: Alice39s/kuma-mieru',
     star: 'Star on GitHub',
     switchLanguage: '切换到中文',

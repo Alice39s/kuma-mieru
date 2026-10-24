@@ -7,6 +7,11 @@ import { iconButton } from './icon-button';
 import { isLocale } from '@/lib/i18n';
 import { siteText } from '@/lib/layout.shared';
 
+/** The site header carries the brand, so the sidebar shows no title link of its own. */
+export function NoSidebarTitle() {
+  return null;
+}
+
 /**
  * Below 1024px, where the page tree becomes a drawer: a bar under the site header that opens it and the search. It
  * takes the place of Fumadocs' own small-screen header, so the layout's row offsets stay in step.
