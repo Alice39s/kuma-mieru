@@ -1,22 +1,6 @@
-export interface GeneratedPageConfig {
-  id: string;
-  baseUrl: string;
-  siteMeta: {
-    title: string;
-    description: string;
-    icon: string;
-    iconCandidates: string[];
-  };
-}
+import type { InferOutput } from 'valibot';
+import type { generatedConfigSchema, generatedPageConfigSchema } from './schemas';
 
-export interface GeneratedConfig {
-  /** Default base URL (first page's base URL). Used as fallback when a page has no explicit baseUrl. */
-  baseUrl: string;
-  pageId: string;
-  pageIds: string[];
-  pages: GeneratedPageConfig[];
-  siteMeta: GeneratedPageConfig['siteMeta'];
-  isPlaceholder: boolean;
-  isEditThisPage: boolean;
-  isShowStarButton: boolean;
-}
+export type GeneratedPageConfig = InferOutput<typeof generatedPageConfigSchema>;
+
+export type GeneratedConfig = InferOutput<typeof generatedConfigSchema>;

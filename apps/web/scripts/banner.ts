@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import chalk from 'chalk';
+import { safeParse, summarize } from 'valibot';
+import { generatedConfigFileSchema } from '../config/schemas';
+import type { GeneratedConfig } from '../config/types';
 import packageJson from '../package.json';
 
 const banner = `
@@ -42,17 +45,28 @@ const printConfigGroup = ({ title, icon, color, items }: ConfigGroup) => {
   console.log('');
 };
 
-const getGeneratedConfig = () => {
+const readGeneratedConfigFile = (configPath: string): string | null => {
   try {
-    const configPath = path.join(process.cwd(), 'config', 'generated-config.json');
-    if (fs.existsSync(configPath)) {
-      const configStr = fs.readFileSync(configPath, 'utf8');
-      return JSON.parse(configStr);
-    }
+    return fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : null;
   } catch (err) {
-    console.error('[banner] [getGeneratedConfig] [error]', err);
+    console.error('[banner] [getGeneratedConfig] [error]', configPath, err);
+    return null;
   }
-  return null;
+};
+
+const getGeneratedConfig = (): GeneratedConfig | null => {
+  const configPath = path.join(process.cwd(), 'config', 'generated-config.json');
+  const configStr = readGeneratedConfigFile(configPath);
+  if (configStr === null) {
+    return null;
+  }
+
+  const result = safeParse(generatedConfigFileSchema, configStr);
+  if (!result.success) {
+    console.error('[banner] [getGeneratedConfig] [error]', configPath, summarize(result.issues));
+    return null;
+  }
+  return result.output;
 };
 
 const generatedConfig = getGeneratedConfig();
@@ -91,22 +105,18 @@ const configGroups: ConfigGroup[] = [
       },
       {
         name: 'RESOLVED_BASE_URLS',
-        value: generatedConfig?.pages
-          ? Array.from(
-              new Set(generatedConfig.pages.map((page: { baseUrl?: string }) => page.baseUrl))
-            )
-              .filter(Boolean)
-              .join(', ')
+        value: generatedConfig
+          ? Array.from(new Set(generatedConfig.pages.map(page => page.baseUrl))).join(', ')
           : undefined,
         defaultValue: 'Not available',
       },
       {
         name: 'RESOLVED_DEFAULT_PAGE_ID',
-        value: generatedConfig?.pageId || generatedConfig?.pageIds?.[0] || process.env.PAGE_ID,
+        value: generatedConfig?.pageId || generatedConfig?.pageIds[0] || process.env.PAGE_ID,
       },
       {
         name: 'RESOLVED_PAGE_IDS',
-        value: generatedConfig?.pageIds?.join(', ') || process.env.PAGE_ID,
+        value: generatedConfig?.pageIds.join(', ') || process.env.PAGE_ID,
       },
       {
         name: 'UPTIME_KUMA_BASE_URL (legacy)',
@@ -144,17 +154,17 @@ const configGroups: ConfigGroup[] = [
     items: [
       {
         name: 'KUMA_MIERU_TITLE',
-        value: generatedConfig?.siteMeta?.title,
+        value: generatedConfig?.siteMeta.title,
         defaultValue: 'Using Default',
       },
       {
         name: 'KUMA_MIERU_DESCRIPTION',
-        value: generatedConfig?.siteMeta?.description,
+        value: generatedConfig?.siteMeta.description,
         defaultValue: 'Using Default',
       },
       {
         name: 'KUMA_MIERU_ICON',
-        value: generatedConfig?.siteMeta?.icon,
+        value: generatedConfig?.siteMeta.icon,
         defaultValue: 'Using Default',
       },
     ],

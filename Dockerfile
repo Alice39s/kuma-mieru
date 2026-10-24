@@ -91,9 +91,9 @@ USER nextjs
 
 # 创建最小化的 package.json 只包含运行时依赖
 # 包括 serverExternalPackages 声明的包：sharp
-# 以及 generate 脚本需要的：cheerio, zod, json5, dotenv, chalk
+# 以及 generate 脚本需要的：cheerio, valibot, json5, dotenv, chalk
 # tsx 用于运行 TypeScript 启动脚本（替代 Bun，避免 AVX2 指令集兼容性问题）
-RUN npm install --prefer-online --omit=dev sharp cheerio zod json5 dotenv chalk tsx
+RUN npm install --prefer-online --omit=dev sharp cheerio valibot json5 dotenv chalk tsx
 
 # 从 builder 复制构建产物（standalone 输出保留 monorepo 目录结构）
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone/ ./
