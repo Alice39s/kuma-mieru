@@ -3,7 +3,7 @@
 # ============================================
 FROM node:26.12.1-alpine AS builder
 
-RUN npm install -g bun@latest
+RUN npm install -g bun@1.4.4
 
 WORKDIR /app
 
@@ -20,24 +20,25 @@ ENV NODE_ENV=production \
     KUMA_MIERU_ICON="" \
     ALLOW_EMBEDDING=false
 
-# 复制依赖文件
+# 复制 workspace 清单，依赖层只在清单或锁文件变化时重建
 COPY package.json bun.lock ./
-COPY scripts ./scripts
-COPY utils ./utils
+COPY apps/web/package.json ./apps/web/
+COPY apps/docs/package.json ./apps/docs/
+COPY packages/theme/package.json ./packages/theme/
+COPY packages/tsconfig/package.json ./packages/tsconfig/
 
-# 使用 Bun 安装依赖
+# 使用 Bun 安装 Web 应用及其 workspace 依赖
 RUN set -e && \
     echo "Installing dependencies..." && \
-    bun install --frozen-lockfile || { echo "Failed to install dependencies"; exit 1; }
+    bun install --frozen-lockfile --filter @kuma-mieru/web || { echo "Failed to install dependencies"; exit 1; }
 
 # 复制源代码
 COPY . .
 
-# 使用 Node.js 构建应用
+# 生成配置并用 Node.js 构建应用
 RUN set -e && \
     echo "Starting build process..." && \
-    bun run generate && \
-    npx next build || { echo "Build failed"; exit 1; }
+    bun run --cwd apps/web build || { echo "Build failed"; exit 1; }
 
 
 
@@ -94,13 +95,16 @@ USER nextjs
 # tsx 用于运行 TypeScript 启动脚本（替代 Bun，避免 AVX2 指令集兼容性问题）
 RUN npm install --prefer-online --omit=dev sharp cheerio zod json5 dotenv chalk tsx
 
-# 从 builder 复制构建产物（standalone 输出）
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/ ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/config ./config
-COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
-COPY --from=builder --chown=nextjs:nodejs /app/utils ./utils
+# 从 builder 复制构建产物（standalone 输出保留 monorepo 目录结构）
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone/ ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/config ./apps/web/config
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/scripts ./apps/web/scripts
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/utils ./apps/web/utils
+
+# 配置生成脚本与 standalone 服务器都以 Web 应用目录为工作目录
+WORKDIR /app/apps/web
 
 EXPOSE ${PORT}
 

@@ -16,6 +16,8 @@ import chalk from 'chalk';
 
 const projectRoot = process.cwd();
 const standaloneDir = join(projectRoot, '.next', 'standalone');
+// The standalone output keeps the monorepo layout, so the server and its assets live under apps/web.
+const standaloneAppDir = join(standaloneDir, 'apps', 'web');
 
 console.log(chalk.blue('🚀 Init Next.js standalone...'));
 
@@ -30,7 +32,7 @@ async function copyStaticFiles() {
 
     // Copy .next/static to standalone/.next/static
     const staticSource = join(projectRoot, '.next', 'static');
-    const staticTarget = join(standaloneDir, '.next', 'static');
+    const staticTarget = join(standaloneAppDir, '.next', 'static');
 
     if (existsSync(staticSource)) {
       // Ensure target .next directory exists
@@ -47,7 +49,7 @@ async function copyStaticFiles() {
 
     // Copy public to standalone/public
     const publicSource = join(projectRoot, 'public');
-    const publicTarget = join(standaloneDir, 'public');
+    const publicTarget = join(standaloneAppDir, 'public');
 
     if (existsSync(publicSource)) {
       console.log(chalk.green(`Copy public files: ${publicSource} -> ${publicTarget}`));

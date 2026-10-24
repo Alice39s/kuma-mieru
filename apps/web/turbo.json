@@ -1,0 +1,49 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "!.next/dev/**",
+        "config/generated-config.json",
+        "config/generated/**"
+      ],
+      "env": [
+        "UPTIME_KUMA_*",
+        "PAGE_ID",
+        "KUMA_MIERU_*",
+        "FEATURE_*",
+        "ALLOW_EMBEDDING",
+        "ALLOW_INSECURE_TLS",
+        "STRICT_IMAGE_REMOTE_PATTERNS",
+        "SSR_STRICT_MODE",
+        "REQUEST_*",
+        "CI_MODE",
+        "CF_DEPLOYMENT",
+        "ANALYZE",
+        "VERCEL",
+        "IS_DOCKER"
+      ]
+    },
+    "dev": {
+      "passThroughEnv": [
+        "UPTIME_KUMA_*",
+        "PAGE_ID",
+        "KUMA_MIERU_*",
+        "FEATURE_*",
+        "ALLOW_EMBEDDING",
+        "ALLOW_INSECURE_TLS",
+        "STRICT_IMAGE_REMOTE_PATTERNS",
+        "SSR_STRICT_MODE",
+        "REQUEST_*",
+        "CI_MODE",
+        "CF_DEPLOYMENT",
+        "ANALYZE",
+        "VERCEL",
+        "IS_DOCKER"
+      ]
+    }
+  }
+}

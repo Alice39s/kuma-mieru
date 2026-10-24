@@ -1,6 +1,5 @@
 {
-  "typescript.tsdk": "node_modules/typescript/lib",
-  "i18n-ally.localesPaths": ["messages", "utils/i18n"],
+  "i18n-ally.localesPaths": ["apps/web/messages", "apps/web/utils/i18n"],
   "i18n-ally.sourceLanguage": "zh-CN",
   "i18n-ally.keystyle": "nested",
   "oxc.fmt.configPath": ".oxfmtrc.json",

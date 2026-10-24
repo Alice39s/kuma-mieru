@@ -1,0 +1,24 @@
+{
+  "name": "@kuma-mieru/theme",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MPL-2.0",
+  "type": "module",
+  "exports": {
+    "./hero": "./hero.ts",
+    "./palette": "./palette.ts",
+    "./tokens.css": "./tokens.css"
+  },
+  "scripts": {
+    "lint": "oxlint --type-aware --type-check --deny-warnings",
+    "lint:fix": "oxlint --fix && oxfmt"
+  },
+  "dependencies": {
+    "@heroui/theme": "2.4.26"
+  },
+  "devDependencies": {
+    "@kuma-mieru/tsconfig": "workspace:*",
+    "@types/node": "26.6.5",
+    "tailwindcss": "^4.3.3"
+  }
+}

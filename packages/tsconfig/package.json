@@ -1,0 +1,14 @@
+{
+  "name": "@kuma-mieru/tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MPL-2.0",
+  "files": [
+    "base.json",
+    "nextjs.json"
+  ],
+  "exports": {
+    "./base.json": "./base.json",
+    "./nextjs.json": "./nextjs.json"
+  }
+}

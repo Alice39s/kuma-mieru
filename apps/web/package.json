@@ -1,5 +1,5 @@
 {
-  "name": "kuma-mieru",
+  "name": "@kuma-mieru/web",
   "description": "A 3rd-party Uptime Kuma monitoring dashboard built on Next.js 16, TypeScript and Recharts.",
   "version": "1.7.6",
   "author": "Alice39s",
@@ -7,7 +7,8 @@
   "homepage": "https://github.com/Alice39s/kuma-mieru",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Alice39s/kuma-mieru.git"
+    "url": "https://github.com/Alice39s/kuma-mieru.git",
+    "directory": "apps/web"
   },
   "private": true,
   "type": "module",
@@ -16,15 +17,14 @@
   },
   "scripts": {
     "dev": "bun run generate && bun run lint:fix && next dev --turbopack --port 3881",
-    "start": "bun run generate && bun ./scripts/init-start.ts && bun .next/standalone/server.js",
+    "start": "bun run generate && bun ./scripts/init-start.ts && bun .next/standalone/apps/web/server.js",
     "start:docker": "bun run generate && node ./server.js",
     "build": "bun run generate && next build",
     "build:analyze": "bun run generate && ANALYZE=true next build",
     "build:cloudflare": "CF_DEPLOYMENT=true bun run generate && opennextjs-cloudflare build",
     "deploy:cloudflare": "CF_DEPLOYMENT=true opennextjs-cloudflare deploy",
-    "lint": "oxlint .",
-    "lint:fix": "oxlint --fix . && oxfmt .",
-    "format": "oxfmt .",
+    "lint": "oxlint --type-aware --type-check --deny-warnings",
+    "lint:fix": "oxlint --fix && oxfmt",
     "test": "bun test",
     "generate": "bun scripts/generate-config.ts && bun scripts/generate-image-domains.ts && bun scripts/banner.ts",
     "generate:config": "bun scripts/generate-config.ts",
@@ -33,8 +33,10 @@
   },
   "dependencies": {
     "@expressive-code/plugin-shiki": "^0.44.3",
+    "@heroui/alert": "2.2.32",
     "@heroui/react": "^2.8.10",
     "@heroui/theme": "2.4.26",
+    "@kuma-mieru/theme": "workspace:*",
     "@mdx-js/mdx": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
     "@next/bundle-analyzer": "^16.4.3",
@@ -79,27 +81,18 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@next/eslint-plugin-next": "16.4.2",
+    "@kuma-mieru/tsconfig": "workspace:*",
     "@react-types/shared": "3.37.0",
     "@tailwindcss/typography": "^0.5.20",
     "@types/node": "26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@typescript-eslint/eslint-plugin": "8.71.2",
-    "@typescript-eslint/parser": "8.71.2",
     "dotenv": "^18.0.9",
-    "oxfmt": "^0.73.0",
-    "oxlint": "^1.89.0",
     "postcss": "8.5.31",
     "shiki": "^4.5.0",
     "tailwind-variants": "^3.3.1",
     "tailwindcss": "^4.3.3",
-    "typescript": "6.0.3",
+    "typescript": "^7.0.2",
     "wrangler": "^4.152.0"
-  },
-  "trustedDependencies": [
-    "@heroui/shared-utils",
-    "sharp",
-    "workerd"
-  ]
+  }
 }
