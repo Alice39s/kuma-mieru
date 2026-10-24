@@ -6,13 +6,13 @@ import { absoluteUrl, basePath, siteName } from '@/lib/shared';
 
 export const metadata: Metadata = {
   title: `${siteName} ${siteText.zh.byline}`,
-  alternates: { canonical: absoluteUrl('/zh') },
+  alternates: { canonical: absoluteUrl('/zh/') },
 };
 
 /** Readers whose first browser language is not Chinese go to the English docs; everyone else to the Chinese docs. */
 const redirect = `(() => {
   const first = (navigator.languages[0] ?? navigator.language ?? '').toLowerCase();
-  location.replace('${basePath}/' + (first === '' || first.startsWith('zh') ? 'zh' : 'en'));
+  location.replace('${basePath}/' + (first === '' || first.startsWith('zh') ? 'zh/' : 'en/'));
 })();`;
 
 export default function Home() {

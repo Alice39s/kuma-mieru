@@ -6,7 +6,7 @@ import type { Root } from 'mdast';
 import type {} from 'mdast-util-mdx-jsx';
 import { visit } from 'unist-util-visit';
 import type { VFile } from 'vfile';
-import { basePath } from '../site.config.ts';
+import { basePath, siteOrigin } from '../site.config.ts';
 import { i18n } from './i18n.ts';
 
 const contentDir = resolve('content/docs');
@@ -24,8 +24,8 @@ function localeOf(file: string): string {
 
 /**
  * Rewrites links to content files (`../deploy/docker.mdx#compose`, also in `href` props such as `<Card>`) into the
- * public page URL in the language of the linking page, at compile time. Pages, their Markdown twins and
- * `llms-full.txt` then carry the same resolvable links, and a link to a missing page fails the build.
+ * public page path in the language of the linking page, at compile time; a link to a missing page fails the build.
+ * The Markdown twins and `llms-full.txt` are read outside the site, so their copies of the links are absolute URLs.
  */
 export function remarkContentLinks() {
   return (tree: Root, file: VFile) => {
@@ -42,7 +42,7 @@ export function remarkContentLinks() {
       if (!existsSync(resolve(contentDir, path))) {
         throw new Error(`${current}: ${href} points at no content file`);
       }
-      return `${basePath}/${[locale, ...getSlugs(path)].join('/')}${hash}`;
+      return `${basePath}/${[locale, ...getSlugs(path)].map(segment => `${segment}/`).join('')}${hash}`;
     };
     // The Markdown for LLMs is copied from the authored source, so every rewrite is also applied to that output.
     visit(tree, node => {
@@ -51,7 +51,7 @@ export function remarkContentLinks() {
         if (url === node.url) return;
         node.url = url;
         const title = node.title ? ` "${node.title}"` : '';
-        replaceSource(file, node, s => `[${s.inner(node)}](${url}${title})`);
+        replaceSource(file, node, s => `[${s.inner(node)}](${siteOrigin}${url}${title})`);
         return;
       }
       if (node.type !== 'mdxJsxFlowElement' && node.type !== 'mdxJsxTextElement') return;
@@ -74,7 +74,7 @@ export function remarkContentLinks() {
           );
         }
         replaceSource(file, node, s => {
-          s.edit(from, to, `href="${value}"`);
+          s.edit(from, to, `href="${siteOrigin}${value}"`);
           const range = s.range(node);
           if (range === undefined)
             throw new Error(`${current}: <${node.name ?? ''}> has no source range`);

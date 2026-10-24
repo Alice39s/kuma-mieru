@@ -2,7 +2,7 @@ import { llms, loader } from 'fumadocs-core/source';
 import { defineDocs } from 'fumadocs-mdx/macro';
 import { i18n } from './i18n';
 import { resolveIcon } from './icons';
-import { absoluteUrl } from './shared';
+import { absoluteUrl, pagePath } from './shared';
 
 export const docs = defineDocs({
   dir: 'content/docs',
@@ -30,7 +30,9 @@ const publicSource = loader({
   baseUrl: '/',
   i18n,
   url: (slugs, locale) =>
-    absoluteUrl(`/${[locale, ...slugs].filter(segment => segment !== undefined).join('/')}`),
+    absoluteUrl(
+      pagePath(`/${[locale, ...slugs].filter(segment => segment !== undefined).join('/')}`)
+    ),
 });
 
 /**

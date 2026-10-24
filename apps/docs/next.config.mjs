@@ -8,6 +8,8 @@ const workspaceRoot = join(import.meta.dirname, '..', '..');
 const config = {
   // GitHub Pages serves files only: every page, Markdown twin, preview image and the search index is pre-rendered.
   output: 'export',
+  // Pages are written as `<path>/index.html`: GitHub Pages serves `/zh/` from it and redirects `/zh` there.
+  trailingSlash: true,
   basePath,
   images: { unoptimized: true },
   reactStrictMode: true,

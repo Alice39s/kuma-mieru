@@ -44,6 +44,11 @@ export function routeHref(href: string): string {
   return basePath !== '' && href.startsWith(`${basePath}/`) ? href.slice(basePath.length) : href;
 }
 
+/** The public path of a page: pages are exported as directory indexes (`trailingSlash`), so it ends with a slash. */
+export function pagePath(url: string): string {
+  return url.endsWith('/') ? url : `${url}/`;
+}
+
 /** An absolute URL on the published site, for metadata and Markdown output. */
 export function absoluteUrl(path: string): string {
   return `${siteOrigin}${basePath}${path}`;
