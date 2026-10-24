@@ -39,11 +39,11 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build application
-        run: bun run build
+        run: bun run --cwd apps/web build
 
       - name: Start application
         run: |
-          bun run start &
+          bun run --cwd apps/web start &
           for _ in $(seq 1 30); do
             if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q "200\|307"; then
               echo "Application is ready"

@@ -43,7 +43,7 @@ jobs:
       - name: Bump version
         id: bump_version
         run: |
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          CURRENT_VERSION=$(node -p "require('./apps/web/package.json').version")
           echo "Current Version: $CURRENT_VERSION"
 
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
@@ -68,12 +68,12 @@ jobs:
           echo "New Version: $NEW_VERSION"
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
-          # Update package.json
+          # Update the dashboard's package.json, which carries the release version
           bun --eval "
             import { readFileSync, writeFileSync } from 'fs';
-            const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+            const pkg = JSON.parse(readFileSync('apps/web/package.json', 'utf8'));
             pkg.version = '$NEW_VERSION';
-            writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            writeFileSync('apps/web/package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
 
       - name: Generate changelog preview
@@ -94,7 +94,7 @@ jobs:
 
       - name: Commit and push version bump
         run: |
-          git add package.json
+          git add apps/web/package.json
 
           if git diff --cached --quiet; then
             echo "⚠️ No version changes to commit"
