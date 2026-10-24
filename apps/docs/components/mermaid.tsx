@@ -27,6 +27,14 @@ function loadMermaid(): Promise<MermaidModule> {
   return mermaidModule;
 }
 
+/** A HeroUI colour variable (an HSL triple) in the comma syntax Mermaid's colour parser reads. */
+function heroColor(name: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const parts = value.split(/\s+/);
+  if (parts.length !== 3) throw new Error(`${name} is not an HSL triple: "${value}"`);
+  return `hsl(${parts.join(', ')})`;
+}
+
 function MermaidContent({ chart }: { chart: string }) {
   const id = useId();
   const { resolvedTheme } = useTheme();
@@ -40,6 +48,9 @@ function MermaidContent({ chart }: { chart: string }) {
       securityLevel: 'strict',
       fontFamily: 'inherit',
       theme,
+      // The dark theme's grey edge label surface leaves its text below 4.5:1; labels sit on the page background.
+      themeVariables:
+        theme === 'dark' ? { edgeLabelBackground: heroColor('--heroui-background') } : {},
     });
     // Mermaid uses the id in CSS selectors, so it keeps only word characters of React's id.
     render = mermaid.render(`mermaid-${id.replace(/[^\w-]/g, '')}`, chart);

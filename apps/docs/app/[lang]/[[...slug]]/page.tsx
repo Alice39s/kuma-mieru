@@ -49,7 +49,11 @@ export default async function Page(props: PageProps) {
     <DocsPage
       toc={page.data.toc}
       full={page.data.full}
-      tableOfContent={{ style: 'clerk' }}
+      // The table of contents is the page's section navigation, named by its "On this page" heading.
+      tableOfContent={{
+        style: 'clerk',
+        container: { role: 'navigation', 'aria-labelledby': 'toc-title' },
+      }}
       className="sm:px-6 md:px-8 md:pt-8 xl:pt-8"
     >
       <DocsTitle className="text-h1">{page.data.title}</DocsTitle>
