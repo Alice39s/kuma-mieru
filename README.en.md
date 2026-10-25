@@ -23,27 +23,91 @@ Kuma Mieru is a third-party Uptime Kuma monitoring dashboard built on Next.js 16
 
 </div>
 
-## [Table of Contents](https://alice39s.github.io/kuma-mieru/en/)
+## Table of Contents
 
-## [Key Features :sparkles:](https://alice39s.github.io/kuma-mieru/en/#features)
+See the [documentation site](https://alice39s.github.io/kuma-mieru/en/).
 
-## [Preview :camera:](https://alice39s.github.io/kuma-mieru/en/#screenshots)
+## Key Features :sparkles:
 
-## [Deployment :star:](https://alice39s.github.io/kuma-mieru/en/deploy/)
+See [Features](https://alice39s.github.io/kuma-mieru/en/#features).
 
-## [Docker Deployment :whale:](https://alice39s.github.io/kuma-mieru/en/deploy/docker/)
+## Preview :camera:
 
-## [Version Strategy](https://alice39s.github.io/kuma-mieru/en/guides/versioning/)
+See [Screenshots](https://alice39s.github.io/kuma-mieru/en/#screenshots).
 
-## [Environment Variables](https://alice39s.github.io/kuma-mieru/en/configuration/environment/)
+## Deployment :star:
 
-## [Integration with Uptime Kuma :link:](https://alice39s.github.io/kuma-mieru/en/configuration/uptime-kuma/)
+See [Choose a Deployment Method](https://alice39s.github.io/kuma-mieru/en/deploy/).
 
-## [FAQ :question:](https://alice39s.github.io/kuma-mieru/en/guides/faq/)
+### Vercel Deployment (Recommended)
 
-## [Contribution Guide :handshake:](https://alice39s.github.io/kuma-mieru/en/development/)
+See [Vercel](https://alice39s.github.io/kuma-mieru/en/deploy/vercel/).
 
-## [Star History :star2:](https://star-history.dera.page/svg?repos=Alice39s/kuma-mieru&type=Timeline)
+### Netlify Deployment
+
+See [Netlify](https://alice39s.github.io/kuma-mieru/en/deploy/netlify/).
+
+### EdgeOne Pages Deployment
+
+See [EdgeOne Pages](https://alice39s.github.io/kuma-mieru/en/deploy/edgeone/).
+
+### Cloudflare Workers Deployment
+
+See [Cloudflare Workers](https://alice39s.github.io/kuma-mieru/en/deploy/cloudflare/).
+
+### Local Installation
+
+See [Run from Source](https://alice39s.github.io/kuma-mieru/en/deploy/source/).
+
+## Docker Deployment :whale:
+
+See [Docker](https://alice39s.github.io/kuma-mieru/en/deploy/docker/).
+
+### Using Docker Compose (Recommended)
+
+See the Docker Compose tab in [Docker](https://alice39s.github.io/kuma-mieru/en/deploy/docker/#start).
+
+### Manual Docker Deployment
+
+See the docker run tab in [Docker](https://alice39s.github.io/kuma-mieru/en/deploy/docker/#start).
+
+## Version Strategy
+
+See [Versioning](https://alice39s.github.io/kuma-mieru/en/guides/versioning/).
+
+## Environment Variables
+
+See [Environment Variables](https://alice39s.github.io/kuma-mieru/en/configuration/environment/).
+
+## Integration with Uptime Kuma :link:
+
+See [Connect Uptime Kuma](https://alice39s.github.io/kuma-mieru/en/configuration/uptime-kuma/).
+
+## FAQ :question:
+
+See the [FAQ](https://alice39s.github.io/kuma-mieru/en/guides/faq/).
+
+### Why is the time I see in Kuma Mieru offset from the time I see in Uptime Kuma?
+
+See [Set the display time zone](https://alice39s.github.io/kuma-mieru/en/configuration/uptime-kuma/#set-the-display-time-zone).
+
+### Is Uptime Robot / Better Stack / other monitoring data sources compatible?
+
+See the [FAQ](https://alice39s.github.io/kuma-mieru/en/guides/faq/).
+
+## Contribution Guide :handshake:
+
+See [Contributing](https://alice39s.github.io/kuma-mieru/en/development/).
+
+## Star History :star2:
+
+<a href="https://github.com/Alice39s/kuma-mieru/stargazers" target="_blank" style="display: block" align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=Alice39s/kuma-mieru&type=Timeline&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=Alice39s/kuma-mieru&type=Timeline" />
+    <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=Alice39s/kuma-mieru&type=Timeline" />
+  </picture>
+</a>
 
 ## License :lock:
 
