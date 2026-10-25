@@ -24,27 +24,91 @@ Kuma Mieru 是一款基于 Next.js 16、TypeScript 和 Recharts 构建的第三�
 
 </div>
 
-## [目录](https://alice39s.github.io/kuma-mieru/zh/)
+## 目录
 
-## [功能亮点 :sparkles:](https://alice39s.github.io/kuma-mieru/zh/#功能)
+详见[文档站](https://alice39s.github.io/kuma-mieru/zh/)。
 
-## [测试截图 :camera:](https://alice39s.github.io/kuma-mieru/zh/#截图)
+## 功能亮点 :sparkles:
 
-## [快速部署 :star:](https://alice39s.github.io/kuma-mieru/zh/deploy/)
+详见[功能](https://alice39s.github.io/kuma-mieru/zh/#功能)。
 
-## [Docker 部署 :whale:](https://alice39s.github.io/kuma-mieru/zh/deploy/docker/)
+## 测试截图 :camera:
 
-## [版本策略](https://alice39s.github.io/kuma-mieru/zh/guides/versioning/)
+详见[截图](https://alice39s.github.io/kuma-mieru/zh/#截图)。
 
-## [环境变量配置](https://alice39s.github.io/kuma-mieru/zh/configuration/environment/)
+## 快速部署 :star:
 
-## [与 Uptime Kuma 集成 :link:](https://alice39s.github.io/kuma-mieru/zh/configuration/uptime-kuma/)
+详见[选择部署方式](https://alice39s.github.io/kuma-mieru/zh/deploy/)。
 
-## [FAQ :question:](https://alice39s.github.io/kuma-mieru/zh/guides/faq/)
+### 使用 Vercel 部署 (推荐)
 
-## [贡献指南 :handshake:](https://alice39s.github.io/kuma-mieru/zh/development/)
+详见 [Vercel](https://alice39s.github.io/kuma-mieru/zh/deploy/vercel/)。
 
-## [Star History :star2:](https://star-history.dera.page/svg?repos=Alice39s/kuma-mieru&type=Timeline)
+### 使用 Netlify 部署
+
+详见 [Netlify](https://alice39s.github.io/kuma-mieru/zh/deploy/netlify/)。
+
+### 使用 EdgeOne Pages 部署
+
+详见 [EdgeOne Pages](https://alice39s.github.io/kuma-mieru/zh/deploy/edgeone/)。
+
+### 使用 Cloudflare Workers 部署
+
+详见 [Cloudflare Workers](https://alice39s.github.io/kuma-mieru/zh/deploy/cloudflare/)。
+
+### 本地部署
+
+详见[从源码运行](https://alice39s.github.io/kuma-mieru/zh/deploy/source/)。
+
+## Docker 部署 :whale:
+
+详见 [Docker](https://alice39s.github.io/kuma-mieru/zh/deploy/docker/)。
+
+### 使用 Docker Compose（推荐）
+
+详见 [Docker](https://alice39s.github.io/kuma-mieru/zh/deploy/docker/#启动) 的 Docker Compose 标签页。
+
+### Docker Run 部署
+
+详见 [Docker](https://alice39s.github.io/kuma-mieru/zh/deploy/docker/#启动) 的 docker run 标签页。
+
+## 版本策略
+
+详见[版本策略](https://alice39s.github.io/kuma-mieru/zh/guides/versioning/)。
+
+## 环境变量配置
+
+详见[环境变量](https://alice39s.github.io/kuma-mieru/zh/configuration/environment/)。
+
+## 与 Uptime Kuma 集成 :link:
+
+详见[连接 Uptime Kuma](https://alice39s.github.io/kuma-mieru/zh/configuration/uptime-kuma/)。
+
+## FAQ :question:
+
+详见[常见问题](https://alice39s.github.io/kuma-mieru/zh/guides/faq/)。
+
+### 为什么我在 Kuma Mieru 中看到的时间与 Uptime Kuma 中有偏移？
+
+详见[设置显示时区](https://alice39s.github.io/kuma-mieru/zh/configuration/uptime-kuma/#设置显示时区)。
+
+### 请问兼容 Uptime Robot / Better Stack / 其他监控数据源吗？
+
+详见[常见问题](https://alice39s.github.io/kuma-mieru/zh/guides/faq/)。
+
+## 贡献指南 :handshake:
+
+详见[参与开发](https://alice39s.github.io/kuma-mieru/zh/development/)。
+
+## Star History :star2:
+
+<a href="https://github.com/Alice39s/kuma-mieru/stargazers" target="_blank" style="display: block" align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=Alice39s/kuma-mieru&type=Timeline&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=Alice39s/kuma-mieru&type=Timeline" />
+    <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=Alice39s/kuma-mieru&type=Timeline" />
+  </picture>
+</a>
 
 ## 开源许可 :lock:
 
