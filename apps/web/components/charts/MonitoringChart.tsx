@@ -212,8 +212,11 @@ export function MonitoringChart({
   const chartHeight = typeof height === 'number' && height > 0 ? height : 200;
 
   return (
-    <div className="w-full mt-2" ref={chartContainerRef}>
-      <div className="mb-4 mt-3 items-center justify-center flex gap-2">
+    <div
+      className="w-full mt-2 group-data-[glass-cards=true]/appearance:min-w-0"
+      ref={chartContainerRef}
+    >
+      <div className="mb-4 mt-3 items-center justify-center flex gap-2 group-data-[glass-cards=true]/appearance:justify-start group-data-[glass-cards=true]/appearance:overflow-x-auto">
         <Tabs
           size="sm"
           selectedKey={selectedRange}

@@ -8,6 +8,7 @@ import { Pause, Play, RefreshCw } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { GLASS_SURFACE_CLASSES } from './utils/appearance';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -165,7 +166,9 @@ export default function AutoRefresh({ onRefresh, interval = 60000, children }: A
         className={cn(
           'sticky top-0 left-0 right-0',
           'bg-background rounded-b-large',
-          'p-4 space-y-2 z-40'
+          'p-4 space-y-2 z-40',
+          GLASS_SURFACE_CLASSES,
+          'group-data-[glass-cards=true]/appearance:rounded-2xl group-data-[glass-cards=true]/appearance:mt-3'
         )}
       >
         <div className="flex items-center gap-4 max-w-7xl mx-auto">
@@ -191,7 +194,7 @@ export default function AutoRefresh({ onRefresh, interval = 60000, children }: A
           </div>
         </div>
 
-        <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 max-w-7xl mx-auto transition-colors duration-300">
+        <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 max-w-7xl mx-auto transition-colors duration-300 group-data-[glass-cards=true]/appearance:text-slate-700 dark:group-data-[glass-cards=true]/appearance:text-slate-200">
           <div suppressHydrationWarning={true}>
             {t('lastTime', {
               time: format.dateTime(dayjs(lastRefreshTime).toDate(), {

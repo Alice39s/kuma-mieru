@@ -3,6 +3,8 @@
 import { CardBody, CardHeader, Card as HeroUICard } from '@heroui/react';
 import { Navbar as HeroUINavbar, NavbarBrand, NavbarContent, NavbarItem } from '@heroui/react';
 import { Skeleton as HeroUISkeleton } from '@heroui/react';
+import { clsx } from 'clsx';
+import { GLASS_SURFACE_CLASSES } from '../utils/appearance';
 
 export const NavbarSkeleton = () => {
   return (
@@ -39,7 +41,7 @@ export const NavbarSkeleton = () => {
 
 export const MonitorCardSkeleton = () => {
   return (
-    <HeroUICard className="w-full">
+    <HeroUICard className={clsx('w-full', GLASS_SURFACE_CLASSES)}>
       <CardHeader className="flex justify-between items-center">
         {/* 标题 */}
         <div className="flex flex-col gap-2">

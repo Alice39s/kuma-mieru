@@ -10,6 +10,7 @@ import type { SiteConfig } from '@/types/config';
 import type { PageTabMeta } from '@/types/page';
 import { useTheme } from 'next-themes';
 import { useEffect } from 'react';
+import { Background, useBackground } from './Background';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -18,8 +19,9 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, footerConfig, pageTabs }: AppShellProps) {
-  const { pageId } = usePageConfig();
+  const { pageId, appearance } = usePageConfig();
   const { setTheme } = useTheme();
+  const background = useBackground();
   const { config: liveConfig } = useConfig();
   const resolvedFooterConfig = liveConfig?.config ?? footerConfig;
   const resolvedPageTabs = liveConfig?.pageTabs ?? pageTabs;
@@ -36,7 +38,11 @@ export function AppShell({ children, footerConfig, pageTabs }: AppShellProps) {
   }, [liveConfig?.config.theme, setTheme]);
 
   return (
-    <div className="relative flex flex-col min-h-screen">
+    <div
+      className="group/appearance relative isolate flex flex-col min-h-screen"
+      data-glass-cards={appearance.glassCards}
+    >
+      <Background image={background} />
       {liveConfig?.config.googleAnalyticsId ? (
         <Analytics id={liveConfig.config.googleAnalyticsId} />
       ) : null}
@@ -56,7 +62,7 @@ export function AppShell({ children, footerConfig, pageTabs }: AppShellProps) {
       <main key={pageId} className="container mx-auto max-w-7xl pt-4 px-6 grow fade-in-soft">
         {children}
       </main>
-      <Footer config={resolvedFooterConfig} />
+      <Footer config={resolvedFooterConfig} backgroundPhoto={background.photo} />
     </div>
   );
 }
