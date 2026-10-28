@@ -29,6 +29,8 @@
     },
     "dev": {
       "passThroughEnv": [
+        "UNSPLASH_ACCESS_KEY",
+        "PEXELS_API_KEY",
         "UPTIME_KUMA_*",
         "PAGE_ID",
         "KUMA_MIERU_*",

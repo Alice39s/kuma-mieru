@@ -36,7 +36,7 @@ export default function MonitorGroupList({
         {[1, 2].map(groupIndex => (
           <div key={groupIndex}>
             <div className="h-8 w-48 bg-default-100 rounded-lg mb-4" />
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 group-data-[glass-cards=true]/appearance:grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))]">
               {[1, 2, 3].map(cardIndex => (
                 <MonitorCardSkeleton key={cardIndex} />
               ))}
@@ -77,7 +77,7 @@ export default function MonitorGroupList({
                 </Chip>
               )}
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 group-data-[glass-cards=true]/appearance:grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))]">
               <AnimatePresence>
                 {group.monitorList.map(monitor => (
                   <motion.div
