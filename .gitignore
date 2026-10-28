@@ -53,6 +53,7 @@ generated/
 
 dist/
 .open-next/
+.netlify/
 
 *.lock
 !bun.lock
