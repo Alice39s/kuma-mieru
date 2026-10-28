@@ -82,6 +82,7 @@
   },
   "devDependencies": {
     "@kuma-mieru/tsconfig": "workspace:*",
+    "@netlify/plugin-nextjs": "5.16.5",
     "@react-types/shared": "3.37.0",
     "@tailwindcss/typography": "^0.5.20",
     "@types/node": "26.6.5",

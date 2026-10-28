@@ -40,7 +40,7 @@ icon: Globe
 
 ## 构建设置
 
-`apps/web/netlify.toml` 设置了构建命令 `bun run --cwd apps/web build` 和发布目录 `apps/web/.next`，路径都相对于仓库根目录。Netlify 会自动启用 Next.js 适配器。除 Package directory 外，其他构建设置不需要手动修改。
+`apps/web/netlify.toml` 设置了构建命令 `bun run --cwd apps/web build` 和发布目录 `apps/web/.next`，路径都相对于仓库根目录。它显式启用 `apps/web/package.json` 中固定版本的 Next.js 适配器。除 Package directory 外，其他构建设置不需要手动修改。
 
 ## 修改环境变量
 
@@ -49,7 +49,10 @@ icon: Globe
 ## 已知问题
 
 <Callout type="warn" title="构建报错 Could not patch functions config manifest file">
-  Netlify 的 Next.js 适配器 `@netlify/plugin-nextjs` 5.16.4 在打包 Node.js
-  Proxy（`proxy.ts`）时，可能报出 `Could not patch functions config manifest file`
-  构建错误。遇到这个错误时，请等待适配器发布修复版本，再重新部署。
+  `@netlify/plugin-nextjs` 5.16.4 在 Node.js 26.8 及以上版本打包 Proxy（`proxy.ts`）时，
+  可能报出这个错误。本仓库暂时固定使用包含修复的 5.16.5。
+  [适配器维护者说明](https://github.com/opennextjs/opennextjs-netlify/pull/3599#issuecomment-6475807479)，
+  [插件版本清单更新](https://github.com/netlify/plugins/pull/1512)发布后，Netlify
+  会自动安装修复版本， 届时可以移除固定版本的依赖和显式插件配置。已有 Fork 请同步
+  `apps/web/package.json`、 `bun.lock` 和 `apps/web/netlify.toml`，再重新部署。
 </Callout>
