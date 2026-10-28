@@ -32,10 +32,9 @@ export function useBackground() {
       refreshInterval: backgroundRefreshSeconds
         ? Math.max(backgroundRefreshSeconds, 900) * 1000
         : 0,
-      revalidateOnFocus: false,
+      revalidateOnFocus: true,
       dedupingInterval: 60000,
       errorRetryInterval: 60000,
-      errorRetryCount: 2,
       keepPreviousData: true,
     }
   );
