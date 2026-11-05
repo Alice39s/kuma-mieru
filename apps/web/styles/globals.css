@@ -20,7 +20,7 @@
 }
 
 .fade-in-soft {
-  animation: fade-in-soft 0.22s ease-out both;
+  animation: fade-in-soft 0.22s ease-out backwards;
 }
 
 /* Tab scroll list: hide scrollbar while keeping scroll behaviour */

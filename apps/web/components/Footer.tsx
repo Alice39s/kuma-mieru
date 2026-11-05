@@ -4,12 +4,14 @@ import type { SiteConfig } from '@/types/config';
 import { Link } from '@heroui/react';
 
 import packageJson from '@/package.json';
+import type { BackgroundPhoto } from '@/config/background';
 
 interface FooterProps {
   config?: SiteConfig;
+  backgroundPhoto?: BackgroundPhoto;
 }
 
-export function Footer({ config }: FooterProps) {
+export function Footer({ config, backgroundPhoto }: FooterProps) {
   const footerConfig = config;
 
   const footerText = footerConfig?.footerText ?? '';
@@ -49,6 +51,28 @@ export function Footer({ config }: FooterProps) {
           )}
         </div>
       </div>
+      {backgroundPhoto ? (
+        <p className="mt-2 text-xs text-foreground">
+          Photo by{' '}
+          <a
+            href={backgroundPhoto.photographerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2"
+          >
+            {backgroundPhoto.photographer}
+          </a>{' '}
+          on{' '}
+          <a
+            href={backgroundPhoto.photoUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2"
+          >
+            {backgroundPhoto.source === 'unsplash' ? 'Unsplash' : 'Pexels'}
+          </a>
+        </p>
+      ) : null}
     </footer>
   );
 }
