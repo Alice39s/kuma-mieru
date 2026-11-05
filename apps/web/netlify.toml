@@ -4,5 +4,8 @@
 command = "bun run --cwd apps/web build"
 publish = "apps/web/.next"
 
+[[plugins]]
+package = "@netlify/plugin-nextjs"
+
 [template.environment]
 UPTIME_KUMA_URLS = "Uptime Kuma status page URL(s), separate multiple URLs with |"

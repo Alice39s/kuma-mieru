@@ -40,7 +40,7 @@ Click `Deploy` to start the deployment.
 
 ## Build settings
 
-`apps/web/netlify.toml` sets the build command `bun run --cwd apps/web build` and the publish directory `apps/web/.next`. Both paths are relative to the repository root. Netlify enables its Next.js adapter automatically. Apart from the package directory, the build settings need no manual changes.
+`apps/web/netlify.toml` sets the build command `bun run --cwd apps/web build` and the publish directory `apps/web/.next`. Both paths are relative to the repository root. It explicitly enables the Next.js adapter version pinned in `apps/web/package.json`. Apart from the package directory, the build settings need no manual changes.
 
 ## Change environment variables
 
@@ -49,7 +49,12 @@ Click `Deploy` to start the deployment.
 ## Known issues
 
 <Callout type="warn" title="Build error: Could not patch functions config manifest file">
-  The Netlify Next.js adapter `@netlify/plugin-nextjs` 5.16.4 can fail with `Could not patch
-  functions config manifest file` while it packages the Node.js Proxy (`proxy.ts`). If the build
-  fails with this error, wait until the adapter publishes a fixed version. Then redeploy.
+  `@netlify/plugin-nextjs` 5.16.4 can fail with this error while it packages the Proxy (`proxy.ts`)
+  on Node.js 26.8 or later. This repository temporarily pins 5.16.5, which includes the fix. As the
+  [adapter maintainer
+  explains](https://github.com/opennextjs/opennextjs-netlify/pull/3599#issuecomment-6475807479),
+  Netlify will install it automatically after [the plugin manifest
+  update](https://github.com/netlify/plugins/pull/1512) ships. Once that update is available, the
+  explicit pin and plugin entry can be removed. For an existing fork, sync `apps/web/package.json`,
+  `bun.lock` and `apps/web/netlify.toml`, then redeploy.
 </Callout>
