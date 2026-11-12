@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { ResponsStats } from './charts/ResponsStats';
 import { StatusBlockIndicator } from './charts/StatusBlockIndicator';
 import { usePageConfig } from './context/PageConfigContext';
+import { GLASS_SURFACE_CLASSES } from './utils/appearance';
 import {
   getMonitorCardStatusMeta,
   getMonitorDetailPath,
@@ -53,7 +54,11 @@ export function MonitorCardLite({
       whileHover={isHome ? { y: -3, transition: { duration: 0.2 } } : {}}
     >
       <Card
-        className={clsx('w-full h-auto', isHome && 'cursor-pointer hover:shadow-md transition-all')}
+        className={clsx(
+          'w-full h-auto',
+          GLASS_SURFACE_CLASSES,
+          isHome && 'cursor-pointer hover:shadow-md transition-all'
+        )}
       >
         <CardBody className="py-2 px-4">
           <div className="flex items-center justify-between gap-2">

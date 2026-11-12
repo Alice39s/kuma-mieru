@@ -40,6 +40,7 @@ export const getConfig = (pageId?: string): Config | null => {
     isPlaceholder: env.config.isPlaceholder,
     isEditThisPage: isEditThisPage ?? false,
     isShowStarButton: isShowStarButton ?? true,
+    appearance: env.config.appearance,
     htmlEndpoint: `${resolvedBaseUrl}/status/${resolvedPageId}`,
     apiEndpoint: `${resolvedBaseUrl}/api/status-page/heartbeat/${resolvedPageId}`,
   };

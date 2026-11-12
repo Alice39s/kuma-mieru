@@ -130,6 +130,44 @@ PAGE_ID=default,status-asia
   Docker 中的取值见 [Docker](../deploy/docker.mdx)。
 </Callout>
 
+### 背景图与毛玻璃卡片
+
+设置 `KUMA_MIERU_GLASS_CARDS=true` 后，监控卡片、导航和刷新栏使用磨砂玻璃样式：半透明底色、背景模糊、细边缘高光和柔和阴影，同时适配浅色与深色主题。默认仍为无背景图的实色界面。
+
+静态图片和自定义图片接口可以使用 HTTP(S) URL，或 `apps/web/public` 中以 `/` 开头的路径。内置的 `/backgrounds/alpine-lake.webp` 是 AI 生成的示例壁纸：
+
+```ini
+KUMA_MIERU_BACKGROUND_IMAGE=/backgrounds/alpine-lake.webp
+KUMA_MIERU_GLASS_CARDS=true
+```
+
+需要自动同步图库时，选择 `unsplash` 或 `pexels`，并在服务端配置对应密钥：
+
+```ini
+KUMA_MIERU_BACKGROUND_SOURCE=unsplash
+UNSPLASH_ACCESS_KEY=your-access-key
+KUMA_MIERU_BACKGROUND_QUERY=alpine lake
+KUMA_MIERU_BACKGROUND_REFRESH_SECONDS=21600
+KUMA_MIERU_GLASS_CARDS=true
+# Pexels 使用 KUMA_MIERU_BACKGROUND_SOURCE=pexels 和 PEXELS_API_KEY。
+```
+
+| 变量                                     | 默认值             | 含义                                               |
+| ---------------------------------------- | ------------------ | -------------------------------------------------- |
+| `KUMA_MIERU_BACKGROUND_SOURCE`           | `custom`           | `custom`、`unsplash` 或 `pexels`                   |
+| `KUMA_MIERU_BACKGROUND_IMAGE`            | 空                 | 自定义图片 URL，或图库加载期间显示的初始图片       |
+| `KUMA_MIERU_BACKGROUND_QUERY`            | `nature landscape` | 图库检索词，只选择横向图片                         |
+| `KUMA_MIERU_BACKGROUND_REFRESH_SECONDS`  | `21600`            | 刷新间隔：900–86400 秒；0 关闭自动刷新             |
+| `UNSPLASH_ACCESS_KEY` / `PEXELS_API_KEY` | 空                 | 仅供服务端使用的图库密钥，不写入生成配置和公开配置 |
+
+图库图片由浏览器直接从提供商加载，页脚显示摄影师与图库链接。选择 Unsplash 图片时，服务端也会调用下载计数接口。服务端合并并发请求，每个进程缓存一张照片，并使用 CDN 缓存响应，不下载或存储照片。请使用自己的图库 API 密钥，并留意提供商的调用额度。
+
+新图片预加载成功后才淡入；图库请求或图片加载失败时保留上一张背景。首次加载使用 `KUMA_MIERU_BACKGROUND_IMAGE`，未设置时使用内置示例。图库请求失败后，服务端等待一分钟再重试。标签页隐藏时暂停图库轮询。
+
+自定义 URL 由浏览器加载，每次自动刷新会增加 `_kuma_bg` 查询参数。签名 URL 或必须保持原始 URL 的静态文件，请将刷新间隔设为 0。HTTPS 仪表盘请使用 HTTPS 图片。不支持背景模糊的浏览器仅显示半透明底色。
+
+托管平台修改 `KUMA_MIERU_*` 后需重新部署；Docker 修改后需重新创建容器。图库密钥在服务端启动时读取。本地图片应在构建应用或镜像前放入 `apps/web/public`。
+
 ### 按钮
 
 | 变量                          | 默认值  | 作用                     |
