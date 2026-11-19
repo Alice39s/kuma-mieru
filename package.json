@@ -20,10 +20,10 @@
     "format:check": "oxfmt --check"
   },
   "devDependencies": {
-    "oxfmt": "^0.77.0",
-    "oxlint": "^1.92.0",
-    "oxlint-tsgolint": "^7.0.2006",
-    "turbo": "^2.11.10",
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
+    "oxlint-tsgolint": "^7.0.2007",
+    "turbo": "^2.11.11",
     "typescript": "^7.0.2"
   },
   "trustedDependencies": [
