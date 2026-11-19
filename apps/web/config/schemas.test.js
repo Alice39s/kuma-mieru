@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { safeParse, summarize } from 'valibot';
-import { generatedConfigFileSchema, siteMetaSchema } from './schemas';
+import { appearanceSchema, generatedConfigFileSchema, siteMetaSchema } from './schemas';
 
 const siteMeta = {
   title: 'Kuma Mieru',
@@ -18,6 +18,13 @@ const generatedConfig = {
   isPlaceholder: false,
   isEditThisPage: false,
   isShowStarButton: true,
+  appearance: {
+    backgroundImage: '',
+    glassCards: false,
+    backgroundSource: 'custom',
+    backgroundQuery: 'nature landscape',
+    backgroundRefreshSeconds: 21600,
+  },
 };
 
 const parseConfigFile = config => safeParse(generatedConfigFileSchema, JSON.stringify(config));
@@ -52,4 +59,52 @@ test('generatedConfigFileSchema rejects malformed JSON', () => {
 
 test('siteMetaSchema requires at least one icon candidate', () => {
   expect(safeParse(siteMetaSchema, { ...siteMeta, iconCandidates: [] }).success).toBe(false);
+});
+
+test('appearance defaults preserve the existing dashboard', () => {
+  const { appearance, ...legacyConfig } = generatedConfig;
+  expect(parseConfigFile(legacyConfig).output.appearance).toEqual(appearance);
+});
+
+test('appearance accepts remote images and local public paths', () => {
+  for (const backgroundImage of [
+    'https://images.example.com/photo.jpg',
+    'http://localhost:3881/background.png',
+    '/background.webp',
+    '/images/my background (1).jpg',
+  ]) {
+    const result = safeParse(appearanceSchema, { backgroundImage, glassCards: true });
+    expect(result.success).toBe(true);
+    expect(result.output).toMatchObject({ backgroundImage, glassCards: true });
+  }
+});
+
+test('appearance rejects invalid URLs and non-HTTP protocols', () => {
+  for (const backgroundImage of [
+    'not a url',
+    '//images.example.com/photo.jpg',
+    '/\\images.example.com/photo.jpg',
+    '/image\n.jpg',
+    'javascript:alert(1)',
+    'data:image/png;base64,AAAA',
+    'file:///image.jpg',
+  ]) {
+    expect(safeParse(appearanceSchema, { backgroundImage }).success).toBe(false);
+  }
+});
+
+test('background sources and refresh intervals accept only documented options', () => {
+  for (const backgroundSource of ['custom', 'unsplash', 'pexels']) {
+    for (const backgroundRefreshSeconds of [0, 900, 21600, 86400]) {
+      expect(
+        safeParse(appearanceSchema, { backgroundSource, backgroundRefreshSeconds }).success
+      ).toBe(true);
+    }
+  }
+  for (const backgroundRefreshSeconds of [-1, 1, 899, 86401, 900.5]) {
+    expect(safeParse(appearanceSchema, { backgroundRefreshSeconds }).success).toBe(false);
+  }
+  expect(safeParse(appearanceSchema, { backgroundSource: 'unconfigured-provider' }).success).toBe(
+    false
+  );
 });

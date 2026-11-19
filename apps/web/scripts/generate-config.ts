@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse } from 'valibot';
 import { DEFAULT_SITE_META as DEFAULT_SITE_META_VALUES } from '../config/defaults';
-import { generatedConfigSchema, siteMetaSchema } from '../config/schemas';
+import { appearanceSchema, generatedConfigSchema, siteMetaSchema } from '../config/schemas';
 import type { SiteMeta } from '../config/schemas';
 import { resolvePreloadDataFromHtml } from '../utils/preload-data';
 import { getString, getBooleanWithSource } from './lib/env';
@@ -187,6 +187,15 @@ async function generateConfig() {
 
     const isEditThisPage = getBooleanWithSource('KUMA_MIERU_EDIT_THIS_PAGE', false);
     const isShowStarButton = getBooleanWithSource('KUMA_MIERU_SHOW_STAR_BUTTON', true);
+    const appearance = parse(appearanceSchema, {
+      backgroundImage: process.env.KUMA_MIERU_BACKGROUND_IMAGE,
+      glassCards: process.env.KUMA_MIERU_GLASS_CARDS?.trim().toLowerCase() === 'true',
+      backgroundSource: process.env.KUMA_MIERU_BACKGROUND_SOURCE?.trim() || undefined,
+      backgroundQuery: process.env.KUMA_MIERU_BACKGROUND_QUERY?.trim() || undefined,
+      backgroundRefreshSeconds: process.env.KUMA_MIERU_BACKGROUND_REFRESH_SECONDS
+        ? Number(process.env.KUMA_MIERU_BACKGROUND_REFRESH_SECONDS)
+        : undefined,
+    });
 
     console.log(
       `[env] - isEditThisPage: ${isEditThisPage.value}` +
@@ -236,6 +245,7 @@ async function generateConfig() {
       isPlaceholder: false,
       isEditThisPage: isEditThisPage.value,
       isShowStarButton: isShowStarButton.value,
+      appearance,
     });
 
     const configPath = path.join(process.cwd(), 'config', 'generated-config.json');

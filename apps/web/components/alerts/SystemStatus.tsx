@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { calculateMonitorStatusCounts } from '@/utils/monitor-status';
 import { useMonitorData } from '../utils/swr';
+import { GLASS_SURFACE_CLASSES } from '../utils/appearance';
 
 const pingAnimation = {
   animation: 'slowPing 3s cubic-bezier(0,0,0.2,1) infinite',
@@ -69,6 +70,17 @@ export function SystemStatusAlert() {
     return 'bg-white/30 dark:bg-white/25';
   };
 
+  const glassStatusColors: Record<string, string> = {
+    normal:
+      'group-data-[glass-cards=true]/appearance:text-emerald-800 dark:group-data-[glass-cards=true]/appearance:text-emerald-300',
+    warning:
+      'group-data-[glass-cards=true]/appearance:text-amber-900 dark:group-data-[glass-cards=true]/appearance:text-amber-200',
+    error:
+      'group-data-[glass-cards=true]/appearance:text-rose-800 dark:group-data-[glass-cards=true]/appearance:text-rose-300',
+    unknown:
+      'group-data-[glass-cards=true]/appearance:text-slate-700 dark:group-data-[glass-cards=true]/appearance:text-slate-200',
+  };
+
   const statusIcons: Record<string, LucideIcon> = {
     normal: CheckCircle,
     warning: AlertTriangle,
@@ -83,7 +95,10 @@ export function SystemStatusAlert() {
 
     return (
       <Icon
-        className={cn('w-6 h-6 text-white transition-transform', animate ? 'scale-110' : '')}
+        className={cn(
+          'w-6 h-6 text-white transition-transform group-data-[glass-cards=true]/appearance:text-inherit',
+          animate ? 'scale-110' : ''
+        )}
         aria-hidden="true"
       />
     );
@@ -105,9 +120,14 @@ export function SystemStatusAlert() {
 
   return (
     <div
-      className={`relative overflow-hidden w-full py-3 md:py-4 px-4 md:px-6 bg-linear-to-r ${getBackgroundStyle()} shadow-lg rounded-2xl mx-auto my-4`}
+      className={cn(
+        `relative overflow-hidden w-full py-3 md:py-4 px-4 md:px-6 bg-linear-to-r ${getBackgroundStyle()} shadow-lg rounded-2xl mx-auto my-4`,
+        GLASS_SURFACE_CLASSES,
+        'group-data-[glass-cards=true]/appearance:bg-none',
+        glassStatusColors[isLoading ? 'unknown' : systemStatus]
+      )}
     >
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none group-data-[glass-cards=true]/appearance:hidden">
         <div className="absolute right-0 top-0 rounded-full w-64 h-64 -mt-32 -mr-32 bg-white/5" />
         <div className="absolute left-0 bottom-0 rounded-full w-48 h-48 -mb-24 -ml-24 bg-black/5" />
       </div>
@@ -125,7 +145,7 @@ export function SystemStatusAlert() {
                 }
               `}</style>
               <div
-                className="absolute -inset-4 bg-white/20 rounded-full -z-10"
+                className="absolute -inset-4 bg-white/20 rounded-full -z-10 group-data-[glass-cards=true]/appearance:hidden"
                 style={pingAnimation}
               />
               <div
@@ -134,13 +154,13 @@ export function SystemStatusAlert() {
                 {getStatusIcon()}
               </div>
             </div>
-            <h1 className="text-white font-bold text-xl md:text-xl tracking-wide">
+            <h1 className="text-white font-bold text-xl md:text-xl tracking-wide group-data-[glass-cards=true]/appearance:text-inherit">
               {isLoading ? (
                 <div className="h-7 w-56 bg-white/20 rounded animate-pulse" />
               ) : (
                 <>
                   {getStatusText()}
-                  <span className="text-white/90 text-sm md:text-base ml-2">{`(${affectedMonitors}/${totalMonitors})`}</span>
+                  <span className="text-white/90 text-sm md:text-base ml-2 group-data-[glass-cards=true]/appearance:text-inherit">{`(${affectedMonitors}/${totalMonitors})`}</span>
                 </>
               )}
             </h1>

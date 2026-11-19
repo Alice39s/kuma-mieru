@@ -27,6 +27,7 @@ import { useTranslations } from 'next-intl';
 import { useNodeSearch } from '../context/NodeSearchContext';
 import { usePageConfig } from '../context/PageConfigContext';
 import { useConfig } from '../utils/swr';
+import { GLASS_SURFACE_CLASSES } from '../utils/appearance';
 import { I18NSwitch } from './i18n-switch';
 
 export const Navbar = () => {
@@ -137,7 +138,14 @@ export const Navbar = () => {
   ];
 
   return (
-    <HeroUINavbar maxWidth="xl" position="static">
+    <HeroUINavbar
+      maxWidth="xl"
+      position="static"
+      className={clsx(
+        GLASS_SURFACE_CLASSES,
+        'group-data-[glass-cards=true]/appearance:shadow-none'
+      )}
+    >
       <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
         <NavbarBrand className="gap-3 max-w-fit">
           <NextLink className="flex justify-start items-center gap-1" href={homeHref}>

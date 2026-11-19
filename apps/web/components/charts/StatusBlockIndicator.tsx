@@ -71,7 +71,7 @@ export function StatusBlockIndicator({
   return (
     <div className={clsx('relative mt-4 flex flex-col gap-1 min-w-0', className)}>
       {/* 图例和延迟统计 */}
-      <div className="absolute -top-5 flex w-full items-center justify-between">
+      <div className="absolute -top-5 flex w-full items-center justify-between group-data-[glass-cards=true]/appearance:static group-data-[glass-cards=true]/appearance:flex-wrap group-data-[glass-cards=true]/appearance:gap-2">
         {showHeader && <PingStats heartbeats={recentHeartbeats} isHome={isHome} />}
         <div
           className={clsx(

@@ -131,6 +131,44 @@ The default icon also appears if the response type is not `image/*` or the image
   in Docker, see [Docker](../deploy/docker.mdx).
 </Callout>
 
+### Background image and glass cards
+
+Enable `KUMA_MIERU_GLASS_CARDS=true` for frosted monitor cards, navigation and refresh controls. The glass uses a translucent tint, backdrop blur, a fine highlight and a soft shadow in both themes. The default remains the solid interface without a background.
+
+For a static image or a custom image endpoint, use an HTTP(S) URL or a path in `apps/web/public`. The included `/backgrounds/alpine-lake.webp` is an AI-generated sample wallpaper:
+
+```ini
+KUMA_MIERU_BACKGROUND_IMAGE=/backgrounds/alpine-lake.webp
+KUMA_MIERU_GLASS_CARDS=true
+```
+
+For automatic gallery backgrounds, select `unsplash` or `pexels` and set the matching API key on the server:
+
+```ini
+KUMA_MIERU_BACKGROUND_SOURCE=unsplash
+UNSPLASH_ACCESS_KEY=your-access-key
+KUMA_MIERU_BACKGROUND_QUERY=alpine lake
+KUMA_MIERU_BACKGROUND_REFRESH_SECONDS=21600
+KUMA_MIERU_GLASS_CARDS=true
+# For Pexels, use KUMA_MIERU_BACKGROUND_SOURCE=pexels and PEXELS_API_KEY.
+```
+
+| Variable                                 | Default            | Meaning                                                                           |
+| ---------------------------------------- | ------------------ | --------------------------------------------------------------------------------- |
+| `KUMA_MIERU_BACKGROUND_SOURCE`           | `custom`           | `custom`, `unsplash` or `pexels`                                                  |
+| `KUMA_MIERU_BACKGROUND_IMAGE`            | Empty              | Custom image URL, or the initial image while a gallery loads                      |
+| `KUMA_MIERU_BACKGROUND_QUERY`            | `nature landscape` | Gallery search terms; landscape images only                                       |
+| `KUMA_MIERU_BACKGROUND_REFRESH_SECONDS`  | `21600`            | Refresh interval: 900–86400 seconds, or 0 to disable automatic refresh            |
+| `UNSPLASH_ACCESS_KEY` / `PEXELS_API_KEY` | Empty              | Server-only gallery credentials; excluded from generated and public configuration |
+
+Gallery images load directly from the provider, with photographer and provider links in the footer. Unsplash selection also calls its download-tracking endpoint. The server shares concurrent lookups, caches one selection per process, and caches the response at the CDN. It does not download or store the photo. These are provider-backed API integrations, so configure your own key and observe your provider quota.
+
+A replacement is preloaded before it fades in. Failed gallery requests or image loads keep the previous image; a cold start uses `KUMA_MIERU_BACKGROUND_IMAGE`, or the included sample. The server waits one minute before retrying a failed gallery request. Hidden tabs pause gallery polling.
+
+Custom URLs load in the browser, and each automatic refresh adds a `_kuma_bg` query parameter. Set the interval to 0 for signed URLs or static files that must keep their URL unchanged. Use HTTPS images on an HTTPS dashboard. A browser without backdrop-filter support displays the translucent tint without blur.
+
+On hosting platforms, redeploy after changing `KUMA_MIERU_*`. With Docker, recreate the container. Provider keys are read at server startup. Include local images in `apps/web/public` before building the application or image.
+
 ### Buttons
 
 | Variable                      | Default | Effect                          |

@@ -13,6 +13,7 @@ import { ResponsStats } from './charts/ResponsStats';
 import { StatusBlockIndicator } from './charts/StatusBlockIndicator';
 import { usePageConfig } from './context/PageConfigContext';
 import { useClientSnapshot } from './utils/client-snapshot';
+import { GLASS_SURFACE_CLASSES } from './utils/appearance';
 import {
   getMonitorCardStatusMeta,
   getMonitorDetailPath,
@@ -104,6 +105,7 @@ export function MonitorCard({
       <Card
         className={clsx(
           'h-full grid grid-rows-[auto_1fr]',
+          GLASS_SURFACE_CLASSES,
           isHome ? 'w-full' : 'w-full md:w-2/3 mx-auto',
           isHome && 'cursor-pointer hover:shadow-md transition-all'
         )}
@@ -149,12 +151,12 @@ export function MonitorCard({
             )}
           </div>
         </CardHeader>
-        <CardBody className="grid grid-rows-[auto_auto_1fr] gap-4">
+        <CardBody className="grid grid-rows-[auto_auto_1fr] gap-4 group-data-[glass-cards=true]/appearance:min-w-0">
           <StatusBlockIndicator heartbeats={heartbeats} isHome={isHome} showHeader={true} />
 
           <Divider />
 
-          <div className="self-end w-full">
+          <div className="self-end w-full group-data-[glass-cards=true]/appearance:min-w-0">
             {!isSafari && (
               <MonitoringChart
                 heartbeats={heartbeats}
